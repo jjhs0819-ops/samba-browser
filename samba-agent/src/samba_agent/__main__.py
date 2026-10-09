@@ -34,6 +34,7 @@ from samba_agent.export.stage import (
 )
 from samba_agent.export.store import ExportQueue
 from samba_agent.gateway.slack_bot import SambaBot
+from samba_agent.gateway.wave_approval import WaveApprovalRelay, WaveEventSink
 from samba_agent.llm.decide import make_decide
 from samba_agent.ops.crosscheck import CrossChecker, LedgerRow
 from samba_agent.ops.crosscheck import configure as configure_crosscheck
@@ -359,24 +360,48 @@ def main() -> None:
     if export is None:
         log.info('외부 기입(EMP·샵마인)은 꺼져 있다 — SAMBA_EXPORT_ENABLED')
 
+    # 삼바 이벤트 싱크 — 에이전트 결과·보고 한 줄을 samba_purchase_event 에 남긴다(사용자 2026-10-09: 전 단계 수집)
+    sink = WaveEventSink(wave) if wave is not None else None
+
+    def _on_agent_result(
+        state: dict, stage: str, agent: str, result: object, duration_ms: int, attempt: int
+    ) -> None:
+        _record_agent(state, stage, agent, result, duration_ms, attempt)
+        if sink is not None:
+            sink.agent_result(state, stage, agent, result, duration_ms, attempt)
+
     graph = build_supervisor(
         reg,
         agents,
         checkpointer=checkpointer,
         gate=True,
         on_stage_start=lambda state, stage: worker.mark_stage(state, stage),
-        on_agent_result=_record_agent,
+        on_agent_result=_on_agent_result,
         exporter=export[1] if export is not None else None,
     )
 
     _report, _approval_report = make_reporters(lambda: bot)
+
+    def _report_all(job: Job, line: str) -> None:
+        """슬랙/로그 보고 + 삼바 이벤트(system.report)."""
+        _report(job, line)
+        if sink is not None:
+            sink.line(job, line)
+
+    # 삼바 승인카드 연동 — worker 가 만들어진 뒤 꽂는다(resume 가 필요). 그 전엔 요청을 버리지 않고 폴러가 다시 올린다
+    relay_holder: list[WaveApprovalRelay] = []
+
+    def _approval_request(job: Job, req: dict) -> None:
+        if relay_holder:
+            relay_holder[0].request(job, req)
 
     worker = Worker(
         WorkerDeps(
             queue=queue,
             graph=graph,
             version=version_fn,  # 콜러블 그대로 넘긴다 — tick 마다 다시 불러 규칙 변경을 반영한다
-            report=_report,
+            report=_report_all,
+            approval_request=_approval_request if wave is not None else None,
             # 행 id(wave_id)가 있으면 그것으로 조회한다 — 같은 상품주문번호의 다른 행을 읽지 않게
             parse_order=lambda job: _parse_order(job.order_no, job.options, job.wave_id),
             # 같은 주문을 취소 뒤 다시 접수하면 job id(=스레드)가 같다 — 끝난 실행의 attempts·results 가
@@ -418,6 +443,11 @@ def main() -> None:
             ),
         )
     )
+
+    relay: WaveApprovalRelay | None = None
+    if wave is not None:
+        relay = WaveApprovalRelay(wave, queue, worker.resume, settings.wave_approval_poll_s)
+        relay_holder.append(relay)
 
     def _diagnose_text(version: str | None) -> str:
         v = version or version_fn()
@@ -593,6 +623,12 @@ def main() -> None:
         )
         threading.Thread(
             target=checker.run_forever, args=(stop.is_set,), daemon=True, name='crosscheck'
+        ).start()
+
+    if relay is not None:
+        # 삼바 승인카드 폴링 — 사장님이 [결제]/[거부]를 누르면 멈춘 그래프를 깨운다
+        threading.Thread(
+            target=relay.run_forever, args=(stop.is_set,), daemon=True, name='wave-approval'
         ).start()
 
     if intake is not None:

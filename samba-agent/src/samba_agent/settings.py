@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     allowed_pay_providers: str = Field(default='', alias='SAMBA_ALLOWED_PAY_PROVIDERS')
     # True 면 결제 승인 요청을 사람 대신 즉시 승인한다(사용자가 자동 이행을 켠 경우만)
     auto_approve: bool = Field(default=False, alias='SAMBA_AUTO_APPROVE')
+    # 삼바 주문화면 승인카드 폴링 주기(초) — 승인 대기 작업마다 GET /orders/{key}/approval (사용자 2026-10-09)
+    wave_approval_poll_s: float = Field(default=2.0, ge=0.5, alias='SAMBA_WAVE_APPROVAL_POLL_S')
     # 자동 승인하지 않고 사람 승인을 받을 결제수단(쉼표, 표시 이름 일부) — 실결제 검증 전 수단(페이코 2026-09-25)
     manual_approve_methods: str = Field(default='', alias='SAMBA_MANUAL_APPROVE_METHODS')
     # 주문 계정이 지정되지 않은 구매에서 원가를 비교할 소싱 계정 수 상한(계정마다 로그인·주문서를 만든다)

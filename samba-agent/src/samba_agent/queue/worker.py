@@ -48,6 +48,9 @@ class WorkerDeps:
     # 승인 요청 전용 통로 — 슬랙 버튼을 달아 보낸다(리뷰 지적 — Critical 1).
     # 주입하지 않으면 평문 보고(report)로 떨어진다.
     approval_report: Callable[[Job, str, str, str], None] | None = None
+    # 승인 요청 원본(stage·order_no·summary·evidence) 을 받는 훅 — 삼바 주문화면 승인카드(백엔드)에 올린다
+    # (사용자 2026-10-09). 슬랙 보고와 별개로 부르며, 실패해도 작업을 막지 않는다
+    approval_request: Callable[[Job, dict[str, object]], None] | None = None
     # settings.dry_run 이 아직 여기까지 안 들어와서 당장은 기본값 True 로 주입한다.
     dry_run: bool = True
     # dry-run 에서 결제 비밀번호를 몇 자리만 눌러 보고 취소할지(0 이면 결제창까지만)
@@ -383,6 +386,12 @@ class Worker:
             order_no = str(req.get('order_no') or job.order_no)
             self.d.queue.progress(job.id, agent=f'approval.{stage}', step=f'승인 대기: {stage}')
             self.d.queue.finish(job.id, 'needs_human')
+            if self.d.approval_request is not None:
+                # 삼바 승인카드 — 실패(백엔드 끊김)는 로그만. 폴러가 '요청 없음'을 보면 다시 올린다
+                try:
+                    self.d.approval_request(job, dict(req))
+                except Exception as e:  # noqa: BLE001 — 승인카드 등록 실패가 큐를 막으면 안 된다
+                    _log.warning('승인요청 등록 실패(%s) — 폴러가 다시 올린다', type(e).__name__)
             if self.d.approval_report is not None:
                 # 버튼 value 에는 작업 키(행 id)를 싣는다 — 같은 상품주문번호의 다른 행 승인과 섞이지 않게
                 self.d.approval_report(job, job.key, stage, summary)

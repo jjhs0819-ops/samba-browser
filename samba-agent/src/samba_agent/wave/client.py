@@ -527,6 +527,34 @@ class WaveClient:
         body = self._request('POST', f'/orders/{order_no}/memo', json={'line': line})
         return bool(body.get('rows')) if isinstance(body, dict) else False
 
+    # ---- 발주 승인·이벤트(삼바 주문화면 승인카드, 사용자 2026-10-09) ----
+
+    def post_approval(
+        self, key: str, *, stage: str, summary: str, payload: dict[str, object]
+    ) -> dict[str, object]:
+        """결제 직전 승인요청을 삼바에 올린다. 같은 주문의 대기건은 삼바가 교체한다.
+
+        ``key`` 는 작업 키(행 id 또는 상품주문번호). 응답 {'ok', 'approval_id', 'state'}.
+        """
+        body = self._request(
+            'POST',
+            f'/orders/{key}/approval',
+            json={'stage': stage, 'summary': summary, 'payload': payload},
+        )
+        return body if isinstance(body, dict) else {}
+
+    def get_approval(self, key: str, *, stage: str = 'pay') -> dict[str, object]:
+        """승인 상태 — {'state': pending|approved|rejected|expired|replaced|none, 'by', 'decided_at', 'reason'}."""
+        body = self._request('GET', f'/orders/{key}/approval', params={'stage': stage})
+        return body if isinstance(body, dict) else {'state': 'none'}
+
+    def post_events(self, key: str | None, items: list[dict[str, object]]) -> int:
+        """단계 이벤트를 삼바에 적재한다. 주문 키가 없으면 '-' 로 보낸다(삼바는 주문 없이도 저장). 저장 건수."""
+        if not items:
+            return 0
+        body = self._request('POST', f'/orders/{key or "-"}/events', json={'items': items})
+        return int(body.get('count') or 0) if isinstance(body, dict) else 0
+
     def close(self) -> None:
         self._client.close()
 
