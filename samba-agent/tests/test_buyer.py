@@ -568,6 +568,7 @@ def test_삼바웨이브가_있으면_배송지는_거기서_받는다(reg):
     respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
     mock_accounts()
     mock_fill_secret()
+    mock_type()  # 무신사는 고객 번호를 type 으로 넣는다(2026-10-09)
     out = buyer_with_wave(reg, lambda p, m: m(choice='260', reason='일치'))(assignment(reg))
     assert out.status == 'ok'
     assert applied['address'] == CUSTOMER['address']
@@ -575,6 +576,99 @@ def test_삼바웨이브가_있으면_배송지는_거기서_받는다(reg):
     dumped = json.dumps(out.model_dump(mode='json'), ensure_ascii=False)
     assert find_leaks(dumped) == []
     assert CUSTOMER['address'] not in dumped
+
+
+def _wave_direct_phone(phone: str):
+    return respx.get(f'{WAVE_API}/orders/A1').mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                'order_number': 'A1',
+                'order_type': 'direct',
+                'shipping': {**CUSTOMER, 'phone': phone},
+            },
+        )
+    )
+
+
+def mock_type(result: str = 'ok: typed'):
+    return respx.post(f'{URL}/tool/type').mock(return_value=page(result))
+
+
+@pytest.mark.parametrize(
+    ('phone', 'want'),
+    [
+        ('010-1234-5678', '01012345678'),
+        ('01012345678', '01012345678'),
+        ('010 1234 5678', '01012345678'),
+        ('0502-1234-5678', None),  # 안심번호 → 업무폰
+        ('0505 123 4567', None),
+        ('02-123-4567', None),  # 휴대폰 아님 → 업무폰
+        ('', None),
+        (None, None),
+    ],
+)
+def test_고객_번호는_휴대폰만_쓰고_안심번호는_버린다(phone, want):
+    # 사용자 2026-10-09: 무신사는 고객 번호로, 0502 등 4자리 안심번호는 업무폰으로
+    from samba_agent.agents.buyer import customer_phone_digits
+
+    assert customer_phone_digits(phone) == want
+
+
+@respx.mock
+def test_무신사는_삼바웨이브_고객_번호를_전화_칸에_넣는다(reg):
+    """사용자 2026-10-09: 무신사 배송 연락처는 고객 번호(type) — 키마스터 신원정보(fill_secret)는 쓰지 않는다."""
+    _wave_direct_phone('010-1234-5678')
+    applied: dict[str, object] = {}
+    respx.post(f'{URL}/tool/run_script').mock(
+        side_effect=_recording_handler('musinsa_product_snapshot', applied)
+    )
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    mock_accounts()
+    fill = mock_fill_secret()
+    typed = mock_type()
+    out = buyer_with_wave(reg, lambda p, m: m(choice='260', reason='일치'))(assignment(reg))
+    assert out.status == 'ok', out.reason
+    assert typed.called and not fill.called
+    body = json.loads(typed.calls[0].request.content)
+    assert body['args'] == {'id': 42, 'text': '01012345678'}
+    assert 'phone' not in applied  # 배송지 스크립트 인자에는 여전히 번호가 없다
+    dumped = json.dumps(out.model_dump(mode='json'), ensure_ascii=False)
+    assert '5678' not in dumped and find_leaks(dumped) == []
+    assert any('고객 번호로 입력' in e.detail for e in out.evidence)
+
+
+@respx.mock
+def test_안심번호_고객은_업무폰으로_넣는다(reg):
+    _wave_direct_phone('0502-1234-5678')
+    applied: dict[str, object] = {}
+    respx.post(f'{URL}/tool/run_script').mock(
+        side_effect=_recording_handler('musinsa_product_snapshot', applied)
+    )
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    mock_accounts()
+    fill = mock_fill_secret()
+    typed = mock_type()
+    out = buyer_with_wave(reg, lambda p, m: m(choice='260', reason='일치'))(assignment(reg))
+    assert out.status == 'ok', out.reason
+    assert fill.called and not typed.called
+    assert any('안심번호' in e.detail for e in out.evidence)
+
+
+@respx.mock
+def test_고객_번호_입력이_거절되면_사람에게_넘긴다(reg):
+    _wave_direct_phone('010-1234-5678')
+    applied: dict[str, object] = {}
+    respx.post(f'{URL}/tool/run_script').mock(
+        side_effect=_recording_handler('musinsa_product_snapshot', applied)
+    )
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    mock_accounts()
+    mock_fill_secret()
+    mock_type('not found: element 42')
+    out = buyer_with_wave(reg, lambda p, m: m(choice='260', reason='일치'))(assignment(reg))
+    assert out.status == 'needs_human'
+    assert '배송 연락처(고객 번호) 입력 실패' in out.reason
 
 
 @respx.mock
@@ -624,9 +718,24 @@ def test_스냅샷이_다른_아이디를_돌려주면_사람에게_넘긴다(ge
     assert (out.status, out.fail_reason) == ('needs_human', FailReason.PERMISSION_DENIED)
 
 
+@pytest.fixture
+def no_customer_phone(monkeypatch):
+    """customer_phone 이 꺼진 소싱처 경로 — 무신사 행의 스위치만 잠시 끈다(기본값 검증용)."""
+    from samba_agent.agents import buyer as buyer_mod
+
+    real = buyer_mod.source_of
+
+    def patched(name):
+        return real(name).model_copy(update={'customer_phone': False})
+
+    monkeypatch.setattr(buyer_mod, 'source_of', patched)
+    return patched
+
+
 @respx.mock
-def test_고객_전화번호는_어디에도_입력하지_않는다(reg):
-    # 사용자 결정(2026-09-23): 전화 칸은 앱이 키마스터 신원정보로 채운다 — 하네스는 번호를 보지 않는다
+def test_고객_전화번호는_어디에도_입력하지_않는다(reg, no_customer_phone):
+    # 사용자 결정(2026-09-23): customer_phone 이 꺼진 소싱처(기본)는 전화 칸을 앱이 키마스터 신원정보로 채운다 —
+    # 하네스는 번호를 어디에도 싣지 않는다. (무신사만 2026-10-09 부터 고객 번호 — 아래 별도 시험)
     _wave_direct()
     applied: dict[str, object] = {}
     respx.post(f'{URL}/tool/run_script').mock(
@@ -656,7 +765,8 @@ def test_고객_전화번호는_어디에도_입력하지_않는다(reg):
 @respx.mock
 def test_스크립트가_알린_전화_형식대로_채운다(reg):
     # 슈마커: 010 은 고르는 칸, 나머지 8자리가 한 칸 — 스크립트가 phone_formats 로 알린다(2026-09-26)
-    _wave_direct()
+    # 안심번호 고객 → 무신사도 키마스터 신원정보 경로(fill_secret)를 탄다(2026-10-09)
+    _wave_direct_phone('0502-1234-5678')
     applied: dict[str, object] = {}
     respx.post(f'{URL}/tool/run_script').mock(
         side_effect=_recording_handler(
@@ -680,7 +790,7 @@ def test_스크립트가_알린_전화_형식대로_채운다(reg):
 
 @respx.mock
 def test_모르는_전화_형식은_무시하고_기본대로_채운다(reg):
-    _wave_direct()
+    _wave_direct_phone('0502-1234-5678')  # 안심번호 → 키마스터 신원정보 경로
     applied: dict[str, object] = {}
     respx.post(f'{URL}/tool/run_script').mock(
         side_effect=_recording_handler(
@@ -851,11 +961,36 @@ def test_공급자는_까대기를_요청했는데_고객_주소가_오면_멈�
 
 
 @respx.mock
-def test_공급자가_주는_배송지에는_전화번호가_없다():
+def test_공급자는_전화번호를_phone_키로만_준다():
+    # 2026-10-09: 고객 번호는 'phone' 키로 따로 실린다 — 배송지 스크립트 인자(SHIPPING_ARG_FIELDS)에는 여전히 없다
     _wave_direct()
     got = shipping_provider()('A1', 'direct')
-    assert 'phone' not in got
+    assert got['phone'] == CUSTOMER['phone']
     assert got['name'] == CUSTOMER['name'] and got['postal_code'] == '06234'
+    from samba_agent.agents.buyer import SHIPPING_ARG_FIELDS
+
+    assert 'phone' not in SHIPPING_ARG_FIELDS
+
+
+@respx.mock
+def test_고객_번호도_스크립트가_알린_전화_형식대로_자른다(reg):
+    # 슈마커식 칸(010 고정 + 나머지 8자리 한 칸)이면 고객 번호도 phone-rest 조각만 넣는다
+    _wave_direct_phone('010-1234-5678')
+    applied: dict[str, object] = {}
+    respx.post(f'{URL}/tool/run_script').mock(
+        side_effect=_recording_handler(
+            'musinsa_product_snapshot',
+            applied,
+            echo_extra={'phone_field_ids': [9], 'phone_formats': ['phone-rest']},
+        )
+    )
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    mock_accounts()
+    mock_fill_secret()
+    typed = mock_type()
+    out = buyer_with_wave(reg, lambda p, m: m(choice='260', reason='일치'))(assignment(reg))
+    assert out.status == 'ok', out.reason
+    assert json.loads(typed.calls[0].request.content)['args'] == {'id': 9, 'text': '12345678'}
 
 
 @respx.mock

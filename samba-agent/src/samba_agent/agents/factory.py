@@ -75,8 +75,9 @@ def build_agents(
 def _shipping_provider(wave: WaveClient | None) -> ShippingFn | None:
     """(주문 키(행 id 또는 주문번호), 배송 종류) → 배송지 사전. 개인정보라 여기서 만들어 바로 넘기고 아무 데도 담지 않는다.
 
-    - 전화번호는 사전에 없다 — 고객 번호는 어디에도 입력하지 않고, 배송 연락처는 앱이 키마스터
-      신원정보(identity.phone)로 채운다. 하네스는 번호를 보지 않는다(사용자 결정 2026-09-23).
+    - 전화번호는 'phone' 키로만 실린다(있을 때) — 배송지 스크립트 인자에는 들어가지 않고, 소싱처 표가
+      customer_phone 을 켠 곳(무신사, 사용자 2026-10-09)만 구매 에이전트가 전화 칸에 따로 넣는다. 그 밖은
+      앱이 키마스터 신원정보(identity.phone)로 채운다(사용자 결정 2026-09-23).
     - 까대기를 요청했는데 삼바웨이브가 다른 종류(고객 주소)를 주면 그대로 쓰지 않고 멈춘다 —
       고객 집으로 보내는 사고보다 낫다. (구매 에이전트는 까대기면 기본 배송지를 유지해 이 공급자를
       부르지 않지만, 다른 호출부가 까대기로 부르면 이 검사가 막는다.)
@@ -92,6 +93,9 @@ def _shipping_provider(wave: WaveClient | None) -> ShippingFn | None:
                 '사무실 배송지를 받지 못했다 — 삼바웨이브 상세 API 가 order_type 요청을 지원해야 한다',
                 FailReason.UNKNOWN,
             )
-        return dict(detail.shipping.to_script_args())
+        out: dict[str, object] = dict(detail.shipping.to_script_args())
+        if detail.shipping.phone:
+            out['phone'] = detail.shipping.phone
+        return out
 
     return fetch

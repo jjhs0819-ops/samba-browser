@@ -69,13 +69,15 @@ class WaveError(Exception):
 class WaveShipping(BaseModel):
     """배송지. 개인정보라 받는 즉시 쓰고 버린다 — 절대 state·payload·로그에 담지 않는다.
 
-    전화번호 필드는 두지 않는다 — 응답에 실려 와도 버린다(extra='ignore'). 고객 전화번호는
-    어디에도 입력하지 않고, 배송 연락처는 앱이 키마스터 신원정보로 채운다(사용자 결정 2026-09-23).
+    전화번호는 받아 두되 스크립트 인자(to_script_args)에는 넣지 않는다 — 소싱처 표가 customer_phone 을
+    켠 곳(무신사, 사용자 2026-10-09)만 구매 에이전트가 전화 칸에 따로 넣고, 나머지는 앱이 키마스터
+    신원정보로 채운다(사용자 결정 2026-09-23). 번호는 state·payload·로그 어디에도 담지 않는다.
     """
 
     model_config = ConfigDict(extra='ignore')
 
     name: str = ''
+    phone: str = ''
     address: str = ''
     address_detail: str = ''
     postal_code: str = ''

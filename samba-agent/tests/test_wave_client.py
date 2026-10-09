@@ -94,9 +94,10 @@ def test_상세는_주문_종류와_배송지를_준다():
     assert detail.order_type == 'kkadaegi'
     assert detail.to_order_ref().order_type == 'kkadaegi'
     assert detail.shipping.to_script_args()['postal_code'] == '06234'
-    # 고객 전화번호는 모델에도, 스크립트 인자에도 없다
+    # 고객 전화번호는 받아 두되(무신사 고객 번호 입력, 2026-10-09) 스크립트 인자에는 없다
     assert 'phone' not in detail.shipping.to_script_args()
-    assert '5678' not in detail.model_dump_json()
+    assert detail.shipping.phone == '010-1234-5678'
+    assert '5678' not in detail.to_order_ref().model_dump_json()
 
 
 @respx.mock

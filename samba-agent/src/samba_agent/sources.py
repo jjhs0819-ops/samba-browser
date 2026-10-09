@@ -94,6 +94,10 @@ class Source(BaseModel):
     # 진입 경로 강제(H몰 = danawa, 사용자 2026-09-27): 스냅샷 전에 `<key>_danawa_entry` 로 다나와 이동 링크(entry_url)를
     # 받아 그 링크로 들어간다(제휴할인 ReferCode). 직접 진입 금지 — 링크를 못 받으면 AI 수리 없이 사람에게
     entry_route: Literal['danawa', 'shopback'] | None = None
+    # True 면 배송 연락처를 고객 전화번호(삼바웨이브 주문 상세)로 넣는다(사용자 2026-10-09: 무신사는 고객 번호).
+    # 단 안심번호(050X 로 시작하는 4자리 국번)·휴대폰이 아닌 번호·빈 번호는 예전처럼 키마스터 신원정보(업무폰)로 넣는다.
+    # False(기본)면 고객 번호는 어디에도 입력하지 않는다(사용자 결정 2026-09-23)
+    customer_phone: bool = False
     # 이 판매자 상품만 산다(롯데온 = 롯데백화점, 사용자 2026-09-27). 스냅샷이 seller 를 읽어 다르면 사지 않는다
     required_seller: str | None = None
     # True 면 포이즌 외 주문은 전부 '선물하기'(gift)로 산다(롯데온, 사용자 2026-09-27) — 삼바웨이브 배지와 무관

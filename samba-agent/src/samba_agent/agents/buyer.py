@@ -624,6 +624,7 @@ def decide_order_type(
         return forced, f'소싱처 규칙({forced})'
     if order.order_type == 'gift':
         return 'gift', '선물 태그'
+    return 'direct', '스파이크 고정: 전부 직배(설계 결정)'
     if LOTTEHOME_SELLER_RE.search(order.seller or '') and DIRECT_BRANDS_RE.search(order.sku or ''):
         # 사용자 2026-10-01: 롯데홈쇼핑 나이키·아디다스 주문은 정가 비교 없이 직배
         return 'direct', '롯데홈쇼핑 나이키·아디다스는 직배(사용자 규칙)'
@@ -933,6 +934,33 @@ def snapshot_args(agent_name: str, order: OrderRef, account: str | None = None) 
         args['account'] = account
         args['profile'] = account
     return json.dumps(args, ensure_ascii=False)
+
+
+def customer_phone_digits(phone: object) -> str | None:
+    """배송 연락처로 넣을 수 있는 고객 휴대폰 번호(숫자만). 못 쓰면 None — 그때는 키마스터 신원정보(업무폰).
+
+    사용자 2026-10-09: 무신사는 고객 번호로. 단 안심번호(0502 등 050X 로 시작하는 4자리 국번)는 업무폰으로.
+    휴대폰(01X, 10~11자리)이 아닌 번호·빈 값도 업무폰이다 — 택배 연락이 끊기는 것보다 낫다.
+    """
+    digits = re.sub(r'\D', '', str(phone or ''))
+    if not digits or digits.startswith('050'):
+        return None
+    if not re.fullmatch(r'01[016789]\d{7,8}', digits):
+        return None
+    return digits
+
+
+def _phone_part(digits: str, fmt: str | None) -> str:
+    """앱 fill_secret 의 전화 형식(phone-first·mid·last·rest·digits)과 같은 조각을 고객 번호에서 자른다."""
+    if fmt == 'phone-first':
+        return digits[:3]
+    if fmt == 'phone-mid':
+        return digits[3:-4]
+    if fmt == 'phone-last':
+        return digits[-4:]
+    if fmt == 'phone-rest':
+        return digits[3:]
+    return digits
 
 
 def _int_ids(values: list[object]) -> list[int]:
@@ -4111,14 +4139,17 @@ class BuyerAgent(AgentBase):
                 raise AgentFailure('fail', f'배송지 조회 실패: {e}', e.reason) from e
             if fetched:
                 return fetched
+        # 삼바웨이브가 아닌 출처(스냅샷·전용 스크립트)의 전화는 고객 번호라고 믿을 수 없다 — 버린다.
+        # 고객 번호 입력(customer_phone)은 삼바웨이브 상세가 준 번호로만 한다
         embedded = snap.get('shipping')
         if isinstance(embedded, dict) and embedded:
-            return embedded
+            return {k: v for k, v in embedded.items() if k != 'phone'}
         fetched = self.json_tool(
             'run_script', name=SHIPPING_SCRIPT, args=f'{{"order_no":"{a.order.order_no}"}}'
         )
         shipping = fetched.get('shipping')
-        return shipping if isinstance(shipping, dict) else fetched
+        picked = shipping if isinstance(shipping, dict) else fetched
+        return {k: v for k, v in picked.items() if k != 'phone'}
 
     def _set_shipping(self, a: Assignment, snap: dict[str, object], account: str) -> None:
         """배송지 — 까대기면 기본 배송지를 유지하고, 직배·선물이면 고객 이름·주소를 새로 넣는다.
@@ -4352,7 +4383,7 @@ class BuyerAgent(AgentBase):
                 '배송지 입력 검증에 실패했다' + (f': {mask_text(note[:80])}' if note else ''),
                 FailReason.UNKNOWN,
             )
-        self._fill_phone(applied)
+        self._fill_phone(applied, phone=shipping.get('phone'))
         self._confirm_shipping(shipping, args)
         # 결제 직전 주문서 대조용 열쇠(도로명+번호) — 전체 주소는 남기지 않는다
         self._ship_key = road_key(shipping.get('address'))
@@ -4470,10 +4501,13 @@ class BuyerAgent(AgentBase):
         self.note('배송지', '사무실 수령(기본 배송지 유지)')
         return True
 
-    def _fill_phone(self, applied: dict[str, object]) -> None:
-        """배송 연락처 — 스크립트가 비워 둔 전화 칸을 앱이 키마스터 신원정보로 채운다.
+    def _fill_phone(self, applied: dict[str, object], phone: object = None) -> None:
+        """배송 연락처 — 스크립트가 비워 둔 전화 칸을 채운다.
 
-        번호는 하네스를 지나가지 않는다. 앱 결과는 성공이면 'ok…', 아니면 'refused: …'·'not found: …'.
+        기본은 앱이 키마스터 신원정보(업무폰)로 채운다(fill_secret) — 번호는 하네스를 지나가지 않는다.
+        소싱처 표가 customer_phone 을 켠 곳(무신사)은 삼바웨이브가 준 고객 휴대폰 번호를 type 으로 넣는다
+        (사용자 2026-10-09). 안심번호(050X)·휴대폰 아님·없음이면 업무폰으로 돌아간다. 번호는 근거에 남기지 않는다.
+        앱 결과는 성공이면 'ok…', 아니면 'refused: …'·'not found: …'.
         """
         # 스크립트는 phone_field_id(칸 하나) 또는 phone_field_ids(1~3칸, 앞→뒤 순서)로 알린다.
         # 칸이 둘이면 010 은 사이트가 고정한 것이라 가운데·끝, 셋이면 앞·가운데·끝을 앱이 나눠 넣는다
@@ -4500,6 +4534,35 @@ class BuyerAgent(AgentBase):
             and all(f is None or f in PHONE_FILL_FORMATS for f in declared)
         ):
             formats = [str(f) if f else None for f in declared]
+        digits = (
+            customer_phone_digits(phone) if source_of(self.spec.name).customer_phone else None
+        )
+        if digits is not None:
+            # 고객 번호 — 칸 모양대로 잘라 넣는다. 결과 문구에 번호가 섞여도 근거에는 남기지 않는다
+            for field_id, fmt in zip(ids, formats, strict=True):
+                try:
+                    out = self.tool('type', id=field_id, text=_phone_part(digits, fmt))
+                except AgentFailure as e:
+                    raise AgentFailure(
+                        'needs_human', f'배송 연락처(고객 번호) 입력 실패: {e.reason}', e.fail_reason
+                    ) from e
+                head = out.strip().lower()
+                if head.startswith(('not found', 'refused', 'error', 'fail')):
+                    raise AgentFailure(
+                        'needs_human',
+                        f'배송 연락처(고객 번호) 입력 실패: {mask_text(out.strip()[:100])}',
+                        FailReason.UNKNOWN,
+                    )
+            self.note('배송 연락처', f'고객 번호로 입력({len(ids)}칸, 번호는 남기지 않는다)')
+            return
+        if source_of(self.spec.name).customer_phone:
+            raw = re.sub(r'\D', '', str(phone or ''))
+            why = (
+                '고객 번호 없음'
+                if not raw
+                else ('안심번호(050X)' if raw.startswith('050') else '휴대폰 번호 아님')
+            )
+            self.note('배송 연락처', f'{why} — 키마스터 신원정보(업무폰)로 입력')
         for field_id, fmt in zip(ids, formats, strict=True):
             try:
                 out = self.tool(
