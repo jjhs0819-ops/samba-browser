@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     allowed_pay_providers: str = Field(default='', alias='SAMBA_ALLOWED_PAY_PROVIDERS')
     # True 면 결제 승인 요청을 사람 대신 즉시 승인한다(사용자가 자동 이행을 켠 경우만)
     auto_approve: bool = Field(default=False, alias='SAMBA_AUTO_APPROVE')
+    # False 면 이행 불가(품절·마진 미달) 주문에 가격X/재고X 표시·취소요청을 삼바에 쓰지 않는다 — 1단계(승인 모드)는
+    # 카드에 보여만 주고 사람이 정한다(설계서 §8 마진 행, 사용자 2026-10-11). 2단계에서 켠다
+    flag_orders: bool = Field(default=True, alias='SAMBA_FLAG_ORDERS')
     # 삼바 주문화면 승인카드 폴링 주기(초) — 승인 대기 작업마다 GET /orders/{key}/approval (사용자 2026-10-09)
     wave_approval_poll_s: float = Field(default=2.0, ge=0.5, alias='SAMBA_WAVE_APPROVAL_POLL_S')
     # 자동 승인하지 않고 사람 승인을 받을 결제수단(쉼표, 표시 이름 일부) — 실결제 검증 전 수단(페이코 2026-09-25)

@@ -260,9 +260,11 @@ def main() -> None:
             ),
             on_cancelled=make_cancel_export(settings, wave),
         )
-        if wave is not None
+        if wave is not None and settings.flag_orders
         else None
     )
+    if wave is not None and not settings.flag_orders:
+        log.info('가격X/재고X 표시·취소요청은 꺼져 있다(SAMBA_FLAG_ORDERS=false) — 승인카드에 보여만 준다')
 
     # 조회 통로: 삼바웨이브 API 우선, 실패하면 앱 저장 스크립트
     _parse_order = parse_order_fn(wave, lookup_bridge)
