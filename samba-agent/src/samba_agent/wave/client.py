@@ -574,13 +574,26 @@ class WaveClient:
     def _request(self, method: str, path: str, **kwargs: object) -> object:
         """호출 1건. 연결 실패는 BRIDGE_DOWN, 상태 코드는 표대로 FailReason 으로 바꾼다."""
         try:
-            r = self._client.request(
-                method,
-                f'{self._base}{path}',
-                headers=self._headers(),
-                timeout=self._timeout_s,
-                **kwargs,  # type: ignore[arg-type]
-            )
+            try:
+                r = self._client.request(
+                    method,
+                    f'{self._base}{path}',
+                    headers=self._headers(),
+                    timeout=self._timeout_s,
+                    **kwargs,  # type: ignore[arg-type]
+                )
+            except httpx.RemoteProtocolError:
+                # 유휴 뒤 첫 호출 — 서버가 닫은 keep-alive 연결을 재사용하다 끊긴다(실기 2026-10-11 승인 폴링).
+                # 조회(GET)만 새 연결로 딱 한 번 다시 보낸다. 쓰기는 두 번 갈 수 있어 그대로 실패로 올린다
+                if method != 'GET':
+                    raise
+                r = self._client.request(
+                    method,
+                    f'{self._base}{path}',
+                    headers=self._headers(),
+                    timeout=self._timeout_s,
+                    **kwargs,  # type: ignore[arg-type]
+                )
         except httpx.TimeoutException as e:
             raise WaveError(FailReason.BRIDGE_DOWN, f'삼바웨이브 시간 초과: {path}') from e
         except httpx.HTTPError as e:

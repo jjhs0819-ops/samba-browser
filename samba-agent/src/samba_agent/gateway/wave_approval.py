@@ -45,6 +45,8 @@ def payload_from_request(req: dict[str, object]) -> dict[str, object]:
     """승인 요청 원본(summary·evidence) → 카드가 쓸 구조화 값. 번호·주소는 이미 가려져 있다."""
     out: dict[str, object] = {}
     summary = str(req.get('summary') or '')
+    # dry-run 이면 카드에 '연습' 표시 — [결제]를 눌러도 결제창까지만 가고 결제하지 않는다
+    out['dry_run'] = 'dry-run' in summary
     for line in summary.splitlines():
         m = _ACCOUNT_CARD.search(line)
         if m:
@@ -112,7 +114,12 @@ class WaveApprovalRelay:
             try:
                 status = self._wave.get_approval(job.key, stage=stage)
             except (WaveError, Exception) as e:  # noqa: BLE001
-                _log.warning('승인 폴링 실패 %s(%s) — 다음 주기에 다시 본다', job.order_no, type(e).__name__)
+                _log.warning(
+                    '승인 폴링 실패 %s(%s: %s) — 다음 주기에 다시 본다',
+                    job.order_no,
+                    type(e).__name__,
+                    mask_text(str(e))[:160],
+                )
                 continue
             state = str(status.get('state') or 'none')
             if state == 'none':

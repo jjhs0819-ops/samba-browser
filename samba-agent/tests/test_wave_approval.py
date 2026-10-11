@@ -47,6 +47,8 @@ def test_요약에서_계정_카드_원가_마진을_뽑는다():
     assert p['cost'] == 32210 and p['margin_pct'] == 5.9
     assert p['evidence'][0]['label'] == '배송지'
     assert '5678' not in p['evidence'][0]['detail'] and '홍길동' not in p['evidence'][0]['detail']
+    assert p['dry_run'] is False
+    assert payload_from_request({**REQ, 'summary': '모드: dry-run(외부 변경 없음)'})['dry_run'] is True
 
 
 def test_대기_단계_판별(tmp_path):
