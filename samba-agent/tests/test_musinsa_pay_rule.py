@@ -306,3 +306,21 @@ def test_구매_농협_할인이_적용_안_되면_무신사머니(musinsa) -> N
 def test_페이코_타일은_정지_비교에서_뺀다():
     names = [t['name'] for t in other_tiles_over(INFO['tiles'], 0)]
     assert '페이코' not in names and '카카오페이 × BC카드' in names
+
+
+def test_결제_전부터_있던_주문완료_탭은_이미_결제로_보지_않는다():
+    import json as j
+
+    from samba_agent.agents.payer import drop_tabs, looks_already_paid
+
+    tabs = j.dumps([{'id': 'old', 'url': 'https://www.musinsa.com/order/order-complete/123'}, {'id': 'of', 'url': 'https://www.musinsa.com/order/order-form'}])
+    assert looks_already_paid(tabs, '', 'musinsa.com')
+    assert not looks_already_paid(drop_tabs(tabs, {'old'}), '', 'musinsa.com')
+
+
+def test_검증도_청구할인_원가로_계산한다():
+    from samba_agent.agents.source_detail import billed_cost
+
+    detail = {'paid': 76300, 'reward': 0, 'points_used': 0, 'card': '현대카드'}
+    assert billed_cost(detail, {'billed_discount': 3815}) == 72485
+    assert billed_cost(detail, {}) == 74240  # 청구할인 없으면 예전 계산(현대 ×0.973)

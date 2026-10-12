@@ -14,6 +14,7 @@ from samba_agent.agents.contracts import AgentResult, Assignment
 from samba_agent.agents.payer import recent_art_order, recent_cm29_order
 from samba_agent.agents.source_detail import (
     actual_cost,
+    billed_cost,
     detail_args,
     detail_check,
     detail_goal,
@@ -335,22 +336,12 @@ class RecorderAgent(AgentBase):
             # (실기 2026-09-25 HQ2414: 적립 1,640원이 빠져 원가 59,200 기록, 맞는 값 57,560)
             detail = {**detail, 'reward': float(quoted_reward)}
         # 애드픽·샵백 적립은 원가에 넣지 않는다(사용자 2026-09-27) — 주문 상세·견적의 사이트 적립만 쓴다
+        cost = billed_cost(detail, a.handoff)
         detail = with_pay_card(detail, a.handoff)
-        cost = actual_cost(detail)
         billed = a.handoff.get('billed_discount')
-        if (
-            cost is not None
-            and isinstance(billed, int | float)
-            and not isinstance(billed, bool)
-            and billed > 0
-            and float(detail.get('paid') or 0) > 0  # type: ignore[arg-type]
-        ):
-            # 무신사 현대카드 청구할인(사용자 2026-10-12): 원가는 주문서 '청구 예상' 금액 기준 — 결제액에서 청구할인을 뺀다.
-            # 카드 계수는 곱하지 않는다(무신사 현대카드 billing_factor = 1.0)
-            plain = actual_cost({**detail, 'card': ''})
-            if plain is not None:
-                cost = plain - float(billed)
-                self.note('청구할인', f'무신사 현대카드 청구할인 {float(billed):,.0f}원 반영(청구 예상 기준)')
+        if isinstance(billed, int | float) and not isinstance(billed, bool) and billed > 0:
+            # 무신사 현대카드 청구할인(사용자 2026-10-12): 원가는 주문서 '청구 예상' 금액 기준
+            self.note('청구할인', f'무신사 현대카드 청구할인 {float(billed):,.0f}원 반영(청구 예상 기준)')
         if cost is None:
             self.note('실제 원가', '결제액을 못 읽어 견적 원가로 기록')
             return

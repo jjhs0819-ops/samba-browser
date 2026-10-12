@@ -618,6 +618,7 @@ def test_결제창이_아직_없으면_한번_기다렸다_다시_본다(reg):
     wait = respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
     list_tabs = respx.post(f'{URL}/tool/list_tabs').mock(
         side_effect=[
+            list_tabs_page(None),  # 결제 시작 전 열려 있던 탭(이미 결제 판정에서 뺀다)
             list_tabs_page(None),  # 결제 전 '이미 결제됐나' 검사
             list_tabs_page(None),
             list_tabs_page(TOSS_POPUP_URL),

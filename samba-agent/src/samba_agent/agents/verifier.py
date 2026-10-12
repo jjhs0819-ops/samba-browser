@@ -6,6 +6,7 @@ from samba_agent.agents.base import AgentBase, AgentFailure, Decision, run_agent
 from samba_agent.agents.contracts import AgentResult, Assignment
 from samba_agent.agents.source_detail import (
     actual_cost,
+    billed_cost,
     detail_args,
     detail_check,
     detail_goal,
@@ -123,7 +124,7 @@ class VerifierAgent(AgentBase):
             and quoted_reward > 0
         ):
             source = {**source, 'reward': float(quoted_reward)}
-        recomputed = actual_cost(with_pay_card(source, a.handoff))
+        recomputed = billed_cost(source, a.handoff)
         if recomputed is not None and 'real_price' in expected:
             expected['real_price'] = recomputed
             source = {**source, 'real_price': recomputed}

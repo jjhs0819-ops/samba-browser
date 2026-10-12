@@ -134,6 +134,19 @@ _PAID_URL_RE = re.compile(
 _PAID_TEXT = ('주문이 완료', '주문완료', '주문 완료')
 
 
+def drop_tabs(list_tabs_output: str, ids: set[str]) -> str:
+    """list_tabs 결과(JSON)에서 ids 탭을 뺀 JSON. 형식이 다르면 그대로 돌려준다."""
+    if not ids:
+        return list_tabs_output
+    try:
+        raw = json.loads(list_tabs_output)
+    except (TypeError, ValueError):
+        return list_tabs_output
+    if not isinstance(raw, list):
+        return list_tabs_output
+    return json.dumps([t for t in raw if not (isinstance(t, dict) and str(t.get('id')) in ids)], ensure_ascii=False)
+
+
 def looks_already_paid(list_tabs_output: str, page: str, host: str | None = None) -> bool:
     """재진입 때 이미 결제가 끝났는지(재결제 금지). 주문 완료 탭이 있거나 완료 문구+주문번호가 함께 보이면 True.
 
@@ -1145,6 +1158,14 @@ class PayerAgent(AgentBase):
                 )
         self.note('주문서 대조', '상품·옵션 일치 확인' + (' · 받는 분 주소 일치' if ship_key else ''))
 
+    def _tab_ids(self) -> set[str]:
+        """지금 열린 탭·팝업 id. 못 읽으면 빈 집합(그러면 예전처럼 모든 탭을 본다)."""
+        try:
+            raw = json.loads(self.tool('list_tabs'))
+        except Exception:  # noqa: BLE001 — 탭 목록을 못 읽어도 결제 판단은 예전처럼 간다
+            return set()
+        return {str(t.get('id')) for t in raw if isinstance(t, dict) and t.get('id')} if isinstance(raw, list) else set()
+
     def _select_pay_card(self, a: Assignment) -> None:
         """결제 규칙이 고른 무신사페이 카드·즉시할인 타일을 결제 직전에 다시 맞춘다(사용자 2026-10-12).
 
@@ -1687,6 +1708,9 @@ class PayerAgent(AgentBase):
         # (실기 2026-09-26: 197 이 앞 작업 196 의 아디다스 210 주문서를 결제했다)
         self._check_order_form(a)
         self._select_pay_card(a)
+        # 결제 시작 전부터 열려 있던 탭 — 앞 주문의 '주문 완료' 화면이 남아 있으면 이번 결제를 이미 결제로 오판했다
+        # (실기 2026-10-12: 후드집업 완료 탭 하나로 승인 3건이 pay_interrupted). 이미 결제 판정은 그 뒤 생긴 탭만 본다
+        self._tabs_before_pay = self._tab_ids()
 
         self.step('payer: 결제창 진입')
         # 실제로 산 사이트(교차 비교) 기준으로 결제창에 들어간다
@@ -1810,6 +1834,7 @@ class PayerAgent(AgentBase):
         except AgentFailure:
             listed = ''
         buy_src = default_sources().by_id(str(a.handoff.get('buy_source') or a.order.source))
+        listed = drop_tabs(listed, getattr(self, '_tabs_before_pay', set()))
         if looks_already_paid(listed, before, buy_src.login_host if buy_src else None):
             self.note('결제 전 확인', mask_text(before[:200]))
             raise AgentFailure(

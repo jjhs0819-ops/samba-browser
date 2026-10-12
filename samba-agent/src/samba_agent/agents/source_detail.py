@@ -78,6 +78,25 @@ def with_pay_card(detail: dict[str, object], handoff: dict[str, object]) -> dict
     return detail
 
 
+def billed_cost(detail: dict[str, object], handoff: dict[str, object]) -> float | None:
+    """기록·검증 공통 원가. 무신사 현대카드 청구할인(handoff billed_discount)이 있으면 카드 계수 대신 그 금액을 뺀다
+    (사용자 2026-10-12: 주문서 '청구 예상' 금액으로 기록). 없으면 actual_cost(with_pay_card(...)).
+
+    주문 상세는 카드를 '현대카드' 로만 보여 줘 일반 현대 2.7% 가 곱해졌다 — 실기 후드집업 기록 72,485 ↔ 검증 74,240 불일치.
+    """
+    billed = handoff.get('billed_discount')
+    if isinstance(billed, int | float) and not isinstance(billed, bool) and billed > 0:
+        try:
+            paid = float(detail.get('paid') or 0)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            paid = 0.0
+        if paid > 0:
+            plain = actual_cost({**detail, 'card': ''})
+            if plain is not None:
+                return plain - float(billed)
+    return actual_cost(with_pay_card(detail, handoff))
+
+
 def actual_cost(detail: dict[str, object]) -> float | None:
     """상세 값으로 원가(플레이북 §6): 결제액 × 카드 청구할인 − 후기 제외 적립 + 사용 적립금. 결제액을 모르면 None."""
     try:
