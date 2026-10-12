@@ -301,3 +301,8 @@ def test_구매_농협_할인이_적용_안_되면_무신사머니(musinsa) -> N
     snap = _snap()
     musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
     assert snap['pay_method'] == '무신사머니'
+
+
+def test_페이코_타일은_정지_비교에서_뺀다():
+    names = [t['name'] for t in other_tiles_over(INFO['tiles'], 0)]
+    assert '페이코' not in names and '카카오페이 × BC카드' in names

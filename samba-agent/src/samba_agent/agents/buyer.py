@@ -630,10 +630,14 @@ def pay_label(chosen: dict[str, object]) -> str:
 
 def other_tiles_over(tiles: list[dict[str, object]], benefit: float) -> list[dict[str, object]]:
     """무신사페이가 아닌 수단(토스·카카오·페이코·KB Pay 등)의 즉시할인 중 고른 혜택보다 큰 것 — 큰 순서."""
+    # 페이코는 결제 후보도, 정지 비교 대상도 아니다(사용자 2026-10-12)
     out = [
         t
         for t in tiles
-        if not str(t.get('name') or '').startswith('무신사페이') and _as_float(t.get('amount')) > benefit
+        if not str(t.get('name') or '').startswith('무신사페이')
+        and '페이코' not in str(t.get('name') or '')
+        and 'payco' not in str(t.get('name') or '').lower()
+        and _as_float(t.get('amount')) > benefit
     ]
     return sorted(out, key=lambda t: -_as_float(t.get('amount')))
 
