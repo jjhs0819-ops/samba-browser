@@ -1623,8 +1623,8 @@ def test_원가는_적립과_청구할인을_반영한다():
     assert effective_cost({'cost': 39200, 'card': '현대카드', 'reward': 1170}) == round(
         39200 * 0.973  # 적립 예정은 원가 밖(사용자 2026-10-12)
     )
-    # 기존 적립금 사용액은 원가에 다시 더한다
-    assert effective_cost({'cost': 30000, 'reward': 0, 'points_used': 2000}) == 32000
+    # 사용 적립금은 원가에 다시 더하지 않는다(카드 실결제액 기준)
+    assert effective_cost({'cost': 30000, 'reward': 0, 'points_used': 2000}) == 30000
 
 
 def test_무신사는_4계정을_지정_순서로_비교한다():

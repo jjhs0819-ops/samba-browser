@@ -399,7 +399,7 @@ def test_결제_뒤_주문_상세로_원가를_다시_계산해_기록한다(reg
     out = a(assignment(reg, dry_run=False))
     assert out.status == 'ok'
     body = json.loads(put.calls[0].request.content)
-    assert body['cost'] == 103170  # 적립 예정은 원가에 넣지 않는다(사용자 2026-10-12)
+    assert body['cost'] == 95950  # 원가 = 카드 실결제액, 사용 적립금 안 더함(사용자 2026-10-12)
     assert '실결제 95,950' in body['notes']
 
 
@@ -419,7 +419,7 @@ def test_주문_상세에_적립이_없으면_견적의_적립으로_원가를_�
     out = a(assignment(reg, dry_run=False, handoff={'reward': 1640, 'points_used': 14200}))
     assert out.status == 'ok'
     # 네이버페이 = 현대카드 청구할인 2.7%(사용자 2026-10-02): 45,000 × 0.973 − 1,640 + 14,200
-    assert json.loads(put.calls[0].request.content)['cost'] == 57985  # 적립 예정은 원가에 넣지 않는다(사용자 2026-10-12)
+    assert json.loads(put.calls[0].request.content)['cost'] == 43785  # 원가 = 카드 실결제액, 사용 적립금 안 더함(사용자 2026-10-12)
 
 
 @respx.mock

@@ -425,7 +425,7 @@ def test_quote_cost_adds_points_used_from_order_prep() -> None:
 
     raw = [{'method': '무신사페이', 'card': '롯데카드', 'cost': 51360, 'points_used': 6150}]
     best = cheapest_quotes(raw, None, None)[0]
-    assert best['cost'] == 56483
+    assert best['cost'] == 50333  # 원가 = 카드 실결제액, 사용 적립금 안 더함(사용자 2026-10-12)
 
 
 def test_quotes_drop_disallowed_card_issuers() -> None:
