@@ -351,3 +351,14 @@ def test_원가가_오르면_새_원가로_다시_준비한다(reg):
     log: list[str] = []
     out = _run(reg, log, [72485, 76300], [GONE])
     assert out['fail_reason'] is FailReason.COST_CHANGED
+
+
+def test_결제_전부터_떠_있던_완료화면_주소는_주문번호에서_뺀다():
+    import json as j
+
+    from samba_agent.agents.payer import _source_order_no, drop_urls
+
+    old = 'https://www.musinsa.com/order/result/202610130012000002'
+    tabs = j.dumps([{'id': 'a', 'url': old}])
+    assert _source_order_no('', tabs) == '202610130012000002'
+    assert _source_order_no('', drop_urls(tabs, {old})) is None

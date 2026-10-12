@@ -134,6 +134,19 @@ _PAID_URL_RE = re.compile(
 _PAID_TEXT = ('주문이 완료', '주문완료', '주문 완료')
 
 
+def drop_urls(list_tabs_output: str, urls: set[str]) -> str:
+    """list_tabs 결과(JSON)에서 주소가 urls 에 든 탭을 뺀 JSON. 형식이 다르면 그대로."""
+    if not urls:
+        return list_tabs_output
+    try:
+        raw = json.loads(list_tabs_output)
+    except (TypeError, ValueError):
+        return list_tabs_output
+    if not isinstance(raw, list):
+        return list_tabs_output
+    return json.dumps([t for t in raw if not (isinstance(t, dict) and str(t.get('url')) in urls)], ensure_ascii=False)
+
+
 def drop_tabs(list_tabs_output: str, ids: set[str]) -> str:
     """list_tabs 결과(JSON)에서 ids 탭을 뺀 JSON. 형식이 다르면 그대로 돌려준다."""
     if not ids:
@@ -1158,6 +1171,20 @@ class PayerAgent(AgentBase):
                 )
         self.note('주문서 대조', '상품·옵션 일치 확인' + (' · 받는 분 주소 일치' if ship_key else ''))
 
+    def _result_urls(self) -> set[str]:
+        """지금 떠 있는 주문 완료 화면 주소들(…/order/result/…, …/order/confirmed/…). 못 읽으면 빈 집합."""
+        try:
+            raw = json.loads(self.tool('list_tabs'))
+        except Exception:  # noqa: BLE001 — 못 읽으면 예전처럼 간다
+            return set()
+        if not isinstance(raw, list):
+            return set()
+        return {
+            str(t.get('url'))
+            for t in raw
+            if isinstance(t, dict) and re.search(r'order/(?:result|confirmed)', str(t.get('url') or ''))
+        }
+
     def _tab_ids(self) -> set[str]:
         """지금 열린 탭·팝업 id. 못 읽으면 빈 집합(그러면 예전처럼 모든 탭을 본다)."""
         try:
@@ -1458,10 +1485,17 @@ class PayerAgent(AgentBase):
         if getattr(self, '_arrival_memo', None):
             payload['arrival_memo'] = self._arrival_memo
         try:
-            tabs_now = self.tool('list_tabs')
+            tabs_now = drop_urls(self.tool('list_tabs'), getattr(self, '_result_urls_before', set()))
         except AgentFailure:
             tabs_now = ''
         source_order_no = recent_no or _source_order_no(page, tabs_now)
+        if source_order_no and any(source_order_no in u for u in getattr(self, '_result_urls_before', set())):
+            # 결제 전부터 떠 있던 완료 화면의 번호다 — 이번 주문 번호가 아니다. 기입하지 않고 사람에게(결제는 됐다)
+            raise AgentFailure(
+                'needs_human',
+                f'결제는 됐지만 주문번호를 앞 주문 화면({source_order_no})에서 읽었다 — 사람이 주문번호를 확인한다(재결제 금지)',
+                FailReason.VERIFY_MISMATCH,
+            )
         if source_order_no is None:
             # 완료 문구는 봤는데 화면에서 번호를 못 뽑았다 — 주문내역 폴백으로 채운다
             # (실기 2026-09-27 job 262 ABC 네이버페이: 결제됐는데 recorder 가 '기입할 소싱주문번호가 없다'로 멈춤)
@@ -1619,10 +1653,15 @@ class PayerAgent(AgentBase):
                 tabs = []
             want = _host_of(str(a.order.product_url or '')) if a is not None else ''
             want_domain = '.'.join(want.split('.')[-2:]) if want else ''
+            old_results = getattr(self, '_result_urls_before', set())
             for t in tabs if isinstance(tabs, list) else []:
                 if not isinstance(t, dict) or t.get('lane'):
                     continue
                 url = str(t.get('url') or '')
+                if url in old_results:
+                    # 결제 전부터 떠 있던 완료 화면 — 앞 주문 것이다(실기 2026-10-13 다이나핏에 니트 팬츠 주문번호 기입).
+                    # 주문서 탭이 결제 뒤 완료 화면으로 바뀌는 것은 주소(주문번호)가 새것이라 걸리지 않는다
+                    continue
                 if not re.search(r'order/(?:result|confirmed)', url):
                     continue
                 if want_domain and want_domain not in _host_of(url):
@@ -1711,6 +1750,7 @@ class PayerAgent(AgentBase):
         # 결제 시작 전부터 열려 있던 탭 — 앞 주문의 '주문 완료' 화면이 남아 있으면 이번 결제를 이미 결제로 오판했다
         # (실기 2026-10-12: 후드집업 완료 탭 하나로 승인 3건이 pay_interrupted). 이미 결제 판정은 그 뒤 생긴 탭만 본다
         self._tabs_before_pay = self._tab_ids()
+        self._result_urls_before = self._result_urls()
 
         self.step('payer: 결제창 진입')
         # 실제로 산 사이트(교차 비교) 기준으로 결제창에 들어간다
