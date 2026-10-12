@@ -968,3 +968,27 @@ def test_주문_조회가_행이_여럿이라_실패하면_사람에게_넘긴�
     assert job.state == 'needs_human'
     assert 'ord_A' in job.error and 'ord_B' in job.error
     assert any('행 id 로 접수' in s for s in sent)
+
+
+def test_승인_뒤_원가가_오르면_새_작업으로_다시_준비한다(tmp_path):
+    """실기 2026-10-12: 무신사 현대카드 한도가 앞 주문에서 다 써져 다시 만든 주문서 원가가 올랐다 — 결제하지 않고
+    새 작업으로 다시 준비해 새 원가의 승인카드를 띄운다(상한 REAPPROVE_MAX)."""
+    from samba_agent.queue.worker import REAPPROVE_KEY, REAPPROVE_MAX
+
+    reg = Registry.load(DEFAULT_ROOT)
+    q = JobQueue(tmp_path / 'jobs.sqlite')
+    acts = agents([])
+    acts['payer'] = lambda _a: AgentResult(
+        status='needs_human', reason='원가 상승', fail_reason=FailReason.COST_CHANGED
+    )
+    sent: list[str] = []
+    graph = build_supervisor(reg, acts, checkpointer=MemorySaver(), gate=False)
+    w = Worker(WorkerDeps(queue=q, graph=graph, version='vtest', report=lambda j, l: sent.append(l), parse_order=order_of, dry_run=False))
+    q.enqueue('A1', 'U1', {}, 'ts1')
+    w.tick()
+    job = q.get('A1')
+    assert job.state == 'queued' and job.options.get(REAPPROVE_KEY) == 1
+    assert any('새 원가로 승인카드' in s for s in sent)
+    for _ in range(REAPPROVE_MAX):
+        w.tick()
+    assert q.get('A1').state == 'needs_human'  # 상한을 넘으면 사람에게

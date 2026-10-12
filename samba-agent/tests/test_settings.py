@@ -43,6 +43,7 @@ def test_실패_사유는_스펙_9종에_결제_중단·주문서_소실·결제
         'pay_interrupted',
         'order_form_gone',
         'pay_rule_stop',
+        'cost_changed',
     }
 
 

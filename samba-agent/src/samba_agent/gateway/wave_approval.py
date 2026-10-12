@@ -72,6 +72,24 @@ def payload_from_request(req: dict[str, object]) -> dict[str, object]:
     return out
 
 
+
+def approval_older_than_job(status: dict[str, object], job: Job) -> bool:
+    """삼바 승인 기록이 이 작업이 생기기 전에 만들어졌는가(지난 작업의 승인). 시각을 못 읽으면 False."""
+    from datetime import datetime
+
+    def parse(v: object) -> datetime | None:
+        try:
+            d = datetime.fromisoformat(str(v).replace('Z', '+00:00'))
+        except (TypeError, ValueError):
+            return None
+        return d if d.tzinfo else None
+
+    requested = parse(status.get('requested_at'))
+    created = parse(job.created_at)
+    if requested is None or created is None:
+        return False
+    return requested < created
+
 class WaveApprovalRelay:
     """승인요청 등록 + 결정 폴링. 워커 스레드와 별도 스레드에서 돈다."""
 
@@ -122,6 +140,10 @@ class WaveApprovalRelay:
                 )
                 continue
             state = str(status.get('state') or 'none')
+            if state != 'none' and approval_older_than_job(status, job):
+                # 이 작업보다 먼저 만든 승인 기록 — 같은 주문의 지난 작업 것이다(원가 상승 재준비·재접수). 그 승인으로
+                # 결제하면 사장님이 새 원가를 보지 않고 결제된다(2026-10-12) — 없는 것으로 보고 새로 올린다
+                state = 'none'
             if state == 'none':
                 if job.key not in self._requested:
                     # 재기동·등록 실패로 삼바에 요청이 없다 — 요약 없이라도 카드를 띄운다

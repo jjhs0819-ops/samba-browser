@@ -171,10 +171,10 @@ def _rebuild_and_pay(
             AgentResult(
                 status='needs_human',
                 reason=(
-                    '주문서 탭이 닫혀 다시 만들었더니 원가가 승인 때와 다르다 — 결제 안 함, 다시 승인 필요'
+                    '주문서 탭이 닫혀 다시 만들었더니 원가가 승인 때보다 높다 — 결제 안 함, 새 원가로 승인카드를 다시 띄운다'
                     f'(승인 {approved_cost or 0:,.0f}원 → 지금 {new_cost or 0:,.0f}원)'
                 ),
-                fail_reason=FailReason.ORDER_FORM_GONE,
+                fail_reason=FailReason.COST_CHANGED,
             ),
         )
     again = {**again, 'pay_started': True}

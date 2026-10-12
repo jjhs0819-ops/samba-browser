@@ -174,7 +174,7 @@ def test_다시_만든_원가가_비싸면_결제하지_않는다(reg):
     out = _run(reg, log, [72485, 76300], [GONE])
     assert log == ['buy:72485', 'pay:needs_human', 'buy:76300']
     assert out['outcome'] == 'needs_human'
-    assert out['fail_reason'] is FailReason.ORDER_FORM_GONE
+    assert out['fail_reason'] is FailReason.COST_CHANGED
 
 
 def test_두_번째_탭_소실은_사람에게(reg):
@@ -335,3 +335,19 @@ def test_구매_현대카드_원가는_적립_예정을_빼지_않은_청구예�
     snap = _snap()
     musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
     assert snap['cost'] == 60040
+
+
+def test_지난_작업의_승인은_새_작업에_쓰지_않는다():
+    from samba_agent.gateway.wave_approval import approval_older_than_job
+    from samba_agent.queue.db import Job
+
+    job = Job(id=1, order_no='O1', requester='intake', options={}, state='needs_human', assignee_agent=None, step='승인 대기: pay', thread_ts=None, harness_version=None, attempts=0, error=None, created_at='2026-10-12T14:10:00+00:00', updated_at='2026-10-12T14:11:00+00:00')
+    assert approval_older_than_job({'state': 'approved', 'requested_at': '2026-10-12T13:50:00+00:00'}, job)
+    assert not approval_older_than_job({'state': 'pending', 'requested_at': '2026-10-12T14:11:01+00:00'}, job)
+    assert not approval_older_than_job({'state': 'approved'}, job)  # 시각 모르면 예전처럼
+
+
+def test_원가가_오르면_새_원가로_다시_준비한다(reg):
+    log: list[str] = []
+    out = _run(reg, log, [72485, 76300], [GONE])
+    assert out['fail_reason'] is FailReason.COST_CHANGED

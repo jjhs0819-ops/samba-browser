@@ -20,4 +20,6 @@ class FailReason(StrEnum):
     ORDER_FORM_GONE = 'order_form_gone'
     # 결제수단 규칙상 사람이 고를 일(폰 결제 할인이 더 크다 등) — 결제하지 않고 사유를 남긴다
     PAY_RULE_STOP = 'pay_rule_stop'
+    # 승인 뒤 주문서를 다시 만들었더니 원가가 올랐다(청구할인 한도 소진 등) — 결제 안 함, 새 원가로 승인카드를 다시 띄운다
+    COST_CHANGED = 'cost_changed'
     UNKNOWN = 'unknown'

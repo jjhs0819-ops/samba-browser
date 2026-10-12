@@ -26,6 +26,9 @@ KAKAO_FALLBACK_MARK = '카카오페이 폰 비밀번호를 기다렸지만'
 # 배송지를 저장했는데 목록에 바로 안 보여 멈춘 결제 전 실패(구매 문구) — 한 번 다시 돌린다
 SHIP_RETRY_MARK = '저장 뒤 목록에 없음'
 SHIP_RETRY_KEY = '_ship_retry'
+# 승인 뒤 원가가 올라 멈춘 건(cost_changed)을 새 원가로 다시 준비한 횟수 — 상한을 넘으면 사람에게(사용자 2026-10-12)
+REAPPROVE_KEY = '_reapprove'
+REAPPROVE_MAX = 3
 
 _log = logging.getLogger(__name__)
 
@@ -425,6 +428,25 @@ class Worker:
                 line = f'뒤처리 실패: {mask_text(str(exc))[:120]}'
             if line:
                 self.d.report(job, f'{job.order_no} {line}')
+        reapproved = int(job.options.get(REAPPROVE_KEY) or 0)
+        if (
+            outcome == 'needs_human'
+            and str(fail or '') == str(FailReason.COST_CHANGED)
+            and not self.d.dry_run
+            and reapproved < REAPPROVE_MAX
+        ):
+            # 승인 뒤 원가가 올라 결제하지 않았다(무신사 현대카드 한도 소진 등, 실기 2026-10-12) — 새 작업으로 다시 준비해
+            # 새 원가의 승인카드를 띄운다. 사장님은 카드를 다시 누르기만 하면 된다
+            self.d.queue.finish(job.id, 'failed', error=str(fail))
+            self.d.queue.enqueue(
+                job.order_no,
+                job.requester,
+                {**job.options, REAPPROVE_KEY: reapproved + 1},
+                job.thread_ts,
+                wave_id=job.wave_id,
+            )
+            self.d.report(job, f'{job.order_no} 원가가 올라 결제 안 함 — 새 원가로 승인카드를 다시 띄운다')
+            return self.d.queue.get_by_id(job.id)  # type: ignore[return-value]
         if outcome == 'needs_human' and not self.d.dry_run and not job.options.get(SHIP_RETRY_KEY):
             reason = _failed_reason(out)
             if SHIP_RETRY_MARK in reason:
