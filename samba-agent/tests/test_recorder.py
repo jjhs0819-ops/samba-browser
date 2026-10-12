@@ -399,7 +399,7 @@ def test_결제_뒤_주문_상세로_원가를_다시_계산해_기록한다(reg
     out = a(assignment(reg, dry_run=False))
     assert out.status == 'ok'
     body = json.loads(put.calls[0].request.content)
-    assert body['cost'] == 95520
+    assert body['cost'] == 103170  # 적립 예정은 원가에 넣지 않는다(사용자 2026-10-12)
     assert '실결제 95,950' in body['notes']
 
 
@@ -419,7 +419,7 @@ def test_주문_상세에_적립이_없으면_견적의_적립으로_원가를_�
     out = a(assignment(reg, dry_run=False, handoff={'reward': 1640, 'points_used': 14200}))
     assert out.status == 'ok'
     # 네이버페이 = 현대카드 청구할인 2.7%(사용자 2026-10-02): 45,000 × 0.973 − 1,640 + 14,200
-    assert json.loads(put.calls[0].request.content)['cost'] == 56345
+    assert json.loads(put.calls[0].request.content)['cost'] == 57985  # 적립 예정은 원가에 넣지 않는다(사용자 2026-10-12)
 
 
 @respx.mock
@@ -474,7 +474,7 @@ def test_포인트_전액_결제는_현금_0원이라도_원가를_사용_포인
     ('site_reward', 'quoted_reward', 'cost'),
     [
         # 애드픽·샵백 적립은 원가에 넣지 않는다(사용자 2026-09-27): 100,000 × 0.973 − 사이트 적립 134
-        (134, 0, 97166),
+        (134, 0, 97300),
         # 상세·견적 모두 사이트 적립이 없으면 청구할인만: 100,000 × 0.973
         (0, 0, 97300),
     ],
@@ -563,10 +563,10 @@ def test_상세에_카드사가_없으면_구매때_고른_카드사로_청구�
 
     # 롯데온 L.PAY 롯데카드(실기 2026-10-06): 결제 78,950 · 적립 437 → 78,950×0.98 − 437 = 76,934
     detail = {'paid': 78950, 'reward': 437, 'card': '간편결제'}
-    assert actual_cost(detail) == 78513  # 계수 없이 계산하면 틀린 값
+    assert actual_cost(detail) == 78950  # 계수 없이 계산하면 틀린 값(적립은 원가 밖)
     shaped = with_pay_card(detail, {'card_issuer': '롯데카드'})
     assert shaped['card'] == '롯데카드'
-    assert actual_cost(shaped) == 76934
+    assert actual_cost(shaped) == round(78950 * 0.98)  # 적립은 원가 밖
 
 
 def test_상세에_청구할인_카드사가_읽혔으면_구매때_카드사로_덮지_않는다():

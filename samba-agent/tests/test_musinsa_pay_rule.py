@@ -324,3 +324,14 @@ def test_검증도_청구할인_원가로_계산한다():
     detail = {'paid': 76300, 'reward': 0, 'points_used': 0, 'card': '현대카드'}
     assert billed_cost(detail, {'billed_discount': 3815}) == 72485
     assert billed_cost(detail, {}) == 74240  # 청구할인 없으면 예전 계산(현대 ×0.973)
+
+
+@respx.mock
+def test_구매_현대카드_원가는_적립_예정을_빼지_않은_청구예상(musinsa) -> None:
+    # 실기 2026-10-12 반스 보트슈즈: 결제 63,200 · 청구할인 3,160 · 구매 적립 2,520 → 원가 60,040(적립 빼면 57,520 로 틀림)
+    calls: list = []
+    read = {**INFO, 'base_cost': 63200, 'pay': {**INFO['pay'], 'cost': 63200, 'reward': 2520, 'hyundai': {'discount': 3160, 'remain': 20184, 'billed': 60040}}}
+    _mock(read, {}, calls)
+    snap = _snap()
+    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
+    assert snap['cost'] == 60040

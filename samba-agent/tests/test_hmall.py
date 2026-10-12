@@ -180,7 +180,7 @@ def test_롯데카드_직접결제_견적은_청구할인을_반영해_고른다
     got = cheapest_quotes(rows, None, {DIRECT_CARD_PROVIDER}, direct_card='롯데카드')
     assert [(q['method'], q['card']) for q in got] == [('카드', '롯데카드')]
     # 원가 = 47,500 × 0.98 − 40 + 30,675
-    assert got[0]['cost'] == round(47500 * 0.98 - 40 + 30675)
+    assert got[0]['cost'] == round(47500 * 0.98 + 30675)
     # 소싱처 허용이 없으면 카드 줄은 후보가 아니다
     assert cheapest_quotes(rows, None, {DIRECT_CARD_PROVIDER}) == []
 
@@ -281,7 +281,7 @@ def test_결제수단_견적은_롯데카드만_묻고_카드_직접결제로_�
     args = calls[0][1]
     assert args['methods'] == ['카드'] and args['cards'] == ['롯데카드'] and args['tab'] == 'tab-h'
     assert (snap['pay_method'], snap['pay_card'], snap['pay_amount']) == ('카드', '롯데카드', 47500)
-    assert snap['cost'] == round(47500 * 0.98 - 40 + 30675)
+    assert snap['cost'] == round(47500 * 0.98 + 30675)
 
 
 # --- SSG ↔ H몰 교차 ----------------------------------------------------------

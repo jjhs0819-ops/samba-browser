@@ -43,7 +43,7 @@ def test_충전결제는_소싱처가_켤_때만_후보다() -> None:
     assert [q['method'] for q in cheapest_quotes(SSG_QUOTES, None, {'site'})] == ['SSGPAY']
     # charge_pay 를 켜면 남는다 — 현대카드 청구할인(×0.973 = 97,300)이 1.5% 적립(98,500)보다 싸다
     got = cheapest_quotes(SSG_QUOTES, None, {'site'}, charge_pay=True)
-    assert [(q['method'], q['cost']) for q in got] == [('SSGPAY', 97300), ('SSG MONEY 충전결제', 98500)]
+    assert [(q['method'], q['cost']) for q in got] == [('SSGPAY', 97300), ('SSG MONEY 충전결제', 100000)]
 
 
 def test_몰을_알_수_없는_SSG_주소는_열어_본다():

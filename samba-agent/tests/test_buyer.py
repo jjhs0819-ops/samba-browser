@@ -1618,10 +1618,10 @@ def test_원가는_적립과_청구할인을_반영한다():
     from samba_agent.agents.buyer import effective_cost
 
     # 39,200 결제, 무신사머니 적립 3,120 → 원가 36,080(사용자 예시 2026-09-24)
-    assert effective_cost({'cost': 39200, 'reward': 3120}) == 36080
+    assert effective_cost({'cost': 39200, 'reward': 3120}) == 39200  # 적립 예정은 원가에 넣지 않는다(사용자 2026-10-12)
     # PAYCO×현대카드: 결제액 ×0.973, 적립 1,170
     assert effective_cost({'cost': 39200, 'card': '현대카드', 'reward': 1170}) == round(
-        39200 * 0.973 - 1170
+        39200 * 0.973  # 적립 예정은 원가 밖(사용자 2026-10-12)
     )
     # 기존 적립금 사용액은 원가에 다시 더한다
     assert effective_cost({'cost': 30000, 'reward': 0, 'points_used': 2000}) == 32000
@@ -1694,7 +1694,7 @@ def test_네이버페이_견적은_사이트_적립과_네이버페이_1퍼센�
     rows = cheapest_quotes(
         [{'method': '네이버페이', 'cost': 64600, 'reward': 1300, 'points_used': 0}], None, {'naver'}
     )
-    assert rows[0]['cost'] == round(64600 * 0.973 - 1300 - 646)
+    assert rows[0]['cost'] == round(64600 * 0.973)  # 적립 예정은 원가에 넣지 않는다(사용자 2026-10-12)
 
 
 def test_같은_원가면_페이코보다_무신사페이가_먼저다():
@@ -2125,7 +2125,7 @@ def test_네이버페이는_현대카드_청구할인을_원가에_반영한다(
 
     assert effective_cost(
         {'method': '네이버페이', 'card': None, 'cost': 97670, 'reward': 977}
-    ) == round(97670 * 0.973 - 977)
+    ) == round(97670 * 0.973)  # 적립 예정은 원가에 넣지 않는다(사용자 2026-10-12)
     assert (
         effective_cost({'card': '네이버페이', 'cost': 100000}) == 97300
     )  # 주문 상세의 결제수단 글자

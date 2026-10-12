@@ -656,10 +656,15 @@ def billing_factor(card: str | None) -> float:
     return 1.0
 
 
+# 원가에 앞으로 받을 적립(구매 적립·머니 적립 등)을 녹이지 않는다(사용자 2026-10-12: "적립 예정금액은 절대 원가에
+# 녹이지 않았다, 실제로 카드가 결제한 금액을 적었다"). 적립은 근거·메모용으로만 남긴다
+REWARD_IN_COST = False
+
+
 def effective_cost(row: dict[str, object]) -> float:
-    """견적 한 줄의 원가(플레이북 §6): 실결제액 × 청구할인 계수 − 후기 제외 신규 적립 + 사용한 기존 적립금."""
+    """견적 한 줄의 원가: 실결제액 × 청구할인 계수 + 사용한 기존 적립금. 적립 예정은 빼지 않는다(REWARD_IN_COST)."""
     paid = _as_float(row.get('cost'))
-    reward = _as_float(row.get('reward'))
+    reward = _as_float(row.get('reward')) if REWARD_IN_COST else 0.0
     used = _as_float(row.get('points_used'))
     card = str(row.get('card') or '')
     factor = billing_factor(card or None)
@@ -3108,7 +3113,7 @@ class BuyerAgent(AgentBase):
                 )
             self.note('결제 규칙', f'{t["name"]} -{_as_float(t.get("amount")):,.0f}원은 이 주문에 적용 안 됨')
         used = _as_float(snap.get('points_used'))
-        snap['cost'] = round(out_of_pocket - chosen['reward'] + used)
+        snap['cost'] = round(out_of_pocket - (chosen['reward'] if REWARD_IN_COST else 0.0) + used)
         snap['pay_amount'] = chosen['paid']
         snap['pay_method'] = chosen.get('method') or '무신사페이'
         snap['pay_card'] = chosen['card']
