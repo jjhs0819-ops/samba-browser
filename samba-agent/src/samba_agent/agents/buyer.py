@@ -602,6 +602,32 @@ def hyundai_choice(info: dict[str, object]) -> dict[str, object] | None:
     }
 
 
+def money_choice(info: dict[str, object]) -> dict[str, object] | None:
+    """규칙 ③(기본): 무신사머니. 보유 머니가 결제액 이상일 때만(모자라면 은행 자동충전이라 쓰지 않는다). 아니면 None."""
+    money = info.get('money')
+    if not isinstance(money, dict):
+        return None
+    paid = _as_float(money.get('cost'))
+    balance = _as_float(money.get('balance'))
+    if paid <= 0 or balance < paid:
+        return None
+    return {
+        'method': '무신사머니',
+        'card': None,
+        'paid': paid,
+        'billed_discount': 0.0,
+        'reward': _as_float(money.get('reward')),
+        'tile': None,
+        'why': f'기본 무신사머니(보유 {balance:,.0f}원)',
+    }
+
+
+def pay_label(chosen: dict[str, object]) -> str:
+    """'무신사페이/NH카드' 또는 '무신사머니'."""
+    method = str(chosen.get('method') or '무신사페이')
+    return f'{method}/{chosen["card"]}' if chosen.get('card') else method
+
+
 def other_tiles_over(tiles: list[dict[str, object]], benefit: float) -> list[dict[str, object]]:
     """무신사페이가 아닌 수단(토스·카카오·페이코·KB Pay 등)의 즉시할인 중 고른 혜택보다 큰 것 — 큰 순서."""
     out = [
@@ -3055,8 +3081,11 @@ class BuyerAgent(AgentBase):
                 else:
                     self.note('결제 규칙', mask_text(f'{nh["name"]} 즉시할인 적용 안 됨({r.get("note") or r.get("method")})'))
         if chosen is None:
-            self.note('결제 규칙', '무신사 현대카드 한도·농협 즉시할인 없음 — 기존 최저 견적으로 고른다')
-            return False
+            # ③ 기본 결제는 무신사머니(사용자 2026-10-12). 보유 머니가 모자라면 은행 자동충전이 되므로 쓰지 않는다
+            chosen = money_choice(info)
+            if chosen is None:
+                self.note('결제 규칙', '현대카드 한도·농협 즉시할인 없음, 무신사머니 잔액 부족 — 기존 최저 견적으로 고른다')
+                return False
         out_of_pocket = chosen['paid'] - chosen['billed_discount']
         benefit = max(0.0, base - out_of_pocket)
         # ③ 다른 수단(토스·카카오·페이코 등) 즉시할인이 고른 혜택보다 크면 — 실제로 적용되는지 눌러 보고 멈춘다
@@ -3070,14 +3099,14 @@ class BuyerAgent(AgentBase):
                 raise AgentFailure(
                     'needs_human',
                     f'{t["name"]} 즉시할인 -{_as_float(t.get("amount")):,.0f}원이 고른 결제'
-                    f'(무신사페이 {chosen["card"]}, 혜택 {benefit:,.0f}원)보다 커서 결제하지 않음 — 사람이 결제수단을 고른다',
+                    f'({pay_label(chosen)}, 혜택 {benefit:,.0f}원)보다 커서 결제하지 않음 — 사람이 결제수단을 고른다',
                     FailReason.PAY_RULE_STOP,
                 )
             self.note('결제 규칙', f'{t["name"]} -{_as_float(t.get("amount")):,.0f}원은 이 주문에 적용 안 됨')
         used = _as_float(snap.get('points_used'))
         snap['cost'] = round(out_of_pocket - chosen['reward'] + used)
         snap['pay_amount'] = chosen['paid']
-        snap['pay_method'] = '무신사페이'
+        snap['pay_method'] = chosen.get('method') or '무신사페이'
         snap['pay_card'] = chosen['card']
         snap['pay_card_name'] = chosen['card']
         snap['pay_tile'] = chosen['tile']
@@ -3085,7 +3114,7 @@ class BuyerAgent(AgentBase):
         snap['reward'] = chosen['reward']
         self.note(
             '결제수단 견적',
-            f'무신사페이/{chosen["card"]} 원가 {snap["cost"]:,.0f}원 — 결제 규칙: {chosen["why"]}'
+            f'{pay_label(chosen)} 원가 {snap["cost"]:,.0f}원 — 결제 규칙: {chosen["why"]}'
             f' (결제 {chosen["paid"]:,.0f}원, 기본 {base:,.0f}원)',
         )
         return True

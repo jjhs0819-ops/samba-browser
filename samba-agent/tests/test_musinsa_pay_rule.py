@@ -272,3 +272,32 @@ def test_구매_폰결제_할인이_실제로_더_크면_멈춘다(musinsa) -> N
         musinsa._apply_payment_quotes(_a(), 'buy-1', _snap())
     assert e.value.fail_reason is FailReason.PAY_RULE_STOP
     assert '카카오페이 × BC카드' in e.value.reason and '6,000' in e.value.reason
+
+
+def test_머니_잔액이_모자라면_머니로_고르지_않는다():
+    from samba_agent.agents.buyer import money_choice
+
+    assert money_choice({'money': {'cost': 76300, 'balance': 197625, 'reward': 0}})['method'] == '무신사머니'
+    assert money_choice({'money': {'cost': 76300, 'balance': 50000, 'reward': 0}}) is None
+
+
+@respx.mock
+def test_구매_현대_한도도_농협도_없으면_기본_무신사머니(musinsa) -> None:
+    calls: list = []
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
+    read = {**read, 'tiles': [t for t in INFO['tiles'] if '농협' not in t['name']]}
+    _mock(read, {}, calls)
+    snap = _snap()
+    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
+    assert (snap['pay_method'], snap['pay_card'], snap['cost']) == ('무신사머니', None, 76300)
+    assert not snap.get('pay_card_name') and not snap.get('pay_tile')
+
+
+@respx.mock
+def test_구매_농협_할인이_적용_안_되면_무신사머니(musinsa) -> None:
+    calls: list = []
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
+    _mock(read, {'무신사페이 × 농협카드': {'ok': True, 'usable': False, 'method': '무신사페이'}}, calls)
+    snap = _snap()
+    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
+    assert snap['pay_method'] == '무신사머니'
