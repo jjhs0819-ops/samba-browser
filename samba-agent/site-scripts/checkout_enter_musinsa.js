@@ -1,15 +1,10 @@
-// 무신사 결제창 진입: 결제수단 고르고 결제하기 직전(또는 결제)까지
-// 인자 {card, profile?, dryRun?, expect:{name, option, selected, product_no}, amount?, tab?}
-// dry 면 누르기 직전까지. expect 없으면 결제 안 함. 탭은 args.tab
-// 총액 못 읽으면 실패, amount+배송비 초과면 멈춤
-// 반환 {ok, method, popup_url, dry?, points_only?, total, order_item, note, error?}
+// 무신사 결제창 진입(dry=결제하기 직전까지). args card,expect,amount,tab,pay_card,tile,billed_discount
 const nz = s => String(s || '').replace(/\s+/g, ' ').trim()
 const lc = s => nz(s).toLowerCase()
 const num = s => parseInt(String(s || '').replace(/[^\d]/g, ''), 10) || 0
 const OF = /musinsa\.com\/order\/order-form/
 const get = async o => { for (let i = 0; i < 6; i++) { try { return (await page.get(o)).tree } catch (e) { await sleep(600) } } return '' }
 const text = async () => nz((await get({})).split('PAGE TEXT:')[1])
-// 총액: 못 읽으면 null
 const totalOf = t => { const m = t.match(/총 결제 금액\s*(?:\d+%\s*)?([\d,]+)\s*원/); return m ? num(m[1]) : null }
 const segOf = t => nz((t.match(/주문 ?상품\s*\d+\s*개\s*(.*?)\s*\/\s*\d+\s*개/) || [])[1])
 const dry = !!(args.dryRun || args.dry_run)
@@ -19,7 +14,6 @@ const fail = (error, note) => ({ ...R, ok: false, error, note: note || error })
 const ex = typeof args.expect === 'string' ? { name: args.expect } : (args.expect && typeof args.expect === 'object' ? args.expect : null)
 if (!dry && !ex) return fail('no expect', 'no expect')
 
-// 주문서 대조(하네스 order_form_mismatch 기준 + 상품번호): 다르면 사유
 const GEN = new Set('매장정품 정품 신발 운동화 스니커즈 스니커 남성 여성 남녀공용 공용 커플 키즈 아동 나이키 아디다스 뉴발란스 푸마 반스 컨버스 리복 아식스 휠라 스케쳐스 크록스 노스페이스 nike adidas puma vans converse reebok asics fila skechers crocs 모자 가방 티셔츠 블랙 화이트 그레이 네이비 black white grey gray navy'.split(' '))
 const tk = s => lc(s).split(/[^0-9a-z가-힣]+/).filter(Boolean)
 const ft = t => /^(free|one|f|os|onesize|프리)$/.test(t)
@@ -31,24 +25,20 @@ const mismatch = (seg, tree) => {
   const segNums = seg.split(/[^\d.]+/).filter(Boolean)
   if (words.length && !words.some(w => low.includes(w.toLowerCase()))) return `name words ${words.slice(0, 5).join(',')} not in order form`
   if (sizes.length && !sizes.some(x => segNums.includes(x))) return `size ${sizes.join('/')} not in order form`
-  // 글자 사이즈는 주문서 줄에 같은 토큰이 있어야
   const want = sizes.length ? [] : tk(ex.selected || ex.option).filter(t => /^(xxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl|4xl)$/.test(t) || ft(t))
   const st = tk(seg)
   if (want.length && !want.some(l => st.includes(l) || (ft(l) && st.some(ft)))) return `size ${want.join('/')} not in order form`
-  // 상품 링크가 보이면 그 번호여야
   const pno = String(ex.product_no || '').replace(/\D/g, '')
   if (pno && /products\/\d+/.test(tree) && !new RegExp('products/' + pno + '(?!\\d)').test(tree)) return `product ${pno} not in order form`
   return null
 }
 
-// 1) 주문서 탭(tabs.list 에 profile 이 실리면 그 계정 것만)
 const ofs = (await tabs.list()).filter(t => OF.test(t.url || '') && (!args.profile || !t.profile || t.profile === args.profile))
 let tab = null
 if (args.tab) {
   tab = ofs.find(t => t.id === String(args.tab))
   if (!tab) return fail('not-on-order-form', 'order form tab ' + args.tab + ' not found')
 } else {
-  // 후보마다 대조해 딱 하나만(expect 없으면 주문서 하나일 때만)
   const hit = []
   for (const t of ofs) {
     if (!ex) { hit.push(t); continue }
@@ -64,7 +54,6 @@ if (args.tab) {
 await tabs.switch(tab.id)
 try { await page.waitFor('총 결제 금액', 8000) } catch (e) {}
 
-// 2) 주문서 대조
 const tree0 = await get({})
 let tx = nz(tree0.split('PAGE TEXT:')[1])
 const seg = segOf(tx)
@@ -73,7 +62,6 @@ if (!seg) return fail('order form mismatch', 'order item not readable')
 const why = mismatch(seg, tree0)
 if (why) return fail('order form mismatch', 'order form mismatch: ' + why + ' | ' + seg.slice(0, 80))
 
-// 3) 결제수단
 const NAMES = ['무신사머니', '무신사페이', '토스페이', '카카오페이', '페이코', '네이버페이']
 const pointsOnly = card === '포인트전액'
 const m = NAMES.find(n => card.includes(n) || (card.length > 1 && n.includes(card)))
@@ -85,14 +73,14 @@ if (m) {
   await page.click(rid)
   try { await page.waitFor(m + ' 결제', 3000) } catch (e) { await sleep(700) }
   tx = await text()
-  // 화면 아래 '<수단> 결제' 문구로 확인
   if (!tx.includes(m + ' 결제')) return fail('method-not-selected', m + ' not confirmed on screen')
   R.method = m
   if (m === '무신사페이' && !/\(\d{3,4}\*?\)\s*(신용카드|체크카드)/.test(tx.slice(tx.indexOf('결제 수단'), tx.indexOf('결제 금액 상품 금액')))) return fail('no-registered-card', '무신사페이 registered card not found')
   if (m === '무신사머니' && /잔액이 부족|계좌를 (등록|연결)해/.test(tx)) return fail('money-unavailable', '무신사머니 잔액·계좌 확인 필요')
   if (m === '무신사머니') { const bal = num((tx.match(/현재 보유 머니\s*([\d,]+)\s*원/) || [])[1]); const tot = totalOf(tx); if (bal && tot && bal < tot) return fail('money-insufficient', `머니 ${bal} < ${tot}`) }
 }
-// 4) 금액: 수단을 고른 뒤의 화면 총액
+// 무신사페이 카드 확인(10-12)
+if (m === '무신사페이' && args.pay_card) { const ac = nz((await get({ selector: '[class*=swiper-slide-active]' })).split('PAGE TEXT:')[1]); if (!ac.includes(nz(args.pay_card)) || (args.tile && !/할인 적용 중/.test(ac))) return fail('card-not-selected', 'card ' + ac.slice(0, 30)); tx = await text(); const bd = +args.billed_discount || 0; if (bd > 0 && num((tx.slice(tx.indexOf('무신사 현대카드 혜택')).match(/청구 할인\s*-\s*([\d,]+)/) || [])[1]) + 1 < bd) return fail('billing-discount-changed', 'billed < ' + bd); R.pay_card = ac.slice(0, 30) }
 R.total = totalOf(tx)
 if (R.total == null) return fail('total-not-read', '총 결제 금액을 읽지 못함')
 if (pointsOnly && R.total > 0) return fail('not-points-only', `total ${R.total} > 0`)
@@ -104,10 +92,8 @@ const payLine = (t => t.split('\n').find(x => /^\[\d+\] button "[^"]*결제하�
 if (!payLine) return fail('pay-button-not-found')
 const payId = parseInt(payLine.slice(1))
 
-// 5) 시험: 누르기 직전에서 멈춘다
 if (dry) return { ...R, ok: true, dry: true, points_only: pointsOnly || undefined, note: 'dry run — pay button ' + payId + ' not clicked' }
 
-// 6) 결제하기 → 결제창. 늦으면 한 번 더 누른다(무신사페이 제외), 새 창이 둘이면 사람에게
 const before = new Set((await tabs.list()).map(t => t.id))
 const clicks = [String(await page.click(payId)).slice(0, 80)]
 if (pointsOnly) { await sleep(2500); return { ...R, ok: true, points_only: true, click: clicks } }

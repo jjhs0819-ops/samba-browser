@@ -137,6 +137,6 @@ if (!n && O.selected) O.options = [O.selected]
 O.cost = +((tx.match(/총 결제 금액\s*(?:\d+%\s*)?([\d,]+)\s*원/) || [])[1] || '').replace(/,/g, '') || null
 const ps = tx.slice(tx.indexOf('결제 수단'))
 O.methods = ['무신사머니', '무신사페이', '토스페이', '카카오페이', '페이코', '네이버페이'].filter(m=>ps.includes(m))
-for (const t of await tabs.list()) if (t.id !== of.id && OF.test(t.url || '')) await safe(()=>tabs.close(t.id))
+// 2026-10-12: 다른 주문서 탭은 닫지 않는다 — 승인 대기 중인 앞 주문의 주문서가 사라져 결제 직전에 멈췄다(새 주문서는 before 집합으로 찾는다)
 await tabs.switch(of.id)
 return done(null)

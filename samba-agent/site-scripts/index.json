@@ -153,7 +153,10 @@
     "host": "www.musinsa.com",
     "description": "열려 있는 무신사 주문서에서 결제수단(간편결제명 또는 카드사 일부)을 고르고 '결제하기'를 눌러 결제창(팝업)이 뜨게 한다. {ok,method,popup_url} 반환. 결제 비밀번호는 절대 누르지 않음.",
     "params": [
-      "card - card name part or easy-pay name"
+      "card - card name part or easy-pay name",
+      "pay_card — 무신사페이 카드 이름 일부",
+      "tile — 즉시할인 타일 이름",
+      "billed_discount — 승인 때 청구할인(원)"
     ]
   },
   {
@@ -773,6 +776,17 @@
     "description": "무신사 주문서에서 무신사페이를 골라 등록 기본 카드(카드 목록 맨 앞)와 그 결제 금액·적립·사용 적립금을 견적 한 줄로 돌려준다. 결제하기는 누르지 않는다.",
     "params": [
       "profile — 계정"
+    ]
+  },
+  {
+    "name": "musinsa_pay_rule",
+    "host": "musinsa.com",
+    "description": "무신사 결제 규칙(2026-10-12): read=무신사머니·무신사페이 기본카드·무신사 현대카드 청구할인/잔여한도/청구예상·즉시할인 타일, tile=타일 적용 여부, select=결제 직전 카드·타일 맞추기. 결제하기는 누르지 않는다.",
+    "params": [
+      "tab — 주문서 탭 id",
+      "mode — read|tile|select",
+      "tile — 즉시할인 타일 이름",
+      "pay_card — select 때 기대 카드 이름 일부"
     ]
   },
   {
