@@ -19,6 +19,8 @@ NO_RETRY_REASONS = frozenset(
         FailReason.VERIFY_MISMATCH,
         # 결제 진행 중 재시작 — 다시 돌리면 재결제다
         FailReason.PAY_INTERRUPTED,
+        # 결제수단 규칙 정지 — 사람이 고를 일이다
+        FailReason.PAY_RULE_STOP,
     }
 )
 

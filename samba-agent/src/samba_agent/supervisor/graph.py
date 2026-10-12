@@ -115,6 +115,74 @@ def _run_stage(
     }
 
 
+def _buyer_cost(state: RunState) -> float | None:
+    """구매 결과의 원가(승인 카드에 보인 값). 없으면 None."""
+    for name, r in state.get('results', {}).items():
+        if name.startswith('buyer.'):
+            try:
+                cost = float(r.payload.get('cost'))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return None
+            return cost if cost > 0 else None
+    return None
+
+
+# 다시 만든 주문서 원가가 승인 원가보다 이만큼(원)까지 높아도 그대로 결제한다 — 0 이면 같거나 싸야 한다
+REBUILD_COST_TOLERANCE_WON = 0.0
+
+
+def _rebuild_and_pay(
+    reg: Registry,
+    agents: Mapping[str, AgentFn],
+    state: RunState,
+    on_agent_result: 'AgentResultHook | None',
+    on_stage_start: 'StageHook | None',
+) -> RunState:
+    """승인 뒤 주문서 탭이 사라졌다 — 구매를 한 번 다시 돌려 주문서를 만들고, 원가가 승인 원가 안이면 이어서 결제한다.
+
+    결제는 아직 시작되지 않았다(결제 에이전트가 주문서 대조 전에 멈춘다). 승인은 그 원가로 사겠다는 뜻이므로
+    다시 만든 원가가 승인 원가보다 높으면(쿠폰 소진·청구할인 한도 소진 등) 결제하지 않고 사람에게 넘긴다.
+    실기 2026-10-12: 다음 주문 스냅샷이 승인 대기 주문의 주문서 탭을 닫아 승인 30건이 결제 직전에 멈출 상황이었다.
+    """
+    approved_cost = _buyer_cost(state)
+    results = {
+        k: v for k, v in state.get('results', {}).items() if not k.startswith('buyer.') and k != 'payer'
+    }
+    _log.info('주문서 탭이 사라져 구매를 다시 돌린다(승인 원가 %s)', approved_cost)
+    again: RunState = {
+        **state,
+        'results': results,
+        'form_rebuilt': True,
+        # 결제 전이다 — 다시 만드는 동안은 결제 진입 표시를 내려 둔다(재시작되면 처음부터 사람이 본다)
+        'pay_started': False,
+    }
+    again = _run_stage(reg, agents, 'buy', again, on_agent_result)
+    if again.get('outcome') is not None:
+        return again
+    new_cost = _buyer_cost(again)
+    if (
+        approved_cost is None
+        or new_cost is None
+        or new_cost > approved_cost + REBUILD_COST_TOLERANCE_WON
+    ):
+        return _stop(
+            again,
+            'supervisor',
+            AgentResult(
+                status='needs_human',
+                reason=(
+                    '주문서 탭이 닫혀 다시 만들었더니 원가가 승인 때와 다르다 — 결제 안 함, 다시 승인 필요'
+                    f'(승인 {approved_cost or 0:,.0f}원 → 지금 {new_cost or 0:,.0f}원)'
+                ),
+                fail_reason=FailReason.ORDER_FORM_GONE,
+            ),
+        )
+    again = {**again, 'pay_started': True}
+    if on_stage_start is not None:
+        on_stage_start(again, 'pay')
+    return _run_stage(reg, agents, 'pay', again, on_agent_result)
+
+
 # 외부 기입 결과가 state 에 담기는 이름
 EXPORTER_NAME = 'exporter'
 # export 노드 함수 — 검증까지 끝난 state 를 받아 결과 하나를 돌려준다
@@ -280,7 +348,14 @@ def build_supervisor(
                 state = {**state, 'pay_started': True}
             if on_stage_start is not None:
                 on_stage_start(state, stage)
-            return _run_stage(reg, agents, stage, state, on_agent_result)
+            done = _run_stage(reg, agents, stage, state, on_agent_result)
+            if (
+                stage == 'pay'
+                and done.get('fail_reason') == FailReason.ORDER_FORM_GONE
+                and not state.get('form_rebuilt')
+            ):
+                return _rebuild_and_pay(reg, agents, state, on_agent_result, on_stage_start)
+            return done
 
         return node
 

@@ -556,9 +556,69 @@ def product_no_of(url: str | None) -> str:
     return m.group(1) if m else ''
 
 
+_NH_TILE_RE = re.compile(r'무신사페이\s*[×xX*]\s*(?:농협|NH)', re.IGNORECASE)
+
+
+def is_nh_tile(name: str) -> bool:
+    """즉시할인 타일이 '무신사페이 × 농협카드' 인가(사용자 2026-10-12 규칙 ②)."""
+    return bool(_NH_TILE_RE.search(name or ''))
+
+
+def clean_pay_card(card: str) -> str:
+    """무신사페이 카드 글자에서 끝자리 '(275*)'·'할인 적용 중' 을 뗀다 — 'NH카드 (275*)' → 'NH카드'."""
+    text = re.sub(r'할인 적용 중', ' ', card or '')
+    text = re.sub(r'\(\s*\d{3,4}\*?\s*\)', ' ', text)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def hyundai_choice(info: dict[str, object]) -> dict[str, object] | None:
+    """규칙 ①: 무신사페이 기본 카드가 무신사 현대카드이고 청구할인이 남아 있으면(>0) 그 결제. 아니면 None.
+
+    원가는 결제액 − 청구할인(= 주문서 '청구 예상')이다. 한도가 다 차면 주문서가 청구할인을 0 으로 보여 준다.
+    """
+    pay = info.get('pay')
+    if not isinstance(pay, dict):
+        return None
+    hy = pay.get('hyundai') if isinstance(pay.get('hyundai'), dict) else {}
+    discount = _as_float(hy.get('discount')) if isinstance(hy, dict) else 0.0
+    paid = _as_float(pay.get('cost'))
+    if discount <= 0 or paid <= 0 or '무신사 현대' not in str(pay.get('active_card') or ''):
+        return None
+    billed = _as_float(hy.get('billed')) if isinstance(hy, dict) else 0.0
+    remain = hy.get('remain') if isinstance(hy, dict) else None
+    if billed > 0 and abs((paid - discount) - billed) > 1:
+        # 화면의 청구 예상이 결제액 − 청구할인과 다르면 화면 값을 믿는다(사용자: 청구 예상 금액으로 기록)
+        discount = paid - billed
+    return {
+        'card': '무신사 현대카드',
+        'paid': paid,
+        'billed_discount': discount,
+        'reward': _as_float(pay.get('reward')),
+        'tile': None,
+        'why': (
+            f'무신사 현대카드 청구할인 -{discount:,.0f}원'
+            + (f'(결제 후 잔여 한도 {_as_float(remain):,.0f}원)' if remain is not None else '')
+        ),
+    }
+
+
+def other_tiles_over(tiles: list[dict[str, object]], benefit: float) -> list[dict[str, object]]:
+    """무신사페이가 아닌 수단(토스·카카오·페이코·KB Pay 등)의 즉시할인 중 고른 혜택보다 큰 것 — 큰 순서."""
+    out = [
+        t
+        for t in tiles
+        if not str(t.get('name') or '').startswith('무신사페이') and _as_float(t.get('amount')) > benefit
+    ]
+    return sorted(out, key=lambda t: -_as_float(t.get('amount')))
+
+
 def billing_factor(card: str | None) -> float:
     """카드사 이름에 맞는 청구할인 계수. 없으면 1.0"""
     if not card:
+        return 1.0
+    if '무신사 현대' in card or '무신사현대' in card:
+        # 무신사 현대카드(PLCC)는 월 한도 안에서 주문서가 청구할인을 직접 보여 준다 — 일반 현대카드 2.7% 계수를 곱하지 않는다
+        # (사용자 2026-10-12: 한도가 남으면 주문서의 '청구 예상' 으로 기록, 한도가 끝나면 할인 없음)
         return 1.0
     for names, factor in CARD_BILLING_FACTORS:
         if any(n in card for n in names):
@@ -2858,6 +2918,8 @@ class BuyerAgent(AgentBase):
                 f'{account}: 주문서 결제수단 중 결제 가능한 것 없음(가능 {sorted(payable)}) — 이 계정으로 못 산다',
             )
             return
+        if src.pay_rule and 'musinsapay' in payable and self._apply_pay_rule(a, account, snap):
+            return
         self.step(f'{self.spec.name}: 결제수단 견적({account})')
         quote_args: dict[str, object] = {'profile': account, 'methods': methods}
         if src.direct_card:
@@ -2940,6 +3002,93 @@ class BuyerAgent(AgentBase):
         )
         # 후보 전체(수단/카드/원가)도 남긴다 — 왜 그 수단이 골라졌는지(예: L.PAY 롯데카드 줄이 있었는지) 로그로 확인(2026-10-06)
         self.note('견적 후보', _quote_rows_brief(list(quotes)))
+
+    def _apply_pay_rule(self, a: Assignment, account: str, snap: dict[str, object]) -> bool:
+        """사용자 결제 규칙(2026-10-12)으로 수단·카드를 정한다. 정했으면 True, 규칙이 못 정하면 False(기존 최저 견적).
+
+        ① 무신사페이 × 무신사 현대카드 청구할인이 남아 있으면(한도 잔여) 무조건 그 카드 — 원가는 청구 예상 금액 기준
+        ② 아니면 즉시할인 '무신사페이 × 농협카드'가 실제로 적용되면 그 카드
+        ③ 둘 다 아니면 False — 기존 견적(무신사머니·무신사페이 기본 카드 최저)
+        ①②로 정했어도 토스·카카오 등 다른 수단의 즉시할인이 실제로 적용되고 고른 혜택보다 크면 결제하지 않고 사람에게 넘긴다.
+        """
+        src = source_of(self.spec.name)
+        tab = str(snap.get('order_tab') or '') or None
+
+        def run(mode: str, **extra: object) -> dict[str, object]:
+            args = {'profile': account, 'mode': mode, **({'tab': tab} if tab else {}), **extra}
+            return self.json_tool(
+                'run_script', name=src.pay_rule_script, args=json.dumps(args, ensure_ascii=False)
+            )
+
+        self.step(f'{self.spec.name}: 결제 규칙 견적({account})')
+        try:
+            info = run('read')
+        except AgentFailure as e:
+            self.note('결제 규칙', mask_text(f'주문서를 못 읽어 기존 견적으로 진행({e.reason[:80]})'))
+            return False
+        if not info.get('ok'):
+            self.note('결제 규칙', mask_text(f'주문서를 못 읽어 기존 견적으로 진행({info.get("note")})'))
+            return False
+        base = _as_float(info.get('base_cost')) or _as_float(snap.get('cost'))
+        tiles = [t for t in (info.get('tiles') or []) if isinstance(t, dict) and t.get('name')]
+        self.note(
+            '결제 규칙 견적',
+            f'기본 {base:,.0f}원 · 즉시할인 {[f"{t["name"]} -{_as_float(t.get("amount")):,.0f}" for t in tiles]}',
+        )
+        chosen = hyundai_choice(info)
+        if chosen is None:
+            nh = next((t for t in tiles if is_nh_tile(str(t['name']))), None)
+            if nh is not None:
+                try:
+                    r = run('tile', tile=str(nh['name']))
+                except AgentFailure as e:
+                    r = {'usable': False, 'note': e.reason[:80]}
+                if r.get('usable') and r.get('method') == '무신사페이' and _as_float(r.get('cost')) > 0:
+                    chosen = {
+                        'card': clean_pay_card(str(r.get('card') or '')) or 'NH카드',
+                        'paid': _as_float(r.get('cost')),
+                        'billed_discount': 0.0,
+                        'reward': _as_float(r.get('reward')),
+                        'tile': str(nh['name']),
+                        'why': f'{nh["name"]} 즉시할인 -{_as_float(nh.get("amount")):,.0f}원',
+                    }
+                else:
+                    self.note('결제 규칙', mask_text(f'{nh["name"]} 즉시할인 적용 안 됨({r.get("note") or r.get("method")})'))
+        if chosen is None:
+            self.note('결제 규칙', '무신사 현대카드 한도·농협 즉시할인 없음 — 기존 최저 견적으로 고른다')
+            return False
+        out_of_pocket = chosen['paid'] - chosen['billed_discount']
+        benefit = max(0.0, base - out_of_pocket)
+        # ③ 다른 수단(토스·카카오·페이코 등) 즉시할인이 고른 혜택보다 크면 — 실제로 적용되는지 눌러 보고 멈춘다
+        for t in other_tiles_over(tiles, benefit):
+            try:
+                r = run('tile', tile=str(t['name']))
+            except AgentFailure as e:
+                self.note('결제 규칙', mask_text(f'{t["name"]} 적용 확인 실패({e.reason[:60]}) — 적용 안 되는 것으로 본다'))
+                continue
+            if r.get('usable'):
+                raise AgentFailure(
+                    'needs_human',
+                    f'{t["name"]} 즉시할인 -{_as_float(t.get("amount")):,.0f}원이 고른 결제'
+                    f'(무신사페이 {chosen["card"]}, 혜택 {benefit:,.0f}원)보다 커서 결제하지 않음 — 사람이 결제수단을 고른다',
+                    FailReason.PAY_RULE_STOP,
+                )
+            self.note('결제 규칙', f'{t["name"]} -{_as_float(t.get("amount")):,.0f}원은 이 주문에 적용 안 됨')
+        used = _as_float(snap.get('points_used'))
+        snap['cost'] = round(out_of_pocket - chosen['reward'] + used)
+        snap['pay_amount'] = chosen['paid']
+        snap['pay_method'] = '무신사페이'
+        snap['pay_card'] = chosen['card']
+        snap['pay_card_name'] = chosen['card']
+        snap['pay_tile'] = chosen['tile']
+        snap['billed_discount'] = chosen['billed_discount']
+        snap['reward'] = chosen['reward']
+        self.note(
+            '결제수단 견적',
+            f'무신사페이/{chosen["card"]} 원가 {snap["cost"]:,.0f}원 — 결제 규칙: {chosen["why"]}'
+            f' (결제 {chosen["paid"]:,.0f}원, 기본 {base:,.0f}원)',
+        )
+        return True
 
     @staticmethod
     def _adpick_for(snap: dict[str, object], paid: float) -> float:
@@ -4001,6 +4150,14 @@ class BuyerAgent(AgentBase):
                 **(
                     {'adpick_reward': snap.get('adpick_reward')}
                     if snap.get('adpick_reward')
+                    else {}
+                ),
+                # 무신사페이 결제 규칙(2026-10-12) — 결제 진입이 고를 카드·즉시할인 타일, 기록이 쓸 청구할인액
+                **({'pay_card_name': str(snap.get('pay_card_name'))} if snap.get('pay_card_name') else {}),
+                **({'pay_tile': str(snap.get('pay_tile'))} if snap.get('pay_tile') else {}),
+                **(
+                    {'billed_discount': _as_float(snap.get('billed_discount'))}
+                    if _as_float(snap.get('billed_discount')) > 0
                     else {}
                 ),
             },

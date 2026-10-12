@@ -312,6 +312,11 @@ def _has_number(text: str, number: str) -> bool:
     return bool(re.search(rf'(?<!\d){re.escape(number)}(?!\d)', text))
 
 
+def order_tab_gone(switch_result: str) -> bool:
+    """switch_tab 결과가 '그 탭이 없다' 인가. 앱은 없는 탭이면 오류 대신 'not found: no tab …' 문장을 돌려준다."""
+    return str(switch_result or '').strip().lower().startswith('not found')
+
+
 def order_form_mismatch(
     page: str,
     product_name: str,
@@ -1094,7 +1099,15 @@ class PayerAgent(AgentBase):
         # (결제 진입 스크립트도 같은 tab 을 받아 그 탭에서 따로 대조한다)
         order_tab = a.handoff.get('order_tab')
         if order_tab:
-            self.tool('switch_tab', id=str(order_tab))
+            switched = self.tool('switch_tab', id=str(order_tab))
+            if order_tab_gone(switched):
+                # 승인을 기다리는 동안 주문서 탭이 닫혔다(다음 주문 스냅샷·재시작 정리) — 엉뚱한 화면을 대조하지 않는다.
+                # 결제 전이므로 감독자가 주문서를 다시 만들고 승인 원가 안이면 이어서 결제한다(실기 2026-10-12 후드집업)
+                raise AgentFailure(
+                    'needs_human',
+                    '구매가 만든 주문서 탭이 닫혔다 — 주문서를 다시 만들어야 한다(결제 안 함)',
+                    FailReason.ORDER_FORM_GONE,
+                )
         page = self.tool('get_page')
         # 도착예정일이 3일을 넘으면 기록 단계가 삼바웨이브 메모·샵마인 추가메모에 남긴다(사용자 2026-09-30)
         self._arrival_memo = arrival_memo(page, datetime.now(_KST).date())
@@ -1131,6 +1144,37 @@ class PayerAgent(AgentBase):
                     FailReason.VERIFY_MISMATCH,
                 )
         self.note('주문서 대조', '상품·옵션 일치 확인' + (' · 받는 분 주소 일치' if ship_key else ''))
+
+    def _select_pay_card(self, a: Assignment) -> None:
+        """결제 규칙이 고른 무신사페이 카드·즉시할인 타일을 결제 직전에 다시 맞춘다(사용자 2026-10-12).
+
+        구매 단계가 이미 맞춰 두지만 승인 대기 중 화면이 바뀌었을 수 있다. 맞추지 못하면 결제하지 않는다 —
+        결제 진입 스크립트도 카드를 한 번 더 대조한다(pay_card·tile).
+        """
+        card = str(a.handoff.get('pay_card_name') or '')
+        tile = str(a.handoff.get('pay_tile') or '')
+        if not card and not tile:
+            return
+        src = default_sources().by_id(str(a.handoff.get('buy_source') or a.order.source or ''))
+        if src is None or not src.pay_rule:
+            return
+        args = {
+            'mode': 'select',
+            **({'tab': str(a.handoff.get('order_tab'))} if a.handoff.get('order_tab') else {}),
+            **({'pay_card': card} if card else {}),
+            **({'tile': tile} if tile else {}),
+        }
+        out = self.json_tool('run_script', name=src.pay_rule_script, args=json.dumps(args, ensure_ascii=False))
+        if not out.get('ok'):
+            raise AgentFailure(
+                'needs_human',
+                mask_text(
+                    f'결제 규칙 카드({card}{" · " + tile if tile else ""})를 맞추지 못했다 — 결제 안 함: '
+                    f'화면 {str(out.get("active") or "")[:40]} {out.get("note") or ""}'
+                ),
+                FailReason.CARD_MISSING,
+            )
+        self.note('결제 카드', mask_text(f'무신사페이 {str(out.get("active") or card)[:40]}'))
 
     def _web_pay(self, a: Assignment) -> None:
         """사이트 결제창(팝업)의 '결제하기' → 웹 키패드에 fill_secret(password) — 플레이북 §7 무신사머니 흐름.
@@ -1642,6 +1686,7 @@ class PayerAgent(AgentBase):
         # 결제 직전 — 지금 주문서가 이 주문의 상품·옵션인가. 다른 작업이 남긴 주문서를 결제하면 안 된다
         # (실기 2026-09-26: 197 이 앞 작업 196 의 아디다스 210 주문서를 결제했다)
         self._check_order_form(a)
+        self._select_pay_card(a)
 
         self.step('payer: 결제창 진입')
         # 실제로 산 사이트(교차 비교) 기준으로 결제창에 들어간다
@@ -1686,6 +1731,15 @@ class PayerAgent(AgentBase):
             payload['amount'] = amount
         if a.handoff.get('order_tab'):
             payload['tab'] = str(a.handoff.get('order_tab'))
+        # 무신사페이 결제 규칙(사용자 2026-10-12) — 결제 진입 스크립트가 무신사페이 안의 카드(·즉시할인 타일)를 맞추고
+        # 무신사 현대카드 청구할인이 승인 때보다 줄었으면 결제하지 않는다
+        if a.handoff.get('pay_card_name'):
+            payload['pay_card'] = str(a.handoff.get('pay_card_name'))
+        if a.handoff.get('pay_tile'):
+            payload['tile'] = str(a.handoff.get('pay_tile'))
+        billed = a.handoff.get('billed_discount')
+        if isinstance(billed, int | float) and not isinstance(billed, bool) and billed > 0:
+            payload['billed_discount'] = billed
         # 결제창 진입은 AI 수리 대상이 아니다 — 비밀번호 없는 간편결제(무신사페이 카드 등)는 '결제하기' 한 번에
         # 결제가 끝난다(실기 2026-09-24: 수리 시험 중 결제하기 클릭으로 실결제 발생). 실패하면 사람에게 넘긴다
         raw_enter = self.tool(

@@ -46,6 +46,10 @@ def approval_request(stage: str, state: RunState) -> ApprovalRequest:
     payload = sanitize_payload(buyer.payload) if buyer else {}
     cost = payload.get('cost')
     cost_text = f'{int(cost):,}원' if isinstance(cost, (int, float)) else '미정'
+    # 무신사페이 안에서 고른 카드(결제 규칙 2026-10-12) — 승인카드에 '무신사페이/NH카드' 로 보인다
+    pay_card = str(payload.get('pay_card_name') or '').strip()
+    if pay_card and pay_card not in str(payload.get('card') or ''):
+        payload = {**payload, 'card': f'{payload.get("card", "")}/{pay_card}'}
     lines: list[str] = []
     if order.flags:
         # 수집 제외 플래그는 오류일 수 있어 제외하지 않았다 — 결제 단계에서 사람이 보고 고른다

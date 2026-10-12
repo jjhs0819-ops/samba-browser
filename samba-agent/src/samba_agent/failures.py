@@ -16,4 +16,8 @@ class FailReason(StrEnum):
     VERIFY_MISMATCH = 'verify_mismatch'  # 대조 불일치
     # 결제 진행 중 재시작·재진입 — 재결제를 막고 사람이 결제 여부를 확인해야 한다
     PAY_INTERRUPTED = 'pay_interrupted'
+    # 승인 대기 중 구매가 만든 주문서 탭이 사라졌다(다음 주문 스냅샷이 닫음·재시작 정리) — 결제 전이라 다시 만들면 된다
+    ORDER_FORM_GONE = 'order_form_gone'
+    # 결제수단 규칙상 사람이 고를 일(폰 결제 할인이 더 크다 등) — 결제하지 않고 사유를 남긴다
+    PAY_RULE_STOP = 'pay_rule_stop'
     UNKNOWN = 'unknown'

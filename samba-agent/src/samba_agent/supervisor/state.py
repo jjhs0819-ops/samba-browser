@@ -64,3 +64,5 @@ class RunState(TypedDict, total=False):
     approvals: dict[str, str]
     # 결제 노드에 들어갔다는 표시 — 재시작·재진입 시 재결제를 막는다(스펙 §6)
     pay_started: bool
+    # 승인 뒤 주문서 탭이 사라져 구매를 한 번 다시 돌렸다는 표시 — 두 번째는 사람에게 넘긴다(2026-10-12)
+    form_rebuilt: bool

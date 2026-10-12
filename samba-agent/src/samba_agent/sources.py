@@ -106,6 +106,14 @@ class Source(BaseModel):
     # 'card'(DIRECT_CARD_PROVIDER)로 본다 — 키마스터 결제 비밀번호가 아니라 카드사 결제창(앱카드 등)에서 사람이 승인한다.
     # 이 소싱처의 pay_provider 도 'card' 로 둔다
     direct_card: str | None = None
+    # True 면 결제수단을 `<key>_pay_rule`(주문서 즉시할인 타일·무신사페이 카드 청구할인)로 사용자 규칙대로 고른다
+    # (무신사, 사용자 2026-10-12): ① 무신사 현대카드 청구할인 한도가 남으면 무조건 그 카드 ② 아니면 무신사페이×농협카드
+    # 즉시할인 ③ 아니면 기존 최저 견적. 폰 결제(토스·카카오 등) 즉시할인이 더 크면 결제하지 않고 사유를 남긴다
+    pay_rule: bool = False
+
+    @property
+    def pay_rule_script(self) -> str:
+        return f'{self.key}_pay_rule'
 
     @property
     def entry_script(self) -> str:

@@ -38,6 +38,10 @@ BUYER_HANDOFF_FIELDS = (
     # 진입 경로(SSG 직접·애드픽)와 애드픽 적립(원) — 기록 단계 원가에 쓴다(주문 상세에 애드픽 적립이 안 나온다)
     'route',
     'adpick_reward',
+    # 무신사페이 결제 규칙(2026-10-12 사용자) — 결제 진입이 고를 카드·즉시할인 타일, 기록이 쓸 청구할인액
+    'pay_card_name',
+    'pay_tile',
+    'billed_discount',
 )
 
 

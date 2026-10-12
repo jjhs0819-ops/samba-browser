@@ -68,10 +68,21 @@ def wave_notes(a: Assignment, values: dict[str, object]) -> str:
     """삼바웨이브 간단메모 한 줄(플레이북 §6-3) — 계정·수단·실결제액·원가. 개인정보는 없다."""
     # 실제 주문 상세에서 읽은 값이 있으면 그것을 쓴다(결제 뒤 재계산)
     card = values.get('card') or a.handoff.get('card') or a.options.get('card') or '미확인'
+    # 무신사페이 안에서 고른 카드(사용자 2026-10-12 결제 규칙) — '무신사페이/NH카드'
+    pay_card = str(a.handoff.get('pay_card_name') or '').strip()
+    if pay_card and pay_card not in str(card):
+        card = f'{card}/{pay_card}'
     paid = values.get('paid') or a.handoff.get('paid')
+    billed = a.handoff.get('billed_discount')
+    billed_note = ''
+    if isinstance(billed, int | float) and not isinstance(billed, bool) and billed > 0:
+        try:
+            billed_note = f' · 청구할인 {float(billed):,.0f}원'
+        except (TypeError, ValueError):
+            billed_note = ''
     return (
         f'계정 {values.get("account") or "미확인"} · 수단 {card} · '
-        f'실결제 {_won(paid)} · 원가 {_won(values.get("real_price"))}'
+        f'실결제 {_won(paid)}{billed_note} · 원가 {_won(values.get("real_price"))}'
     )
 
 
@@ -326,6 +337,20 @@ class RecorderAgent(AgentBase):
         # 애드픽·샵백 적립은 원가에 넣지 않는다(사용자 2026-09-27) — 주문 상세·견적의 사이트 적립만 쓴다
         detail = with_pay_card(detail, a.handoff)
         cost = actual_cost(detail)
+        billed = a.handoff.get('billed_discount')
+        if (
+            cost is not None
+            and isinstance(billed, int | float)
+            and not isinstance(billed, bool)
+            and billed > 0
+            and float(detail.get('paid') or 0) > 0  # type: ignore[arg-type]
+        ):
+            # 무신사 현대카드 청구할인(사용자 2026-10-12): 원가는 주문서 '청구 예상' 금액 기준 — 결제액에서 청구할인을 뺀다.
+            # 카드 계수는 곱하지 않는다(무신사 현대카드 billing_factor = 1.0)
+            plain = actual_cost({**detail, 'card': ''})
+            if plain is not None:
+                cost = plain - float(billed)
+                self.note('청구할인', f'무신사 현대카드 청구할인 {float(billed):,.0f}원 반영(청구 예상 기준)')
         if cost is None:
             self.note('실제 원가', '결제액을 못 읽어 견적 원가로 기록')
             return
