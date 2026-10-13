@@ -362,3 +362,30 @@ def test_결제_전부터_떠_있던_완료화면_주소는_주문번호에서_�
     tabs = j.dumps([{'id': 'a', 'url': old}])
     assert _source_order_no('', tabs) == '202610130012000002'
     assert _source_order_no('', drop_urls(tabs, {old})) is None
+
+
+def test_결제창_즉시할인_종료_안내를_알아본다(tmp_path, monkeypatch):
+    from samba_agent.agents import payer as pm
+
+    page = '즉시할인 프로모션이 종료됐어요. 프로모션 예산이 조기 소진되어 즉시할인이 적용되지 않습니다. 할인 없이 결제하시겠어요? 취소 결제하기'
+    assert pm.promo_ended(page)
+    assert not pm.promo_ended('무신사페이 결제 73,300원 결제하기')
+    monkeypatch.chdir(tmp_path)
+    assert not pm.nh_promo_ended_today()
+    pm.mark_nh_promo_ended()
+    assert pm.nh_promo_ended_today()
+
+
+@respx.mock
+def test_구매_농협_예산_소진_표시가_있으면_무신사머니(musinsa, tmp_path, monkeypatch) -> None:
+    from samba_agent.agents import payer as pm
+
+    monkeypatch.chdir(tmp_path)
+    pm.mark_nh_promo_ended()
+    calls: list = []
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
+    _mock(read, {'무신사페이 × 농협카드': {'ok': True, 'usable': True, 'method': '무신사페이', 'card': 'NH카드', 'cost': 73300}}, calls)
+    snap = _snap()
+    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
+    assert snap['pay_method'] == '무신사머니'
+    assert not any(args.get('tile') == '무신사페이 × 농협카드' for _, args in calls)

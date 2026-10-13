@@ -134,6 +134,39 @@ _PAID_URL_RE = re.compile(
 _PAID_TEXT = ('주문이 완료', '주문완료', '주문 완료')
 
 
+# 결제창의 즉시할인 예산 소진 안내(실기 2026-10-13 무신사페이 농협카드)
+PROMO_ENDED_MARKERS = ('즉시할인 프로모션이 종료', '할인 없이 결제하시겠어요', '프로모션 예산이 조기 소진')
+# 오늘 농협 즉시할인 예산이 소진됐다는 표시 파일(로봇 작업 폴더) — 구매 단계가 보고 그날은 농협 타일을 쓰지 않는다
+NH_PROMO_MARK_FILE = 'nh_promo_ended.txt'
+
+
+def promo_ended(page: str) -> bool:
+    """결제창 글자에 즉시할인 종료 안내가 있는가."""
+    return any(m in (page or '') for m in PROMO_ENDED_MARKERS)
+
+
+def _today_kst() -> str:
+    return datetime.now(_KST).date().isoformat()
+
+
+def mark_nh_promo_ended() -> None:
+    """오늘 농협 즉시할인 예산 소진을 파일에 적는다. 실패는 무시(다음 결제창에서 다시 걸린다)."""
+    try:
+        with open(NH_PROMO_MARK_FILE, 'w', encoding='utf-8') as f:
+            f.write(_today_kst())
+    except OSError:
+        pass
+
+
+def nh_promo_ended_today() -> bool:
+    """오늘 농협 즉시할인 예산 소진 표시가 있는가."""
+    try:
+        with open(NH_PROMO_MARK_FILE, encoding='utf-8') as f:
+            return f.read().strip() == _today_kst()
+    except OSError:
+        return False
+
+
 def drop_urls(list_tabs_output: str, urls: set[str]) -> str:
     """list_tabs 결과(JSON)에서 주소가 urls 에 든 탭을 뺀 JSON. 형식이 다르면 그대로."""
     if not urls:
@@ -1264,9 +1297,13 @@ class PayerAgent(AgentBase):
         if seen_popup and pay_btn is None:
             self.note('결제창', '결제하기 버튼이 뜨지 않음 — 키패드를 바로 찾는다')
         if pay_btn is not None and pay_btn >= 0:
+            # 즉시할인 예산 소진 안내('할인 없이 결제하시겠어요?')의 '결제하기'를 누르면 할인 없이 결제된다(실기 2026-10-13
+            # 농협 4건) — 누르기 전에 보고 취소한다
+            self._stop_if_promo_ended()
             self.step('payer: 결제창 결제하기')
             self.tool('click', id=pay_btn, label='결제하기')
             self.tool('wait', ms=PAY_POPUP_WAIT_MS)
+            self._stop_if_promo_ended()
         # 결제 비밀번호 종류 — 무신사페이는 무신사머니와 비밀번호가 따로다(musinsapay), 사이트 머니는 'site'.
         # 계정에 비밀번호가 여럿이면 없을 때 모호하다(실기)
         card = str(a.handoff.get('card') or a.options.get('card') or '')
@@ -1294,6 +1331,26 @@ class PayerAgent(AgentBase):
                 FailReason.PERMISSION_DENIED,
             )
         self.tool('wait', ms=PAY_RESULT_WAIT_MS)
+
+    def _stop_if_promo_ended(self) -> None:
+        """지금 결제창에 '즉시할인 프로모션이 종료' 안내가 떠 있으면 취소를 누르고 결제하지 않는다.
+
+        사용자 2026-10-13: 무신사페이 농협 즉시할인 타일이 켜져 있어도 결제창에서 예산 소진으로 할인 없이 결제될 수 있다 —
+        그때는 농협이 아니라 무신사머니로 결제해야 한다. 오늘 하루 농협 즉시할인을 쓰지 않도록 표시를 남기고,
+        원가가 바뀌므로(cost_changed) 워커가 새 원가로 다시 준비해 승인카드를 띄운다.
+        """
+        page = self.tool('get_page')
+        if not promo_ended(page):
+            return
+        cancel = _element_id(self.tool('find_elements', query='취소'))
+        if cancel is not None:
+            self.tool('click', id=cancel, label='취소')
+        mark_nh_promo_ended()
+        raise AgentFailure(
+            'needs_human',
+            '무신사페이 즉시할인 예산 소진(결제창 안내) — 할인 없이 결제하지 않고 취소했다. 무신사머니로 다시 준비한다(결제 안 됨)',
+            FailReason.COST_CHANGED,
+        )
 
     # 결제창 로그인 화면에서 앱 login 을 시도했는가 — 작업당 한 번만(반복하면 계정 잠김·캡차)
     _popup_login_tried: bool = False

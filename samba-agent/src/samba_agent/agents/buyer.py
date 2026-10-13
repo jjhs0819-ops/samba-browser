@@ -3076,6 +3076,12 @@ class BuyerAgent(AgentBase):
         chosen = hyundai_choice(info)
         if chosen is None:
             nh = next((t for t in tiles if is_nh_tile(str(t['name']))), None)
+            from samba_agent.agents.payer import nh_promo_ended_today
+
+            if nh is not None and nh_promo_ended_today():
+                # 결제창에서 오늘 농협 즉시할인 예산 소진 안내를 봤다 — 타일이 켜져 보여도 할인 없이 결제된다(사용자 2026-10-13)
+                self.note('결제 규칙', f'{nh["name"]} 오늘 예산 소진(결제창 안내) — 쓰지 않고 무신사머니로')
+                nh = None
             if nh is not None:
                 try:
                     r = run('tile', tile=str(nh['name']))
