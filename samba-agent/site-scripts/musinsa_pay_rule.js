@@ -83,7 +83,6 @@ if (args.mode === 'tile') {
   const before = await read()
   out.before = before.cost
   const secOf = t => t.slice(t.indexOf('결제 수단'), t.indexOf('결제 금액 상품 금액'))
-  const beforeMethod = methodNow(before.tx)
   const beforeApplied = /할인 적용 중/.test(secOf(before.tx))
   const line = before.tr.split('\n').find(x => /^\[\d+\] clickable "/.test(x) && x.includes('clickable "' + name + '"'))
   if (!line) return { ...out, note: 'tile not found' }
@@ -98,8 +97,9 @@ if (args.mode === 'tile') {
   if (out.method === '무신사페이') out.card = cardName(ac) || null
   // 적용 판정은 '누르기 전과 달라졌는가'로만 본다 — 앞서 켠 농협 할인의 '할인 적용 중' 글자가 남아 있으면 비활성 카카오
   // 타일도 적용된 것으로 오판했다(실기 2026-10-12 23:48, 3건 pay_rule_stop)
-  const methodChanged = !!out.method && out.method !== beforeMethod
-  out.usable = (r.cost > 0 && before.cost > 0 && r.cost < before.cost) || methodChanged || (out.applied && !beforeApplied)
+  // 결제수단만 바뀌고 금액이 그대로면 적용 안 된 것이다 — 비활성 카카오 타일도 누르면 카카오페이로 수단만 바뀐다
+  // (실기 2026-10-13 10:49 여성 패딩: 수단 변경을 적용으로 보고 멈춤). 금액이 실제로 내려가야 적용이다
+  out.usable = (r.cost > 0 && before.cost > 0 && r.cost < before.cost) || (out.applied && !beforeApplied && out.method === '무신사페이')
   out.ok = true
   return out
 }
