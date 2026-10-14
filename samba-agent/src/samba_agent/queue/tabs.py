@@ -52,12 +52,15 @@ class TabJanitor:
         """지금 열린 탭·팝업 id."""
         return frozenset(str(t.get('id')) for t in self._tabs() if t.get('id'))
 
-    def close_new(self, before: frozenset[str]) -> int:
-        """``before`` 에 없던 탭을 닫는다. 닫은 개수를 돌려준다. 실패는 로그만."""
+    def close_new(self, before: frozenset[str], keep: frozenset[str] = frozenset()) -> int:
+        """``before`` 에 없던 탭을 닫는다(``keep`` 은 남긴다). 닫은 개수를 돌려준다. 실패는 로그만.
+
+        ``keep`` = 승인 대기로 멈춘 다른 작업의 주문서 탭 — 오래 걸린 작업의 정리가 그 사이 다른 주문이 만든
+        주문서까지 닫으면 [결제]를 눌러도 '주문서 탭이 사라짐'으로 실패한다(실기 2026-10-14: 11건 전부)."""
         closed = 0
         for t in self._tabs():
             tab_id = str(t.get('id') or '')
-            if not tab_id or tab_id in before:
+            if not tab_id or tab_id in before or tab_id in keep:
                 continue
             # 다른 레인(사람의 수동 작업·계정 비교)이 연 탭은 그 레인이 닫는다 — 하네스가 닫으면 남의 주문서가
             # 사라진다(실기 2026-09-27 패션플러스·SMARKET 수동 진행 중 탭이 닫힘)

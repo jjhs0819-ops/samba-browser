@@ -1773,6 +1773,12 @@ class BuyerAgent(AgentBase):
         m = re.search(r'tab ([0-9a-fA-F-]{8,})', out)
         if m:
             opened.append(m.group(1))
+            # 새 탭을 작업 대상으로 확실히 잡는다 — 앞 주문의 결제창(팝업)이 떠 있으면 앱은 그 팝업을 계속 대상으로 본다.
+            # 그러면 로그인이 결제창(niceepay 키패드)에서 칸을 찾다 'fields not found' 로 실패한다(실기 2026-10-14: 10건)
+            try:
+                self.tool('switch_tab', id=m.group(1))
+            except AgentFailure:
+                pass
 
     def _login_check(self, account: str, opened: list[str]) -> None:
         self.step(f'{self.spec.name}: 로그인 확인({account})')

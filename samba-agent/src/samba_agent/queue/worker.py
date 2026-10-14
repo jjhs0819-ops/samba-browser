@@ -116,6 +116,23 @@ class Worker:
         self._deferred_mark: frozenset[str] | None = None
         # 결제 단계에 들어간 작업 id — 결제가 시작된 뒤 끝나지 못한(done 아닌) 작업은 결제창 탭을 닫지 않는다
         self._pay_started: set[int] = set()
+        # 승인 대기로 멈춘 작업 id → 그 작업이 연 탭(주문서). 다른 작업의 탭 정리가 이 탭을 닫지 않게 쥐고 있는다
+        self._held: dict[int, frozenset[str]] = {}
+
+    def _kept(self, but: int | None = None) -> frozenset[str]:
+        """승인 대기 중인 (``but`` 아닌) 작업들이 쥔 탭."""
+        out: set[str] = set()
+        for job_id, ids in self._held.items():
+            if job_id != but:
+                out |= ids
+        return frozenset(out)
+
+    def _waiting_approval(self) -> bool:
+        """큐에 승인 대기로 멈춘 작업이 있는가(재시작 뒤에도 — 메모리 표식이 없어도 큐에는 남는다)."""
+        try:
+            return any((j.step or '').startswith('승인 대기') for j in self.d.queue.live())
+        except Exception:  # noqa: BLE001 — 모르면 있다고 본다(주문서를 닫는 쪽이 더 위험하다)
+            return True
 
     def tick(self) -> Job | None:
         """queued 1건을 집어 끝까지(또는 승인 대기까지) 돌린다. 없으면 None."""
@@ -190,8 +207,9 @@ class Worker:
         """작업 시작 직전 — 지난 작업(죽은 하네스·시간 초과)이 남긴 탭을 닫는다. 화면을 남기는 설정이면 건너뛴다."""
         if self.d.tabs is None or self.d.keep_tabs:
             return
-        if self._tab_marks:
-            return  # 승인 대기로 멈춘 작업의 주문서가 살아 있어야 한다
+        if self._tab_marks or self._waiting_approval():
+            # 승인 대기로 멈춘 작업의 주문서가 살아 있어야 한다 — 재시작으로 표식이 비어도 큐를 보고 남긴다
+            return
         try:
             closed = self.d.tabs.close_leftovers()
         except Exception:  # noqa: BLE001 — 정리 실패가 새 작업을 막으면 안 된다
@@ -206,7 +224,7 @@ class Worker:
             return
         mark, self._deferred_mark = self._deferred_mark, None
         try:
-            closed = self.d.tabs.close_new(mark)
+            closed = self.d.tabs.close_new(mark, keep=self._kept())
         except Exception:  # noqa: BLE001 — 정리 실패가 새 작업을 막으면 안 된다
             _log.exception('지난 작업 탭 정리 실패 — 그대로 둔다: %s', job.order_no)
             return
@@ -218,7 +236,15 @@ class Worker:
         if job is None or self.d.tabs is None:
             return job
         if (job.step or '').startswith('승인 대기'):
-            return job  # 결제 직전 주문서가 살아 있어야 한다
+            # 결제 직전 주문서가 살아 있어야 한다 — 이 작업이 연 탭을 쥐어 다른 작업의 정리에서 뺀다
+            mark = self._tab_marks.get(job.id)
+            if mark is not None:
+                try:
+                    self._held[job.id] = (self.d.tabs.snapshot() - mark) - self._kept(but=job.id)
+                except Exception:  # noqa: BLE001 — 탭 목록을 못 읽어도 승인 대기는 그대로다
+                    _log.exception('승인 대기 탭 기록 실패: %s', job.order_no)
+            return job
+        self._held.pop(job.id, None)
         before = self._tab_marks.pop(job.id, None)
         paid = job.id in self._pay_started
         self._pay_started.discard(job.id)
@@ -239,7 +265,7 @@ class Worker:
             _log.info('%s 작업이 연 탭을 남겨 둔다(다음 작업 시작 때 정리)', job.order_no)
             return job
         try:
-            closed = self.d.tabs.close_new(before)
+            closed = self.d.tabs.close_new(before, keep=self._kept())
         except Exception:  # noqa: BLE001 — 정리 실패가 결과를 바꾸면 안 된다
             _log.exception('탭 정리 실패 — 그대로 둔다: %s', job.order_no)
             return job

@@ -270,10 +270,18 @@ KEYPAD_POLL_WAIT_MS = 2000
 # fill_secret 을 부르는 총 횟수 상한(키패드 한 번 입력 기준) — 탭 여럿을 돌아도 이것을 넘지 않는다.
 # 실기 2026-09-27 ABC 214·218: 키패드가 아닌 창에 10회씩 불렀다(모두 거절, 입력 없음)
 KEYPAD_FILL_MAX_CALLS = 10
+# 키패드 배치(숫자 위치) 인식 실패로 앱이 넘겼을 때 다시 읽는 횟수·간격 — 이때 앱은 아무것도 누르지 않았다
+KEYPAD_LAYOUT_RETRIES = 2
+KEYPAD_LAYOUT_RETRY_WAIT_MS = 3000
 # 아직 키패드·비밀번호 칸이 아닌 화면에서 앱이 돌려주는 거절 — 아무것도 누르지 않은 응답만 다시 본다
 _KEYPAD_NOT_READY = ('target is not a secret input', 'no active tab', 'element not found')
 # 'not found' 중에서도 계정·저장 비밀번호가 없다는 응답은 기다려도 바뀌지 않는다 — 다시 부르지 않는다
 _KEYPAD_NOT_FOUND_FINAL = ('password', 'account')
+
+
+def _layout_failed(failed_steps: list[str]) -> bool:
+    """앱이 넘긴 사유가 키패드 배치 인식 실패인가 — 그때 앱은 숫자를 누르기 전에 멈춘다(src/main/agent/tools.ts)."""
+    return any(str(label).startswith('키패드 배치') for label in failed_steps)
 
 
 def _keypad_not_ready(out: str) -> bool:
@@ -1421,6 +1429,7 @@ class PayerAgent(AgentBase):
         out = ''
         calls = 0
         entered = False  # 앱이 '아직 아님'이 아닌 답을 한 번이라도 했다 — 이후 절대 다시 부르지 않는다
+        layout_retries = 0  # 키패드 배치 인식 실패(아무것도 안 누름)로 다시 부른 횟수
         for attempt in range(KEYPAD_POLL_TRIES):
             popups, _active = self._list_tabs_popups()
             self._stop_if_login_popup(popups, a)
@@ -1450,6 +1459,27 @@ class PayerAgent(AgentBase):
                         # 앱이 사람에게 넘겼다 — 왜 못 눌렀는지(배치 인식·금고 잠김)는 단계 기록에만 있다
                         failed = [label for label, ok in getattr(self, 'last_steps', ()) if not ok]
                         self.note('키패드 넘김 사유', mask_text(' / '.join(failed)[:300]) or '기록 없음')
+                        if _layout_failed(failed) and layout_retries < KEYPAD_LAYOUT_RETRIES:
+                            # 배치를 못 읽으면 앱은 숫자를 하나도 누르지 않고 넘긴다(입력 1회 제한에도 안 걸린다) —
+                            # 키패드가 덜 그려졌을 때가 많아 잠깐 뒤 다시 읽는다(실기 2026-10-14: 같은 날 3건은 성공)
+                            layout_retries += 1
+                            self.note('키패드 재시도', f'배치 인식 실패 — {layout_retries}/{KEYPAD_LAYOUT_RETRIES} 다시 읽음')
+                            self.tool('wait', ms=KEYPAD_LAYOUT_RETRY_WAIT_MS)
+                            entered = False
+                            break  # 바깥 반복이 결제창 목록을 다시 읽고 다시 부른다
+                        if _layout_failed(failed):
+                            # 끝내 못 읽었다 — 누른 숫자가 없으니 결제는 안 됐다. 결제창을 남기면 앱이 그 창을 계속
+                            # 작업 대상으로 봐서 다음 주문들까지 막는다(실기 2026-10-14) — 닫고 '결제 안 됨'으로 끝낸다
+                            if tab_id:
+                                try:
+                                    self.tool('close_tab', id=tab_id)
+                                except AgentFailure:
+                                    pass
+                            raise AgentFailure(
+                                'needs_human',
+                                '결제 비밀번호 키패드를 읽지 못해 숫자를 하나도 누르지 않았다 — 결제 안 됨(다시 승인하면 새로 준비)',
+                                FailReason.PERMISSION_DENIED,
+                            )
                         try:
                             # 어떤 화면에서 넘겼는지(키패드가 아닌 안내·오류 화면일 수 있다) 앞부분만 남긴다
                             seen = self.tool('get_page')

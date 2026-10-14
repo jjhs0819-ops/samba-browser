@@ -433,8 +433,8 @@ class _FakeTabs:
     def snapshot(self):
         return frozenset(self.open)
 
-    def close_new(self, before):
-        new = [t for t in self.open if t not in before]
+    def close_new(self, before, keep=frozenset()):
+        new = [t for t in self.open if t not in before and t not in keep]
         self.closed.extend(new)
         self.open -= set(new)
         return len(new)
@@ -992,3 +992,54 @@ def test_승인_뒤_원가가_오르면_새_작업으로_다시_준비한다(tmp
     for _ in range(REAPPROVE_MAX):
         w.tick()
     assert q.get('A1').state == 'needs_human'  # 상한을 넘으면 사람에게
+
+
+def test_오래_걸린_작업의_정리가_승인_대기_중인_다른_주문서를_닫지_않는다(setup):
+    """실기 2026-10-14: 앞 작업이 끝나며 '시작 뒤 생긴 탭'을 전부 닫아 그 사이 다른 주문들이 만든 주문서가 사라졌다 →
+    [결제]를 누른 11건이 전부 '주문서 탭이 사라짐'. 승인 대기 작업이 연 탭은 남긴다."""
+    q, _log, _sent, make = setup
+    w = make(gate=True)
+    tabs = _FakeTabs()
+    w.d.tabs = tabs
+    orig = w.d.graph.invoke
+    opened = iter(['t-order-A', 't-order-B'])
+
+    def first_run(*a, **k):
+        tabs.open.add(next(opened))
+        return orig(*a, **k)
+
+    w.d.graph.invoke = first_run  # type: ignore[method-assign]
+    q.enqueue('A1', 'U1', {}, 'ts1')
+    assert '승인 대기' in (w.tick().step or '')
+    q.enqueue('A2', 'U1', {}, 'ts2')
+    assert '승인 대기' in (w.tick().step or '')
+    assert tabs.closed == []
+    # A1 을 먼저 결제 — A1 시작 뒤 생긴 탭은 A1·A2 주문서 둘이지만 A2 것은 남아야 한다
+    w.d.graph.invoke = orig  # type: ignore[method-assign]
+    done = w.resume('A1', True, 'U1', stage='pay')
+    assert done is not None and done.state == 'done'
+    assert tabs.closed == ['t-order-A'] and 't-order-B' in tabs.open
+    done = w.resume('A2', True, 'U1', stage='pay')
+    assert done is not None and done.state == 'done'
+    assert tabs.closed == ['t-order-A', 't-order-B']
+
+
+def test_재시작_뒤에도_승인_대기_작업이_있으면_남은_탭을_일괄_정리하지_않는다(setup):
+    q, _log, _sent, make = setup
+    w = make(gate=True)
+    q.enqueue('A1', 'U1', {}, 'ts1')
+    assert '승인 대기' in (w.tick().step or '')
+    # 재시작 흉내 — 메모리 표식이 없는 새 워커
+    w2 = make(gate=True)
+    w2.d.queue = q
+
+    class _Leftovers:
+        called = False
+
+        def close_leftovers(self):
+            _Leftovers.called = True
+            return 0
+
+    w2.d.tabs = _Leftovers()
+    w2._close_leftovers('A2')
+    assert _Leftovers.called is False

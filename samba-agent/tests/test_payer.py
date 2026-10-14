@@ -1696,3 +1696,74 @@ def test_알림_대기_화면으로_안_넘어가면_사람에게_넘긴다(reg)
     _toss_tools(a, [TOSS_LOGIN, TOSS_LOGIN, TOSS_LOGIN], lambda kw: 'ok')
     with pytest.raises(AgentFailure, match='알림 대기 화면'):
         a._toss_phone_request(assignment(reg, dry_run=False))
+
+
+NICE_KEYPAD_POPUP = 'https://m.niceepay.com:7006/epay/pinCert.do'
+_LAYOUT_FAIL = httpx.Response(
+    200,
+    json={
+        'ok': True,
+        'result': 'handoff: 결제 비밀번호는 직접 눌러 주세요',
+        'steps': [
+            {'label': '키패드 배치(OCR): 글자 없는 버튼 10~14개를 못 찾음 (후보 7개)', 'ok': False},
+            {'label': '키패드 배치(OCR)', 'ok': False},
+        ],
+    },
+)
+
+
+@respx.mock
+def test_키패드_배치를_못_읽으면_잠깐_뒤_다시_읽어_입력한다(reg, monkeypatch):
+    """실기 2026-10-14: 무신사페이 키패드 배치(OCR) 인식 실패로 넘김 — 앱은 아무것도 누르지 않았으니 다시 부른다."""
+    from samba_agent.agents import payer as payer_mod
+
+    monkeypatch.setattr(payer_mod, 'KEYPAD_LAYOUT_RETRY_WAIT_MS', 1)
+    a = _web_pay_agent(reg, monkeypatch)
+    respx.post(f'{URL}/tool/list_tabs').mock(return_value=_popups(NICE_KEYPAD_POPUP))
+    respx.post(f'{URL}/tool/find_elements').mock(return_value=page(''))
+    fill = respx.post(f'{URL}/tool/fill_secret').mock(
+        side_effect=[_LAYOUT_FAIL, page('ok: the app entered the payment password on the keypad.')]
+    )
+    respx.post(f'{URL}/tool/get_page').mock(return_value=page(''))
+    out = a._press_keypad(assignment(reg, dry_run=False, card='무신사머니'), 'site', 'buy-1')
+    assert out.startswith('ok')
+    assert fill.call_count == 2
+
+
+@respx.mock
+def test_키패드_배치를_끝내_못_읽으면_결제창을_닫고_결제_안_됨으로_멈춘다(reg, monkeypatch):
+    """결제창을 남기면 앱이 그 창을 계속 작업 대상으로 봐서 뒤 주문의 로그인까지 막았다(실기 2026-10-14: 10건)."""
+    from samba_agent.agents import payer as payer_mod
+
+    monkeypatch.setattr(payer_mod, 'KEYPAD_LAYOUT_RETRY_WAIT_MS', 1)
+    a = _web_pay_agent(reg, monkeypatch)
+    respx.post(f'{URL}/tool/list_tabs').mock(return_value=_popups(NICE_KEYPAD_POPUP))
+    respx.post(f'{URL}/tool/find_elements').mock(return_value=page(''))
+    fill = respx.post(f'{URL}/tool/fill_secret').mock(return_value=_LAYOUT_FAIL)
+    respx.post(f'{URL}/tool/get_page').mock(return_value=page(''))
+    close = respx.post(f'{URL}/tool/close_tab').mock(return_value=page('ok'))
+    with pytest.raises(AgentFailure) as e:
+        a._press_keypad(assignment(reg, dry_run=False, card='무신사머니'), 'site', 'buy-1')
+    assert e.value.status == 'needs_human'
+    assert '결제 안 됨' in e.value.reason
+    assert e.value.fail_reason == FailReason.PERMISSION_DENIED
+    assert fill.call_count == payer_mod.KEYPAD_LAYOUT_RETRIES + 1
+    assert close.called and json.loads(close.calls[-1].request.content)['args']['id'] == 'p0'
+
+
+@pytest.mark.parametrize('label', ['키마스터 잠김', '결제 비밀번호 없음'])
+@respx.mock
+def test_배치_인식_말고_다른_사유로_넘기면_다시_부르지_않는다(reg, monkeypatch, label):
+    a = _web_pay_agent(reg, monkeypatch)
+    respx.post(f'{URL}/tool/list_tabs').mock(return_value=_popups(NICE_KEYPAD_POPUP))
+    respx.post(f'{URL}/tool/find_elements').mock(return_value=page(''))
+    fill = respx.post(f'{URL}/tool/fill_secret').mock(
+        return_value=httpx.Response(
+            200,
+            json={'ok': True, 'result': 'handoff: 결제 비밀번호는 직접 눌러 주세요', 'steps': [{'label': label, 'ok': False}]},
+        )
+    )
+    respx.post(f'{URL}/tool/get_page').mock(return_value=page(''))
+    out = a._press_keypad(assignment(reg, dry_run=False, card='무신사머니'), 'site', 'buy-1')
+    assert out.startswith('handoff')
+    assert fill.call_count == 1
