@@ -114,6 +114,14 @@ class Source(BaseModel):
     # 않고 사용 포인트도 더하지 않는다. 견적(cheapest_quotes)·결제 뒤 재계산(billed_cost) 둘 다 이 값을 따른다.
     # False(기본)면 예전처럼 카드사 계수를 곱한다(무신사 현대카드는 billing_factor 가 따로 1.0)
     paid_is_cost: bool = False
+    # 결제수단 선택 규칙(롯데온, 사용자 2026-10-16): 주문서 견적에서 **실제로 총액이 내려간**(즉시할인이 붙은) 수단 가운데
+    # 가장 싼 것을 고른다. 할인이 붙은 수단이 하나도 없으면 이 수단(예: 네이버페이)으로 결제하고 카드는
+    # pay_fallback_cards 순서(앞이 우선, 예: 무신사 현대카드 → 넥슨 현대카드)로 고른다. None 이면 기존 최저 견적 규칙
+    pay_fallback_method: str | None = None
+    pay_fallback_cards: list[str] = []
+    # 카카오페이 머니 '기본' 할인(사용자 2026-10-16: 1,000원은 쓰지 않는다) — 할인액이 이 값 이하인 카카오페이 줄은
+    # 할인이 없는 것으로 본다(후보에서 뺀다). 0 이면 끔
+    kakao_basic_discount_won: int = 0
 
     @property
     def pay_rule_script(self) -> str:

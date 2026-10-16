@@ -402,3 +402,11 @@ def test_소싱처_미등록_주문_연결은_행_id_로_부른다(tmp_path):
     Intake(wave, q, reg, slack.post_new, slack.post_line, days=7).run_once()
     assert wave.linked == [('ord_G1', '3347853')]
     assert q.get('ord_G1').order_no == 'G1'
+
+
+def test_상한_0은_무제한이다(setup):
+    """사용자 2026-10-16 질문("있는 주문 다 받으면 안 되나") — SAMBA_INTAKE_MAX_NEW=0 이면 한 바퀴에 전부 접수한다."""
+    q, slack, _make = setup
+    wave = _FakeWave([wave_order(f'B{i}') for i in range(8)])
+    intake = Intake(wave, q, Registry.load(DEFAULT_ROOT), slack.post_new, slack.post_line, days=7, max_new=0)
+    assert intake.run_once().enqueued == 8

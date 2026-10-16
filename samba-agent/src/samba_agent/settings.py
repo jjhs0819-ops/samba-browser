@@ -40,8 +40,9 @@ class Settings(BaseSettings):
     intake_interval_s: int = Field(default=300, ge=10, alias='SAMBA_INTAKE_INTERVAL_S')
     # 자동 수집 고리를 띄울지. 꺼 두면 슬랙 `주문처리 전체` 로 수동 수집만 한다
     intake_enabled: bool = Field(default=True, alias='SAMBA_INTAKE_ENABLED')
-    # 한 바퀴에 새로 접수하는 상한(슬랙 폭주 방지)
-    intake_max_new: int = Field(default=5, ge=1, alias='SAMBA_INTAKE_MAX_NEW')
+    # 한 바퀴(주기)에 새로 접수하는 상한 — 모든 소싱처 합산(슬랙 폭주·승인대기 주문서 탭 폭주 방지).
+    # 0 이면 무제한(사용자 2026-10-16 질문으로 지원) — 승인대기 탭이 한꺼번에 많이 열리는 위험은 계획서 §5 참고
+    intake_max_new: int = Field(default=5, ge=0, alias='SAMBA_INTAKE_MAX_NEW')
     # 자동 수집 대상 소싱처(쉼표, 비우면 전부)와 판매처 제한(포이즌만)
     intake_sources: str = Field(default='', alias='SAMBA_INTAKE_SOURCES')
     intake_poison_only: bool = Field(default=False, alias='SAMBA_INTAKE_POISON_ONLY')

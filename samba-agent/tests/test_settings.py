@@ -57,3 +57,18 @@ def test_판정_산출물_위치는_설정_하나로_정해진다(monkeypatch, t
     assert default_report_dir() == DEFAULT_ROOT / 'ops' / 'reports'
     monkeypatch.setenv('SAMBA_REPORT_DIR', str(tmp_path / 'r'))
     assert default_report_dir() == tmp_path / 'r'
+
+
+def test_접수_상한_0은_허용된다(monkeypatch):
+    """SAMBA_INTAKE_MAX_NEW=0 = 무제한(2026-10-16). 음수는 거부."""
+    import pytest
+    from pydantic import ValidationError
+
+    from samba_agent.settings import load_settings
+
+    monkeypatch.setenv('SAMBA_BRIDGE_TOKEN', 'a' * 64)
+    monkeypatch.setenv('SAMBA_INTAKE_MAX_NEW', '0')
+    assert load_settings(env_file=None).intake_max_new == 0
+    monkeypatch.setenv('SAMBA_INTAKE_MAX_NEW', '-1')
+    with pytest.raises(ValidationError):
+        load_settings(env_file=None)
