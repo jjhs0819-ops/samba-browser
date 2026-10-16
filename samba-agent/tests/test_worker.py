@@ -1043,3 +1043,40 @@ def test_재시작_뒤에도_승인_대기_작업이_있으면_남은_탭을_일
     w2.d.tabs = _Leftovers()
     w2._close_leftovers('A2')
     assert _Leftovers.called is False
+
+
+def test_승인_재개가_도는_동안에는_새_작업을_집지_않는다(setup):
+    """실기 2026-10-16 10:31: 만료 재개(승인 폴링 스레드)의 탭 정리가 준비 중인 주문의 주문서를 닫았다 — 둘을 겹치지 않게 한다."""
+    import threading
+
+    q, log, _sent, make = setup
+    w = make(gate=False)
+    q.enqueue('A1', 'U1', {}, 'ts1')
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold():
+        with w._run_lock:
+            held.set()
+            release.wait(5)
+
+    t = threading.Thread(target=hold)
+    t.start()
+    held.wait(5)
+    assert w.tick() is None and q.get('A1').state == 'queued' and log == []
+    release.set()
+    t.join(5)
+    assert w.tick().state == 'done'
+
+
+def test_탭_목록을_못_찍은_작업은_끝나도_아무것도_닫지_않는다(setup):
+    """앱이 바빠 시작 탭 목록이 비면 '시작 뒤 생긴 탭'이 전부가 돼 모든 탭을 닫던 함정."""
+    q, _log, _sent, make = setup
+    w = make(gate=False)
+    tabs = _FakeTabs()
+    tabs.snapshot = lambda: None  # type: ignore[method-assign]
+    w.d.tabs = tabs
+    tabs.open.add('t-other-order')
+    q.enqueue('A1', 'U1', {}, 'ts1')
+    assert w.tick().state == 'done'
+    assert tabs.closed == []

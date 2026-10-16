@@ -8,6 +8,7 @@
 import json
 import logging
 import os
+import time
 
 from samba_agent.bridge.client import BridgeClient, BridgeError
 
@@ -16,6 +17,9 @@ log = logging.getLogger(__name__)
 # 브릿지에 요구하는 도구 — 진입점이 이 목록으로 scoped() 한다
 TAB_TOOLS = ('list_tabs', 'close_tab')
 # 정리에서 남기는 탭 — 사람이 보는 화면(삼바웨이브 주문관리·네이버 홈·앱 새 탭)
+# 탭 목록 찍기 재시도(앱이 바쁠 때)
+SNAPSHOT_TRIES = 3
+SNAPSHOT_WAIT_S = 1.0
 KEEP_HOSTS = ('samba-wave', 'www.naver.com', 'nid.naver.com', 'localhost', 'about:blank')
 
 
@@ -48,9 +52,19 @@ class TabJanitor:
             return []
         return [t for t in raw if isinstance(t, dict)] if isinstance(raw, list) else []
 
-    def snapshot(self) -> frozenset[str]:
-        """지금 열린 탭·팝업 id."""
-        return frozenset(str(t.get('id')) for t in self._tabs() if t.get('id'))
+    def snapshot(self) -> frozenset[str] | None:
+        """지금 열린 탭·팝업 id. 목록을 끝내 못 읽으면 None(빈 집합으로 돌리면 '시작 뒤 생긴 탭'이 전부가 돼
+        정리가 모든 탭을 닫는다 — 앱이 바쁠 때(409 busy) 흔하다)."""
+        for attempt in range(SNAPSHOT_TRIES):
+            try:
+                raw = json.loads(self._bridge.call('list_tabs').result)
+            except (BridgeError, ValueError) as e:
+                log.warning('탭 목록을 읽지 못했다(%d/%d): %s', attempt + 1, SNAPSHOT_TRIES, e)
+                time.sleep(SNAPSHOT_WAIT_S)
+                continue
+            rows = [t for t in raw if isinstance(t, dict)] if isinstance(raw, list) else []
+            return frozenset(str(t.get('id')) for t in rows if t.get('id'))
+        return None
 
     def close_new(self, before: frozenset[str], keep: frozenset[str] = frozenset()) -> int:
         """``before`` 에 없던 탭을 닫는다(``keep`` 은 남긴다). 닫은 개수를 돌려준다. 실패는 로그만.

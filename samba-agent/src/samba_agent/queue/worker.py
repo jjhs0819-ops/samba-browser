@@ -6,6 +6,7 @@ needs_human 으로 두고 사람이 슬랙에서 승인할 때까지 기다린�
 
 import logging
 import re
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -117,14 +118,21 @@ class Worker:
         # 결제 단계에 들어간 작업 id — 결제가 시작된 뒤 끝나지 못한(done 아닌) 작업은 결제창 탭을 닫지 않는다
         self._pay_started: set[int] = set()
         # 승인 대기로 멈춘 작업 id → 그 작업이 연 탭(주문서). 다른 작업의 탭 정리가 이 탭을 닫지 않게 쥐고 있는다
-        self._held: dict[int, frozenset[str]] = {}
+        # None = 그 작업의 탭을 못 찍었다(모른다) — 그동안은 다른 작업 정리가 아무것도 닫지 않는다
+        self._held: dict[int, frozenset[str] | None] = {}
+        # 작업 실행(tick)과 승인 재개(resume, 승인 폴링 스레드)를 한 번에 하나만 — 동시에 돌면 재개 작업의 탭 정리가
+        # 아직 준비 중인 다른 주문의 주문서를 닫는다(실기 2026-10-16 10:31: 만료 재개 정리가 준비 중 주문서 3개를 닫음)
+        self._run_lock = threading.RLock()
 
-    def _kept(self, but: int | None = None) -> frozenset[str]:
-        """승인 대기 중인 (``but`` 아닌) 작업들이 쥔 탭."""
+    def _kept(self, but: int | None = None) -> frozenset[str] | None:
+        """승인 대기 중인 (``but`` 아닌) 작업들이 쥔 탭. 하나라도 모르면 None(아무것도 닫지 않는다)."""
         out: set[str] = set()
         for job_id, ids in self._held.items():
-            if job_id != but:
-                out |= ids
+            if job_id == but:
+                continue
+            if ids is None:
+                return None
+            out |= ids
         return frozenset(out)
 
     def _waiting_approval(self) -> bool:
@@ -135,7 +143,15 @@ class Worker:
             return True
 
     def tick(self) -> Job | None:
-        """queued 1건을 집어 끝까지(또는 승인 대기까지) 돌린다. 없으면 None."""
+        """queued 1건을 집어 끝까지(또는 승인 대기까지) 돌린다. 없으면 None. 승인 재개가 도는 중이면 다음 주기로 미룬다."""
+        if not self._run_lock.acquire(blocking=False):
+            return None
+        try:
+            return self._tick()
+        finally:
+            self._run_lock.release()
+
+    def _tick(self) -> Job | None:
         if self.d.ready is not None and not self.d.ready():
             return None
         job = self.d.queue.claim()
@@ -164,7 +180,9 @@ class Worker:
         if self.d.tabs is not None:
             self._close_deferred(job)
             self._close_leftovers(job.order_no)
-            self._tab_marks[job.id] = self.d.tabs.snapshot()
+            mark = self.d.tabs.snapshot()
+            if mark is not None:  # 못 찍으면 표식 없이 — 끝나도 아무것도 닫지 않는다
+                self._tab_marks[job.id] = mark
         state = {
             'order': order,
             'options': {str(k): str(v) for k, v in job.options.items()},
@@ -222,9 +240,12 @@ class Worker:
         """keep_tabs 로 남겨 둔 지난 작업의 탭을 새 작업 시작 직전에 닫는다(옛 주문서 오독 방지)."""
         if self._deferred_mark is None or self.d.tabs is None:
             return
+        keep = self._kept()
+        if keep is None:
+            return  # 승인 대기 중 탭을 모르는 작업이 있다 — 표식은 남겨 다음에 정리한다
         mark, self._deferred_mark = self._deferred_mark, None
         try:
-            closed = self.d.tabs.close_new(mark, keep=self._kept())
+            closed = self.d.tabs.close_new(mark, keep=keep)
         except Exception:  # noqa: BLE001 — 정리 실패가 새 작업을 막으면 안 된다
             _log.exception('지난 작업 탭 정리 실패 — 그대로 둔다: %s', job.order_no)
             return
@@ -240,9 +261,12 @@ class Worker:
             mark = self._tab_marks.get(job.id)
             if mark is not None:
                 try:
-                    self._held[job.id] = (self.d.tabs.snapshot() - mark) - self._kept(but=job.id)
+                    now = self.d.tabs.snapshot()
                 except Exception:  # noqa: BLE001 — 탭 목록을 못 읽어도 승인 대기는 그대로다
                     _log.exception('승인 대기 탭 기록 실패: %s', job.order_no)
+                    now = None
+                others = self._kept(but=job.id)
+                self._held[job.id] = None if now is None else (now - mark) - (others or frozenset())
             return job
         self._held.pop(job.id, None)
         before = self._tab_marks.pop(job.id, None)
@@ -264,8 +288,12 @@ class Worker:
                 self._deferred_mark = before
             _log.info('%s 작업이 연 탭을 남겨 둔다(다음 작업 시작 때 정리)', job.order_no)
             return job
+        keep = self._kept()
+        if keep is None:
+            _log.info('%s 승인 대기 중 탭을 모르는 작업이 있어 탭 정리를 건너뛴다', job.order_no)
+            return job
         try:
-            closed = self.d.tabs.close_new(before, keep=self._kept())
+            closed = self.d.tabs.close_new(before, keep=keep)
         except Exception:  # noqa: BLE001 — 정리 실패가 결과를 바꾸면 안 된다
             _log.exception('탭 정리 실패 — 그대로 둔다: %s', job.order_no)
             return job
@@ -282,10 +310,11 @@ class Worker:
         같은 버튼을 두 번 눌러도 두 번째는 여기서 걸린다(스펙 리뷰 지적 — Critical 2).
         읽기→running 전환은 JobQueue 트랜잭션으로 원자화돼 있어 동시 호출도 하나만 통과한다.
         """
-        job = self.d.queue.try_start_resume(key, stage=stage)
-        if job is None:
-            return None
-        return self._cleanup_tabs(self._invoke(job, resume_command(approved, by)))
+        with self._run_lock:
+            job = self.d.queue.try_start_resume(key, stage=stage)
+            if job is None:
+                return None
+            return self._cleanup_tabs(self._invoke(job, resume_command(approved, by)))
 
     def run_forever(self, stop: Callable[[], bool], interval_s: float = 2.0) -> None:
         """봇과 함께 도는 고리. stop() 이 참이 될 때까지 큐를 본다."""
