@@ -2313,6 +2313,8 @@ def test_롯데온_결제수단은_즉시할인_적용_최저_없으면_네이�
     picked, why = pick_discounted_or_fallback(quotes, base, '네이버페이', ['무신사 현대카드', '넥슨 현대카드'], 1000)
     assert picked is not None and picked['method'] == '네이버페이' and picked['card'] == '무신사 현대카드'
     assert picked['cost'] == 100000 and '즉시할인 없음' in why
+    # 결제 단계가 네이버페이 창 안에서 이 순서로 카드를 고른다
+    assert picked['card_candidates'] == ['무신사 현대카드', '넥슨 현대카드']
 
     # 롯데카드 10% 즉시할인(L.PAY 간편결제)이 붙으면 그 줄
     raw2 = [*raw, {'method': '간편결제', 'card': '롯데카드', 'cost': 90000, 'discount': '롯데카드 10% 즉시할인'}]

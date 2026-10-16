@@ -439,7 +439,13 @@ def pick_discounted_or_fallback(
             f'즉시할인이 붙는 수단이 없는데 기본 수단 {fallback_method} 이 견적(허용 수단)에 없다 — 결제하지 않는다'
         )
     card = fallback_cards[0] if fallback_cards else None
-    chosen = {**fallback, 'card': card, 'cost': _as_float(fallback['paid'])}
+    # card_candidates: 결제 단계가 네이버페이 결제창 안에서 이 순서로 등록 카드를 고른다(payer._select_naverpay_card)
+    chosen = {
+        **fallback,
+        'card': card,
+        'cost': _as_float(fallback['paid']),
+        'card_candidates': list(fallback_cards),
+    }
     return chosen, f'즉시할인 없음 → {fallback_method}' + (f'/{card}' if card else '') + ' (사용자 규칙)'
 
 
@@ -3105,6 +3111,8 @@ class BuyerAgent(AgentBase):
                 )
             best = picked
             self.note('결제 규칙', why)
+            if best.get('card_candidates'):
+                snap['pay_card_candidates'] = list(best['card_candidates'])  # type: ignore[arg-type]
         snap['cost'] = best['cost']
         snap['pay_amount'] = best['paid']
         snap['pay_method'] = best['method']
@@ -4292,6 +4300,12 @@ class BuyerAgent(AgentBase):
                 ),
                 # 원가 = 실결제액 소싱처(롯데온) — 기록·검증의 결제 뒤 재계산(billed_cost)도 카드 계수를 곱지 않게
                 **({'paid_is_cost': True} if source_of(self.spec.name).paid_is_cost else {}),
+                # 네이버페이 결제창 안 카드 선택 순서(롯데온 '즉시할인 없음' 건, 2026-10-16)
+                **(
+                    {'pay_card_candidates': list(snap['pay_card_candidates'])}  # type: ignore[arg-type]
+                    if snap.get('pay_card_candidates')
+                    else {}
+                ),
             },
             evidence=tuple(self.evidence),
         )
