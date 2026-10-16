@@ -317,8 +317,11 @@ def cheapest_quotes(
     easy_pay_card: str | None = None,
     charge_pay: bool = False,
     direct_card: str | None = None,
+    paid_is_cost: bool = False,
 ) -> list[dict[str, object]]:
     """결제수단 견적 목록을 싼 순으로 정리한다. 금액이 없거나 0 이하인 줄은 뺀다.
+
+    paid_is_cost(소싱처 표, 롯데온)면 줄의 원가는 결제 금액 그대로다 — 카드 청구할인 계수를 곱하지 않는다.
 
     '충전결제' 줄은 charge_pay(소싱처 표)일 때만 후보로 둔다 — 기본은 뺀다(롯데온 L.pay).
 
@@ -383,7 +386,9 @@ def cheapest_quotes(
                 'paid': cost,
                 'reward': reward,
                 'points_used': _as_float(q.get('points_used')),
-                'cost': effective_cost({**q, 'cost': cost, 'card': card, 'reward': reward}),
+                'cost': effective_cost(
+                    {**q, 'cost': cost, 'card': card, 'reward': reward}, billing=not paid_is_cost
+                ),
             }
         )
 
@@ -664,11 +669,16 @@ REWARD_IN_COST = False
 POINTS_IN_COST = False
 
 
-def effective_cost(row: dict[str, object]) -> float:
-    """견적 한 줄의 원가: 실결제액 × 청구할인 계수. 적립 예정·사용 적립금은 원가에 넣지 않는다(REWARD_IN_COST·POINTS_IN_COST)."""
+def effective_cost(row: dict[str, object], *, billing: bool = True) -> float:
+    """견적 한 줄의 원가: 실결제액 × 청구할인 계수. 적립 예정·사용 적립금은 원가에 넣지 않는다(REWARD_IN_COST·POINTS_IN_COST).
+
+    billing=False(소싱처 표 paid_is_cost, 롯데온 2026-10-16)면 카드사 계수를 곱하지 않는다 — 원가 = 실제 결제 금액.
+    """
     paid = _as_float(row.get('cost'))
     reward = _as_float(row.get('reward')) if REWARD_IN_COST else 0.0
     used = _as_float(row.get('points_used')) if POINTS_IN_COST else 0.0
+    if not billing:
+        return round(paid - reward + used)
     card = str(row.get('card') or '')
     factor = billing_factor(card or None)
     if factor == 1.0 and '네이버' in f'{card} {row.get("method") or ""}':
@@ -2303,7 +2313,13 @@ class BuyerAgent(AgentBase):
         if source_of(self.spec.name).order_prep and _as_float(snap.get('cost')) > 0:
             self._order_prep(account, snap)
         # 결제수단 견적은 계정을 고른 뒤 한 번만(_buy) — 계정 비교 중에는 쿠폰 반영 총액만 본다
-        if source_of(self.spec.name).normal_price and snap.get('normal_price') is None:
+        if (
+            source_of(self.spec.name).normal_price
+            and not source_of(self.spec.name).order_type
+            and snap.get('normal_price') is None
+        ):
+            # 정가는 직배/까대기 판정에만 쓴다 — 배송 종류가 표로 고정된 소싱처(롯데온 = 직배)는 상품 페이지를 한 번 더
+            # 열 이유가 없다(건당 수 초 절약, 2026-10-16)
             self._apply_normal_price(a, account, snap)
         return snap
 
@@ -3019,6 +3035,7 @@ class BuyerAgent(AgentBase):
             src.easy_pay_card,
             src.charge_pay,
             src.direct_card,
+            src.paid_is_cost,
         )
         if not quotes:
             # 결제 항목은 있는데 이 주문서의 수단과 겹치지 않는다 — 모델이 고르게 두면 실결제에서 어차피 막힌다
@@ -4215,6 +4232,8 @@ class BuyerAgent(AgentBase):
                     if _as_float(snap.get('billed_discount')) > 0
                     else {}
                 ),
+                # 원가 = 실결제액 소싱처(롯데온) — 기록·검증의 결제 뒤 재계산(billed_cost)도 카드 계수를 곱지 않게
+                **({'paid_is_cost': True} if source_of(self.spec.name).paid_is_cost else {}),
             },
             evidence=tuple(self.evidence),
         )

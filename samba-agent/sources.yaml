@@ -53,24 +53,25 @@ sources:
   - id: LOTTEON
     key: lotteon
     payment_quotes: true  # 2026-09-23 lotteon_payment_quotes
-    normal_price: true  # 2026-09-26 lotteon_normal_price(할인전 가격 → 포이즌 외 마켓 직배/까대기 판정)
+    normal_price: true  # 2026-09-26 lotteon_normal_price(할인전 가격 → 직배/까대기 판정). order_type 이 고정이면 읽지 않는다
     label: 롯데온
     home: https://www.lotteon.com/
     login_host: lotteon.com
     status: active
-    # 2026-09-28 이식(사용자): 샵백 경유 → 롯데백화점 판매자만 → 포이즌은 바로구매(까대기), 그 밖은 선물하기 →
-    # 선물 배송지(받는 분 주소로·새 등록·빠른 선물)는 lotteon_set_shipping + lotteon_confirm_shipping → L.POINT 전액 → 네이버페이
-    entry_route: shopback
-    required_seller: 롯데백화점
-    gift_unless_poison: true
-    shipping_confirm: true
-    # 결제수단 고정(네이버페이)을 뺀다 — 모든 수단의 원가를 비교해 가장 싼 것으로(사용자 2026-09-27·09-30: 카카오페이 머니 7% 가 더 쌌다)
-    # 롯데카드 할인은 '간편결제'(L.PAY 카드 = 롯데카드)로 받는다 — PC 웹 결제 비밀번호(키마스터 site 항목)로 끝나 폰이 필요 없다
-    # (사용자 2026-10-06). 신용카드 탭의 롯데카드 앱카드(폰 숫자코드) 경로는 코드만 남기고 쓰지 않는다
+    # 2026-10-16 본 인스턴스(무신사와 같은 승인 흐름, 설계서 §0 "전부 직배"): 원작자의 샵백 경유(entry_route: shopback)·
+    # 선물하기(gift_unless_poison)·SSG 교차 비교(cross_with: SSG)는 쓰지 않는다 — 샵백·SSG 계정이 금고에 없고,
+    # 배송은 무신사처럼 고객 직배다. 다시 켜려면 원작자 행(upstream sources.yaml)의 세 줄을 되살린다
+    required_seller: 롯데백화점   # 롯데백화점 판매 상품만 산다(원작자 2026-09-27, 본 인스턴스도 같다)
+    shipping_confirm: true   # lotteon_set_shipping(직배 폼 저장) → 전화 입력 → lotteon_confirm_shipping(주문서 되읽기)
+    order_type: direct   # 전부 고객 직배 — 정가 비교·까대기·선물 판정 없음(무신사 스파이크 고정과 같다)
+    customer_phone: true  # 배송 연락처는 고객 번호(안심번호 050X·휴대폰 아님·없음이면 업무폰) — 무신사 규칙(2026-10-09) 그대로
+    # 결제는 '간편결제'(L.PAY 등록 카드 = 사이트 결제 비밀번호, 키마스터 site 항목)로 PC 에서 끝난다 — 폰 승인 수단(토스·카카오)은
+    # SAMBA_ALLOWED_PAY_PROVIDERS(site,musinsapay)에 없어 자연 제외. L.PAY 에 등록한 카드사 이름이 다르면 이 값을 바꾼다
+    # (checkout_enter_lotteon 이 '카드선택' 글자가 이 카드가 아니면 결제하지 않는다)
     easy_pay_card: 롯데카드
-    # 같은 상품을 SSG(신세계몰·백화점)에서도 견적해 싼 쪽에서 산다 — 사용자 2026-10-06(나이키 II7406: 롯데온 100,490 vs SSG 79,335)
-    cross_with: SSG
-    buy_accounts: [buy-1]
+    # 원가 = 실제 결제 금액(사용자 2026-10-16): 카드 청구할인 계수(롯데 ×0.98 등)를 곱하지 않고, 사용 L.POINT 도 더하지 않는다
+    paid_is_cost: true
+    buy_accounts: [buy-1]   # 키마스터 lotteon.com 계정 라벨(무신사와 같은 라벨 규칙) — 배포 전 금고에 등록
   # 그랜드스테이지는 ABC마트와 같은 a-rt.com 흐름이다 — 스크립트(key)를 그대로 공유한다
   - id: GrandStage
     key: abc

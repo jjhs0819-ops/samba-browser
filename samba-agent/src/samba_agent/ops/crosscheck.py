@@ -42,7 +42,8 @@ DEFAULT_DAYS = 14
 # 발송 전 상태 — 이때만 소싱처 주문이 취소됐는지 본다
 _BEFORE_SHIP_STATES = {'wait_ship', 'preparing'}
 # 소싱처 주문 상세로 상태를 읽을 수 있는 곳(상태 글자가 확인된 스크립트만)
-SOURCE_CHECK_SITES = {'MUSINSA'}
+# 롯데온은 lotteon_order_detail 이 '결제완료·취소완료…' 상태 글자를 돌려준다(2026-10-16 롯데온 승인 흐름 추가)
+SOURCE_CHECK_SITES = {'MUSINSA', 'LOTTEON'}
 SOURCE_CHECKS_PER_CYCLE = 3
 SOURCE_RECHECK_HOURS = 6
 # 주문접수로 이만큼 넘게 남으면 방치로 보고 알린다
@@ -389,11 +390,11 @@ class CrossChecker:
             if self._idle is not None and not self._idle():
                 return
             try:
-                if self._source_detail is not None:
-                    detail = self._source_detail(row)
-                    status = detail.status if detail is not None else None
+                detail = self._source_detail(row) if self._source_detail is not None else None
+                if detail is not None:
+                    status = detail.status
                 else:
-                    detail = None
+                    # 상세 읽기(무신사 전용 주문내역 JS)가 그 사이트를 모르면(롯데온) 상태 스크립트로 본다(2026-10-16)
                     status = self._source_status(row) if self._source_status is not None else None
             except Exception:  # noqa: BLE001 — 한 건 실패로 점검을 멈추지 않는다
                 _log.exception('교차 검증: %s 소싱처 상태 확인 실패', row.order_no)

@@ -184,3 +184,26 @@ def test_직배가_고객_주소로_가면_조용하다(tmp_path):
     )  # type: ignore[arg-type]
     ok.run_once()
     assert alerts == []
+
+
+def test_상세_읽기가_모르는_사이트는_상태_스크립트로_취소를_본다(tmp_path):
+    """롯데온 기입 줄(2026-10-16): 무신사 전용 상세 읽기는 None 을 주고, 상태 스크립트(lotteon_order_detail)가 대신 본다."""
+    from samba_agent.ops.crosscheck import SOURCE_CHECK_SITES
+
+    assert 'LOTTEON' in SOURCE_CHECK_SITES
+    ledger = Ledger(tmp_path / 'ledger.sqlite')
+    ledger.put('A1', '2026093016657652', 78950, 0, 'buy-1', 'LOTTEON')
+    alerts: list[str] = []
+    asked: list[str] = []
+
+    def status(row):
+        asked.append(row.site)
+        return '취소완료'
+
+    wave = _Wave(_order(sourcing_order_number='2026093016657652', cost=78950, sourcing_account_username='buy-1'))
+    checker = CrossChecker(
+        ledger, wave, alerts.append, source_status=status, source_detail=lambda r: None, idle=lambda: True
+    )  # type: ignore[arg-type]
+    checker.run_once()
+    assert asked == ['LOTTEON']
+    assert [x for x in alerts if '취소' in x and 'LOTTEON 2026093016657652' in x]

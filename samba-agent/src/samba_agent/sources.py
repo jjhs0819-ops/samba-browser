@@ -110,6 +110,10 @@ class Source(BaseModel):
     # (무신사, 사용자 2026-10-12): ① 무신사 현대카드 청구할인 한도가 남으면 무조건 그 카드 ② 아니면 무신사페이×농협카드
     # 즉시할인 ③ 아니면 기존 최저 견적. 폰 결제(토스·카카오 등) 즉시할인이 더 크면 결제하지 않고 사유를 남긴다
     pay_rule: bool = False
+    # True 면 원가 = 실제 결제 금액이다(롯데온, 사용자 2026-10-16) — 카드 청구할인 계수(롯데 ×0.98·현대 ×0.973)를 곱하지
+    # 않고 사용 포인트도 더하지 않는다. 견적(cheapest_quotes)·결제 뒤 재계산(billed_cost) 둘 다 이 값을 따른다.
+    # False(기본)면 예전처럼 카드사 계수를 곱한다(무신사 현대카드는 billing_factor 가 따로 1.0)
+    paid_is_cost: bool = False
 
     @property
     def pay_rule_script(self) -> str:

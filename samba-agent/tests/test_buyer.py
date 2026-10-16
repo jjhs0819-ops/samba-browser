@@ -1852,15 +1852,15 @@ def test_주문_옵션의_품번_숫자는_사이즈로_보지_않는다():
     assert size_letter_options(['S (품절)', 'M', 'L (품절)', 'XL'], '블랙 M 2406433303') == ['M']
 
 
-def test_롯데온은_포이즌_외_전부_선물하기_포이즌은_까대기다(reg):
-    # 사용자 2026-09-27: 롯데온 = 롯데백화점 판매자만·샵백 경유, 포이즌 외 전부 선물하기, 포이즌은 바로구매(까대기)
-    from samba_agent.agents.buyer import source_of
+def test_롯데온은_전부_직배다_무신사와_같은_승인_흐름(reg):
+    # 2026-10-16 본 인스턴스: 롯데백화점 판매자만, 샵백·선물하기·SSG 교차 비교 없이 전부 고객 직배(sources.yaml order_type)
+    from samba_agent.agents.buyer import shipping_fee_for, source_of
     from samba_agent.agents.contracts import OrderRef
 
     source = source_of('buyer.lotteon')
-    assert source.gift_unless_poison and source.required_seller == '롯데백화점'
-    assert source.entry_route == 'shopback' and source.entry_script == 'lotteon_shopback_entry'
-    assert source.shipping_confirm and source.buy_accounts == ['buyer01']
+    assert source.order_type == 'direct' and source.required_seller == '롯데백화점'
+    assert source.entry_route is None and not source.gift_unless_poison and source.cross_with is None
+    assert source.shipping_confirm and source.customer_phone and source.buy_accounts == ['buy-1']
 
     spec = reg['buyer.lotteon']
     a = BuyerAgent(
@@ -1874,10 +1874,33 @@ def test_롯데온은_포이즌_외_전부_선물하기_포이즌은_까대기�
         sale_price=50000,
         order_type='direct',
     )
-    # 정가를 몰라도(스냅샷 없음) 선물로 정해진다
-    assert a.order_type_of(other, None) == 'gift'
+    # 정가를 몰라도(스냅샷 없음) 직배로 정해진다 — 정가 스크립트를 부르지 않는다
+    assert a.order_type_of(other, None) == 'direct'
+    assert shipping_fee_for(other, 'direct') == 0.0
+    # 포이즌 판매건·선물 태그도 표가 고정한 직배다(까대기·선물 흐름을 타지 않는다)
     poison = other.model_copy(update={'order_no': 'P1', 'seller': '포이즌'})
-    assert a.order_type_of(poison, None) == 'kkadaegi'
+    assert a.order_type_of(poison, None) == 'direct'
+    gift = other.model_copy(update={'order_no': 'T1', 'order_type': 'gift'})
+    assert a.order_type_of(gift, None) == 'direct'
+
+
+def test_원가가_실결제액인_소싱처의_견적은_카드_계수를_곱하지_않는다():
+    """롯데온 paid_is_cost(사용자 2026-10-16): 간편결제(L.PAY 롯데카드) 줄의 원가 = 결제 금액 그대로."""
+    from samba_agent.agents.buyer import cheapest_quotes, effective_cost
+
+    raw = [
+        {'method': '간편결제', 'card': None, 'cost': 78950, 'reward': 437},
+        {'method': '신용카드', 'card': '현대카드', 'cost': 80000},
+    ]
+    plain = cheapest_quotes(raw, None, {'site'}, easy_pay_card='롯데카드', paid_is_cost=True)
+    assert [(r['method'], r['card'], r['cost'], r['paid']) for r in plain] == [
+        ('간편결제', '롯데카드', 78950, 78950)
+    ]
+    # 표시가 없으면 예전처럼 롯데카드 ×0.98(무신사·다른 소싱처 회귀 없음)
+    legacy = cheapest_quotes(raw, None, {'site'}, easy_pay_card='롯데카드')
+    assert legacy[0]['cost'] == round(78950 * 0.98)
+    assert effective_cost({'cost': 1000, 'card': '현대카드'}, billing=False) == 1000
+    assert effective_cost({'cost': 1000, 'card': '현대카드'}) == round(1000 * 0.973)
 
 
 def test_matching_options_letter_number_size_uses_product_code() -> None:

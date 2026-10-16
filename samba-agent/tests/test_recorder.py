@@ -576,3 +576,16 @@ def test_상세에_청구할인_카드사가_읽혔으면_구매때_카드사로
     assert with_pay_card(detail, {'card_issuer': '롯데카드'})['card'] == '현대카드'
     # 구매 때 카드사가 청구할인 대상이 아니면 그대로 둔다
     assert with_pay_card({'paid': 50000, 'card': ''}, {'card_issuer': '신한카드'})['card'] == ''
+
+
+def test_원가가_실결제액인_소싱처는_카드_계수를_곱하지_않는다():
+    """롯데온(sources.yaml paid_is_cost, 사용자 2026-10-16): 원가 = 실제 결제 금액. 적립·사용 L.POINT 도 안 섞는다."""
+    from samba_agent.agents.source_detail import billed_cost
+
+    detail = {'paid': 78950, 'reward': 437, 'points_used': 3501, 'card': '간편결제'}
+    # 구매 때 롯데카드를 골랐어도 계수(×0.98)를 곱하지 않는다
+    assert billed_cost(detail, {'card_issuer': '롯데카드', 'paid_is_cost': True}) == 78950
+    # 상세가 카드사를 읽어도 마찬가지
+    assert billed_cost({**detail, 'card': '롯데카드'}, {'paid_is_cost': True}) == 78950
+    # 표시가 없으면 예전처럼 곱한다(무신사 등 회귀 없음)
+    assert billed_cost(detail, {'card_issuer': '롯데카드'}) == round(78950 * 0.98)

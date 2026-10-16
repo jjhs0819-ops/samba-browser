@@ -172,3 +172,27 @@ def test_경로_이름은_정해진_것만_받는다(tmp_path):
     )
     with pytest.raises(ValueError):
         Sources.load(tmp_path)
+
+
+def test_롯데온은_무신사와_같은_직배_승인_흐름이다(sources):
+    """2026-10-16 본 인스턴스: 샵백·선물하기·SSG 교차 비교를 끄고 전부 직배 + 고객 번호 + 원가 = 실결제액."""
+    row = sources.by_id('LOTTEON')
+    assert row.status == 'active' and row.key == 'lotteon'
+    assert row.order_type == 'direct'
+    assert row.entry_route is None and row.gift_unless_poison is False and row.cross_with is None
+    assert row.required_seller == '롯데백화점'
+    assert row.customer_phone is True and row.shipping_confirm is True
+    assert row.easy_pay_card == '롯데카드' and row.charge_pay is False
+    assert row.paid_is_cost is True
+    assert row.payment_quotes is True and row.pay_rule is False
+    assert row.buy_accounts == ['buy-1']
+    assert row.snapshot_script == 'lotteon_product_snapshot'
+    assert row.checkout_script_name == 'checkout_enter_lotteon'
+    # 무신사 쪽은 그대로다(회귀 없음)
+    musinsa = sources.by_id('MUSINSA')
+    assert musinsa.paid_is_cost is False and musinsa.order_type is None and musinsa.pay_rule is True
+
+
+def test_paid_is_cost_는_기본이_꺼져_있다(sources):
+    for sid in ('MUSINSA', '29CM', 'ABCmart', 'SSG', 'FashionPlus', 'SHOEMAKER'):
+        assert sources.by_id(sid).paid_is_cost is False, sid
