@@ -1767,3 +1767,49 @@ def test_배치_인식_말고_다른_사유로_넘기면_다시_부르지_않는
     out = a._press_keypad(assignment(reg, dry_run=False, card='무신사머니'), 'site', 'buy-1')
     assert out.startswith('handoff')
     assert fill.call_count == 1
+
+
+# ---- 즉시할인 프로모션 종료 → 머니 강제 재준비 · 결제창 머니 부족(2026-10-22) ----
+
+
+def test_프로모션_종료면_타일_표시하고_force_money_사유(reg, tmp_path, monkeypatch):
+    from samba_agent.agents import payer as pm
+
+    monkeypatch.setenv('SAMBA_STATE_DIR', str(tmp_path))
+    ag = agent(reg)
+    a = assignment(reg, dry_run=False, handoff={'pay_tile': '무신사페이 × 농협카드'})
+    clicked: list[str] = []
+
+    def fake_tool(name, **kw):
+        if name == 'get_page':
+            return '즉시할인 프로모션이 종료됐어요. 할인 없이 결제하시겠어요? 취소 결제하기'
+        if name == 'find_elements':
+            return '[7] button "취소"'
+        if name == 'click':
+            clicked.append(str(kw.get('label')))
+            return 'ok'
+        raise AssertionError(name)
+
+    monkeypatch.setattr(ag, 'tool', fake_tool)
+    with pytest.raises(AgentFailure) as e:
+        ag._stop_if_promo_ended(a)
+    assert e.value.fail_reason is FailReason.COST_CHANGED
+    assert pm.FORCE_MONEY_MARK in e.value.reason
+    assert clicked == ['취소']
+    assert pm.promo_ended_today('무신사페이 × 농협카드')
+
+
+def test_안내가_없으면_아무것도_안_한다(reg, monkeypatch):
+    ag = agent(reg)
+    a = assignment(reg, dry_run=False, handoff={'pay_tile': '무신사페이 × 농협카드'})
+    monkeypatch.setattr(ag, 'tool', lambda name, **kw: '무신사페이 결제 73,300원 결제하기')
+    ag._stop_if_promo_ended(a)  # 예외 없음
+
+
+def test_결제창_머니_부족은_money_insufficient():
+    from samba_agent.agents.payer import enter_fail_reason
+
+    assert enter_fail_reason({'ok': False, 'error': 'money-insufficient'}) is FailReason.MONEY_INSUFFICIENT
+    assert enter_fail_reason({'ok': False, 'error': 'money-unavailable'}) is FailReason.MONEY_INSUFFICIENT
+    assert enter_fail_reason({'ok': False, 'error': 'card-not-selected'}) is FailReason.UNKNOWN
+    assert enter_fail_reason({'ok': False}) is FailReason.UNKNOWN

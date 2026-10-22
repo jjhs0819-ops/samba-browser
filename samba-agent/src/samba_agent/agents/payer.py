@@ -188,6 +188,19 @@ def promo_ended_today(tile: str) -> bool:
     return bool(tile) and tile in _read_promo_marks()
 
 
+# 결제창 진입 스크립트(checkout_enter_*)의 머니 오류 코드 — 잔액 부족·계좌 미연결은 충전이 필요한 일이라 사람에게
+_MONEY_ENTER_ERRORS = frozenset({'money-insufficient', 'money-unavailable'})
+
+
+def enter_fail_reason(entered: dict[str, object]) -> FailReason:
+    """결제창 진입 실패 응답의 사유 코드 — 머니 잔액 부족이면 money_insufficient, 그 외 unknown."""
+    return (
+        FailReason.MONEY_INSUFFICIENT
+        if str(entered.get('error') or '') in _MONEY_ENTER_ERRORS
+        else FailReason.UNKNOWN
+    )
+
+
 def drop_urls(list_tabs_output: str, urls: set[str]) -> str:
     """list_tabs 결과(JSON)에서 주소가 urls 에 든 탭을 뺀 JSON. 형식이 다르면 그대로."""
     if not urls:
@@ -1328,11 +1341,11 @@ class PayerAgent(AgentBase):
         if pay_btn is not None and pay_btn >= 0:
             # 즉시할인 예산 소진 안내('할인 없이 결제하시겠어요?')의 '결제하기'를 누르면 할인 없이 결제된다(실기 2026-10-13
             # 농협 4건) — 누르기 전에 보고 취소한다
-            self._stop_if_promo_ended()
+            self._stop_if_promo_ended(a)
             self.step('payer: 결제창 결제하기')
             self.tool('click', id=pay_btn, label='결제하기')
             self.tool('wait', ms=PAY_POPUP_WAIT_MS)
-            self._stop_if_promo_ended()
+            self._stop_if_promo_ended(a)
         # 결제 비밀번호 종류 — 무신사페이는 무신사머니와 비밀번호가 따로다(musinsapay), 사이트 머니는 'site'.
         # 계정에 비밀번호가 여럿이면 없을 때 모호하다(실기)
         card = str(a.handoff.get('card') or a.options.get('card') or '')
@@ -1361,12 +1374,12 @@ class PayerAgent(AgentBase):
             )
         self.tool('wait', ms=PAY_RESULT_WAIT_MS)
 
-    def _stop_if_promo_ended(self) -> None:
+    def _stop_if_promo_ended(self, a: Assignment) -> None:
         """지금 결제창에 '즉시할인 프로모션이 종료' 안내가 떠 있으면 취소를 누르고 결제하지 않는다.
 
-        사용자 2026-10-13: 무신사페이 농협 즉시할인 타일이 켜져 있어도 결제창에서 예산 소진으로 할인 없이 결제될 수 있다 —
-        그때는 농협이 아니라 무신사머니로 결제해야 한다. 오늘 하루 농협 즉시할인을 쓰지 않도록 표시를 남기고,
-        원가가 바뀌므로(cost_changed) 워커가 새 원가로 다시 준비해 승인카드를 띄운다.
+        사용자 2026-10-13/10-22: 즉시할인 타일이 켜져 있어도 결제창에서 예산 소진으로 할인 없이 결제될 수 있다 —
+        그때는 그 타일이 아니라 무신사머니로 결제한다. 오늘 하루 그 타일을 쓰지 않도록 표시를 남기고,
+        원가가 바뀌므로(cost_changed) 워커가 같은 주문을 무신사머니 강제(force_money)로 다시 준비한다.
         """
         page = self.tool('get_page')
         if not promo_ended(page):
@@ -1374,10 +1387,12 @@ class PayerAgent(AgentBase):
         cancel = _element_id(self.tool('find_elements', query='취소'))
         if cancel is not None:
             self.tool('click', id=cancel, label='취소')
-        mark_nh_promo_ended()
+        tile = str(a.handoff.get('pay_tile') or '')
+        mark_promo_ended(tile)
         raise AgentFailure(
             'needs_human',
-            '무신사페이 즉시할인 예산 소진(결제창 안내) — 할인 없이 결제하지 않고 취소했다. 무신사머니로 다시 준비한다(결제 안 됨)',
+            f'{tile or "무신사페이"} 즉시할인 예산 소진(결제창 안내) — 할인 없이 결제하지 않고 취소했다. '
+            f'{FORCE_MONEY_MARK}(결제 안 됨)',
             FailReason.COST_CHANGED,
         )
 
@@ -1939,7 +1954,7 @@ class PayerAgent(AgentBase):
                 + (f' — {mask_text(str(entered.get("why"))[:160])}' if entered.get('why') else '')
                 + (f' — 경고창: {mask_text(" | ".join(enter_dialogs)[:120])}' if enter_dialogs else '')
                 + (f' — 화면: {mask_text(str(entered.get("note"))[:160])}' if entered.get('error') and entered.get('note') else ''),
-                FailReason.UNKNOWN,
+                enter_fail_reason(entered),
             )
 
         if entered.get('points_only') and not a.dry_run:

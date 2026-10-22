@@ -1110,3 +1110,24 @@ def test_탭_목록을_못_찍은_작업은_끝나도_아무것도_닫지_않는
     q.enqueue('A1', 'U1', {}, 'ts1')
     assert w.tick().state == 'done'
     assert tabs.closed == []
+
+
+def test_프로모션_종료_재접수는_force_money_옵션을_단다(tmp_path):
+    """결제창 프로모션 종료 안내 → 취소 → 같은 주문을 무신사머니 강제로 다시 준비한다(2026-10-22)."""
+    from samba_agent.agents.payer import FORCE_MONEY_MARK
+
+    reg = Registry.load(DEFAULT_ROOT)
+    q = JobQueue(tmp_path / 'jobs.sqlite')
+    acts = agents([])
+    acts['payer'] = lambda _a: AgentResult(
+        status='needs_human',
+        reason=f'무신사페이 즉시할인 예산 소진(결제창 안내) — 취소했다. {FORCE_MONEY_MARK}(결제 안 됨)',
+        fail_reason=FailReason.COST_CHANGED,
+    )
+    graph = build_supervisor(reg, acts, checkpointer=MemorySaver(), gate=False)
+    w = Worker(WorkerDeps(queue=q, graph=graph, version='vtest', report=lambda j, l: None, parse_order=order_of, dry_run=False))
+    q.enqueue('A1', 'U1', {'source': 'MUSINSA'}, 'ts1')
+    w.tick()
+    job = q.get('A1')
+    assert job.state == 'queued' and job.options.get('force_money') == '1'
+    assert job.options.get('source') == 'MUSINSA'

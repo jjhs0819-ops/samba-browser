@@ -17,6 +17,7 @@ from samba_agent.ops.events import EventLog
 from samba_agent.ops.masking import mask_text
 from samba_agent.ops.tracing import run_metadata, traced
 from samba_agent.queue.db import PAY_STARTED_STEP, Job, JobQueue
+from samba_agent.agents.payer import FORCE_MONEY_MARK
 from samba_agent.queue.tabs import TabJanitor
 from samba_agent.supervisor.approval import resume_command
 from samba_agent.wave.flags import auto_cancel_evidence
@@ -512,10 +513,14 @@ class Worker:
             # 승인 뒤 원가가 올라 결제하지 않았다(무신사 현대카드 한도 소진 등, 실기 2026-10-12) — 새 작업으로 다시 준비해
             # 새 원가의 승인카드를 띄운다. 사장님은 카드를 다시 누르기만 하면 된다
             self.d.queue.finish(job.id, 'failed', error=str(fail))
+            opts = {**job.options, REAPPROVE_KEY: reapproved + 1}
+            if FORCE_MONEY_MARK in _failed_reason(out):
+                # 결제창 프로모션 종료 안내 — 다음 준비는 현대·즉시할인 없이 무신사머니로(사용자 2026-10-22)
+                opts['force_money'] = '1'
             self.d.queue.enqueue(
                 job.order_no,
                 job.requester,
-                {**job.options, REAPPROVE_KEY: reapproved + 1},
+                opts,
                 job.thread_ts,
                 wave_id=job.wave_id,
             )
