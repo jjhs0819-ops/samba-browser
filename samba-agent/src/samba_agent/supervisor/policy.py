@@ -21,6 +21,8 @@ NO_RETRY_REASONS = frozenset(
         FailReason.PAY_INTERRUPTED,
         # 결제수단 규칙 정지 — 사람이 고를 일이다
         FailReason.PAY_RULE_STOP,
+        # 머니 잔액 부족 — 충전 전엔 같은 결과
+        FailReason.MONEY_INSUFFICIENT,
     }
 )
 

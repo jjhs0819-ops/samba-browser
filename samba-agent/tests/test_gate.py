@@ -544,3 +544,12 @@ def test_plan_은_무엇을_바꿀지만_보여준다(tmp_path, monkeypatch, cap
     assert not (tmp_path / 'v9.md').exists()  # 판정도 기록도 하지 않는다
     with pytest.raises(SystemExit):
         gate_mod.main(['--version', 'v9', '--apply'])
+
+
+def test_머니_부족_사유는_재시도하지_않는다():
+    """2026-10-22: 무신사머니 잔액 부족 — 충전은 사람 일이라 다시 돌려도 같다."""
+    from samba_agent.failures import FailReason
+    from samba_agent.supervisor.policy import NO_RETRY_REASONS
+
+    assert FailReason.MONEY_INSUFFICIENT == 'money_insufficient'
+    assert FailReason.MONEY_INSUFFICIENT in NO_RETRY_REASONS

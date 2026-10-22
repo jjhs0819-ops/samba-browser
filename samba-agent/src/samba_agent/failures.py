@@ -22,4 +22,6 @@ class FailReason(StrEnum):
     PAY_RULE_STOP = 'pay_rule_stop'
     # 승인 뒤 주문서를 다시 만들었더니 원가가 올랐다(청구할인 한도 소진 등) — 결제 안 함, 새 원가로 승인카드를 다시 띄운다
     COST_CHANGED = 'cost_changed'
+    # 무신사머니로 결제해야 하는데 잔액이 모자란다 — 충전은 사람 일, 결제하지 않고 알린다(2026-10-22)
+    MONEY_INSUFFICIENT = 'money_insufficient'
     UNKNOWN = 'unknown'
