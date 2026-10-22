@@ -87,13 +87,11 @@ if(d&&detail)await page.type(d.id,detail,false);
 R.address_detail=detail||null;
 const use=L(await E('사용'),e=>e.role==='button'&&e.text==='사용');
 if(use){await page.click(use.id);await sleep(1200);}
-// 직배 폼은 여기서 저장(예전 흐름). 선물 폼은 confirm 이 저장한다
+// 직배 폼도 저장은 confirm 이 한다 — 전화 칸이 빈 채 저장을 누르면 저장이 안 되고 폼이 남는다(실기 2026-10-22
+// 20261021210BEF: 전화를 채운 뒤 confirm 이 다시 저장했지만 '배송지 창이 닫히지 않음'). 수취인정보 동의만 켜 둔다
 if(!R.gift){
   const ag=L(await E('수취인정보'),e=>e.role==='checkbox');
   if(ag&&ag.value!=='on')await page.click(ag.id);
-  const sv=L(await E('저장'),e=>e.role==='button'&&e.text==='저장');
-  if(sv){await page.click(sv.id);await sleep(1000);}
-  R.saved=true;
 }
 // 되읽기 대조용 — 넣으려던 주소가 아니라 실제로 고른 검색 결과 줄을 돌려준다(예전엔 입력값을 그대로 돌려줘 검증이 늘 통과했다)
 R.name=name0;R.address=lt.replace(/^\[\d{5}\]\s*/,'');R.address_input=addr;
