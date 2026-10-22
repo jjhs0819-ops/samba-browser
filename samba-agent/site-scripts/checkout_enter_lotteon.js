@@ -74,7 +74,12 @@ let receipt=null,after=null;
 try{
   const rt=(await page.get({query:'지출증빙용'})).tree;
   const rm=rt.match(/\[(\d+)\] radio "지출증빙용"[^\n]*/);
-  if(rm){
+  if(rm&&!args.biz_no){
+    // 사업자번호가 이 PC(local-aliases)에 없으면 지출증빙을 고르지 않는다 — 번호 없이 지출증빙이면 주문서가 결제를 막는다
+    // (실기 2026-10-22 롯데온). 이미 켜져 있으면 '신청안함' 쪽으로 돌린다
+    if(/value="on"/.test(rm[0])){const nr=(await page.get({query:'안함'})).tree.split('\n').find(l=>/^\[\d+\] radio "[^"]*(신청 ?안 ?함|발급 ?안 ?함|미신청|미발행)/.test(l));if(nr){await page.click(parseInt(nr.slice(1)));await sleep(900);}}
+    receipt='지출증빙 안 함(사업자번호 없음)';
+  }else if(rm){
     if(!/value="on"/.test(rm[0])){await page.click(parseInt(rm[1]));await sleep(900);}
     receipt='지출증빙용';
     let tb=null;
