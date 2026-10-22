@@ -448,7 +448,7 @@ def test_무신사페이_삼성카드_타일은_카드로_결제한다(musinsa) 
     calls: list = []
     read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
     read = {**read, 'tiles': [{'name': '무신사페이 × 삼성카드', 'amount': 5000}]}
-    _mock(read, {'무신사페이 × 삼성카드': _tile(True, card='삼성카드 (12*)')}, calls)
+    _mock(read, {'무신사페이 × 삼성카드': _tile(True, card='삼성카드 (1234)')}, calls)
     snap = _snap()
     musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
     assert (snap['pay_card_name'], snap['pay_tile']) == ('삼성카드', '무신사페이 × 삼성카드')
