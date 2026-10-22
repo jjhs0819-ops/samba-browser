@@ -139,13 +139,23 @@ def test_표의_모르는_필드는_거부한다(tmp_path):
         Sources.load(tmp_path)
 
 
-def test_ABC마트와_그랜드스테이지는_항상_까대기다():
+def test_ABC마트는_직배_네이버페이_넥슨현대카드_그랜드스테이지는_까대기다():
+    """본 인스턴스 ABC(사용자 2026-10-22): 전부 고객 직배 · 연락처 업무폰 · 네이버페이 + 넥슨 현대카드 고정 ·
+    원가 = 실결제액 · 주소록 재사용 안 함 · 구매 계정 buy-1. 그랜드스테이지는 원작자 설정(까대기) 그대로."""
     from samba_agent.sources import default_sources
 
     src = default_sources()
-    assert src.by_id('ABCmart').order_type == 'kkadaegi'
+    abc = src.by_id('ABCmart')
+    assert abc.order_type == 'direct' and abc.customer_phone is False
+    assert abc.pay_provider == 'naver' and abc.naverpay_cards == ['넥슨 현대카드']
+    assert abc.paid_is_cost is True and abc.reuse_saved_shipping is False
+    assert abc.buy_accounts == ['buy-1'] and abc.pay_fallback_method is None
+    assert abc.order_prep and abc.coupon_download and abc.payment_quotes
     assert src.by_id('GrandStage').order_type == 'kkadaegi'
     assert src.by_id('MUSINSA').order_type is None
+    # 다른 소싱처는 새 필드 기본값 그대로(회귀 없음)
+    for sid in ('MUSINSA', 'LOTTEON', 'GrandStage', 'SSG'):
+        assert src.by_id(sid).naverpay_cards == [] and src.by_id(sid).reuse_saved_shipping is True, sid
 
 
 def test_SSG_는_신세계몰_경로비교_견적을_켜고_사용_중이다(sources):
@@ -200,5 +210,6 @@ def test_롯데온은_무신사와_같은_직배_승인_흐름이다(sources):
 
 
 def test_paid_is_cost_는_기본이_꺼져_있다(sources):
-    for sid in ('MUSINSA', '29CM', 'ABCmart', 'SSG', 'FashionPlus', 'SHOEMAKER'):
+    # ABCmart 는 2026-10-22 부터 켬(원가 = 실결제액)
+    for sid in ('MUSINSA', '29CM', 'SSG', 'FashionPlus', 'SHOEMAKER'):
         assert sources.by_id(sid).paid_is_cost is False, sid

@@ -3170,6 +3170,9 @@ class BuyerAgent(AgentBase):
             self.note('결제 규칙', why)
             if best.get('card_candidates'):
                 snap['pay_card_candidates'] = list(best['card_candidates'])  # type: ignore[arg-type]
+        if src.naverpay_cards and quote_provider(str(best.get('method') or ''), best.get('card')) == 'naver':  # type: ignore[arg-type]
+            # 네이버페이 카드 고정(ABC마트, 사용자 2026-10-22) — 결제창 안에서 이 카드로 낸다
+            snap['pay_card_candidates'] = list(src.naverpay_cards)
         snap['cost'] = best['cost']
         snap['pay_amount'] = best['paid']
         snap['pay_method'] = best['method']
@@ -4368,6 +4371,10 @@ class BuyerAgent(AgentBase):
                 **(
                     {'pay_card_candidates': list(snap['pay_card_candidates'])}  # type: ignore[arg-type]
                     if snap.get('pay_card_candidates')
+                    else {'pay_card_candidates': list(source_of(self.spec.name).naverpay_cards)}
+                    # 견적을 못 읽어 결제수단을 못 정했어도 네이버페이 고정 소싱처(ABC)는 지정 카드로만 낸다
+                    if source_of(self.spec.name).pay_provider == 'naver'
+                    and source_of(self.spec.name).naverpay_cards
                     else {}
                 ),
             },
@@ -4544,7 +4551,10 @@ class BuyerAgent(AgentBase):
         shipping = self._fetch_shipping(a, snap)
         # 직배·선물도 같은 배송지가 이미 목록에 있으면 고른다 — 재시도마다 같은 주소가 새로 저장되던 것을 막는다
         # (실기 2026-09-27: 29CM·무신사 주소록에 같은 고객 주소가 4개 쌓임)
-        if self._select_existing_shipping(dict(shipping), account):
+        # 단 reuse_saved_shipping=False(ABC)면 고르지 않는다 — 주소록 항목의 옛 고객 번호 대신 업무폰을 넣는다
+        if source_of(self.spec.name).reuse_saved_shipping and self._select_existing_shipping(
+            dict(shipping), account
+        ):
             return
         self._apply_shipping(a, shipping, account)
 
