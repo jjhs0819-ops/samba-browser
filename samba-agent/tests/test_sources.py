@@ -149,7 +149,7 @@ def test_ABC마트는_직배_네이버페이_넥슨현대카드_그랜드스테�
     assert abc.order_type == 'direct' and abc.customer_phone is False
     assert abc.pay_provider == 'naver' and abc.naverpay_cards == ['넥슨 현대카드']
     assert abc.paid_is_cost is True and abc.reuse_saved_shipping is False
-    assert abc.buy_accounts == ['buy-1'] and abc.pay_fallback_method is None
+    assert abc.buy_accounts == ['jjhs0819'] and abc.pay_fallback_method is None
     assert abc.order_prep and abc.coupon_download and abc.payment_quotes
     assert src.by_id('GrandStage').order_type == 'kkadaegi'
     assert src.by_id('MUSINSA').order_type is None
