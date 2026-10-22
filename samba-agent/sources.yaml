@@ -44,12 +44,19 @@ sources:
     login_host: a-rt.com
     product_id: '[?&]prdtNo=(\d+)'
     status: active
-    order_type: kkadaegi   # ABC마트 구매는 전부 사무실 배송(까대기) — 사용자 지시 2026-09-23
-    pay_provider: naver   # ABC마트는 무조건 네이버페이 — 사용자 지시 2026-09-24
+    # 2026-10-22 본 인스턴스(무신사·롯데온과 같은 자동결제 흐름): 원작자의 '전부 까대기' 대신 전부 고객 직배.
+    # 배송 연락처는 고객 번호가 아니라 업무폰(customer_phone 기본 false = 키마스터 신원정보 phone) — 사용자 2026-10-22
+    order_type: direct
+    pay_provider: naver   # ABC마트는 무조건 네이버페이 — 사용자 지시 2026-09-24(본 인스턴스도 같다, 2026-10-22)
+    naverpay_cards: [넥슨 현대카드]   # 네이버페이 창 안 카드는 넥슨 현대카드 고정 — 없으면 결제하지 않음(사용자 2026-10-22)
+    paid_is_cost: true   # 원가 = 실제 결제 금액(카드 청구할인 계수·적립 미반영) — 무신사·롯데온과 같은 기준
+    # 직배 배송지는 주소록에서 고르지 않고 매번 이번 주문서에만 새로 넣는다(abc_set_shipping 은 주소록에 저장 안 함) —
+    # 주소록 항목의 옛 고객 번호가 아니라 업무폰이 들어가게(사용자 2026-10-22)
+    reuse_saved_shipping: false
     order_prep: true   # abc_order_prep — 쿠폰적용 창에서 일반·플러스 쿠폰 최대 적용(2026-09-25, 없어서 쿠폰을 놓쳤다)
     coupon_download: true   # abc_coupon_download — 이벤트 페이지 '전체 쿠폰 다운로드'로 받을 수 있는 쿠폰을 먼저 받는다(2026-09-28)
-    # 키마스터의 ABC(a-rt.com) 계정만 비교한다 — 삼바 주문계정(buyer05 등)이 키마스터에 없는데 그 계정으로 로그인했다(2026-09-25)
-    buy_accounts: [buyer01, buyer02, buyer03, buyer04, buyer06, buyer07]   # 사용자 2026-09-28: ABC 계정 6개 전부 비교
+    # 키마스터의 ABC(a-rt.com) 계정만 쓴다 — 본 인스턴스의 ABC 구매 계정은 1개(삼바 소싱계정 jjhs0819, 금고 라벨 buy-1)
+    buy_accounts: [buy-1]
   - id: LOTTEON
     key: lotteon
     payment_quotes: true  # 2026-09-23 lotteon_payment_quotes

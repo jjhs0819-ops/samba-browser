@@ -869,8 +869,69 @@ def _abc_assignment(reg, spec):
     return assignment(reg).model_copy(update={'order': order, 'allowed_tools': spec.tools})
 
 
+@pytest.fixture
+def abc_kkadaegi(monkeypatch):
+    """까대기 공용 경로 시험용 — ABC 행을 원작자 설정(전부 까대기·주소록 재사용)으로 잠시 되돌린다.
+
+    본 인스턴스의 ABC 는 2026-10-22부터 전부 직배다. 까대기 로직 자체(사무실 배송지 유지·사무실 항목 고르기)는
+    그랜드스테이지·포이즌 등에서 그대로 쓰이므로 같은 시험을 이 픽스처로 유지한다.
+    """
+    from samba_agent.agents import buyer as buyer_mod
+
+    real = buyer_mod.source_of
+
+    def patched(name):
+        src = real(name)
+        if src.key != 'abc':
+            return src
+        return src.model_copy(update={'order_type': 'kkadaegi', 'reuse_saved_shipping': True})
+
+    monkeypatch.setattr(buyer_mod, 'source_of', patched)
+    return patched
+
+
 @respx.mock
-def test_ABC마트는_항상_까대기로_기본_배송지를_유지한다(reg):
+def test_ABC마트_직배는_주소록을_안_고르고_새로_넣고_업무폰_넥슨현대카드다(reg):
+    """본 인스턴스 ABC(사용자 2026-10-22): 전부 고객 직배 · 주소록 항목 재사용 금지(옛 고객 번호 방지) ·
+    연락처는 키마스터 신원정보(업무폰) · 네이버페이 창 안 카드는 넥슨 현대카드 고정 · 원가 = 실결제액."""
+    _wave_direct()
+    abc, spec = _abc_agent(reg)
+    calls: list[str] = []
+    applied: dict[str, object] = {}
+    inner = _recording_handler('abc_product_snapshot', applied)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(request.content)['args']['name'])
+        return inner(request)
+
+    respx.post(f'{URL}/tool/run_script').mock(side_effect=handler)
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    mock_accounts('buy-1')
+    fill = mock_fill_secret()
+    typed = mock_type()
+    out = abc(_abc_assignment(reg, spec))
+    assert out.status == 'ok', out.reason
+    assert 'abc_select_shipping' not in calls and 'abc_set_shipping' in calls
+    assert applied['name'] == CUSTOMER['name'] and applied['address'] == CUSTOMER['address']
+    assert fill.called and not typed.called  # 고객 번호를 type 으로 넣지 않는다 — 업무폰(fill_secret)
+    assert out.payload['account'] == 'buy-1'
+    assert out.payload['pay_card_candidates'] == ['넥슨 현대카드']
+    assert out.payload['paid_is_cost'] is True
+    dumped = json.dumps(out.model_dump(mode='json'), ensure_ascii=False)
+    assert find_leaks(dumped) == [] and CUSTOMER['address'] not in dumped
+
+
+def test_ABC마트_네이버페이_견적이면_넥슨현대카드를_싣는다():
+    from samba_agent.agents.buyer import quote_provider
+    from samba_agent.sources import default_sources
+
+    row = default_sources().by_id('ABCmart')
+    assert row.pay_provider == 'naver' and row.naverpay_cards == ['넥슨 현대카드']
+    assert quote_provider('네이버페이', '현대카드') == 'naver'
+
+
+@respx.mock
+def test_ABC마트는_항상_까대기로_기본_배송지를_유지한다(reg, abc_kkadaegi):
     # 플레이북 §4: 까대기면 계정 기본 배송지(사무실)를 유지하고 수정하지 않는다
     wave = respx.get(f'{WAVE_API}/orders/A1')
     abc, spec = _abc_agent(reg)
@@ -901,7 +962,7 @@ def test_ABC마트는_항상_까대기로_기본_배송지를_유지한다(reg):
 
 
 @respx.mock
-def test_까대기_주문서에_기본_배송지가_없으면_사무실_주소를_넣는다(reg):
+def test_까대기_주문서에_기본_배송지가_없으면_사무실_주소를_넣는다(reg, abc_kkadaegi):
     # poizon-sourcing 스킬: 사무실 주소가 등록돼 있지 않을 때만 사무실 주소를 주문 배송지로 쓴다(기본 배송지는 안 바꿈)
     abc, spec = _abc_agent(reg)
     snap = {
@@ -935,7 +996,7 @@ def test_까대기_주문서에_기본_배송지가_없으면_사무실_주소�
     ],
 )
 @respx.mock
-def test_스냅샷에_배송지가_없으면_주문서_화면으로_확인한다(reg, page_text, keeps_default):
+def test_스냅샷에_배송지가_없으면_주문서_화면으로_확인한다(reg, page_text, keeps_default, abc_kkadaegi):
     """화면의 기본 배송지가 사무실이면 그대로, 아니면(없음 포함) 사무실 주소를 넣는다."""
     abc, spec = _abc_agent(reg)
     snap = {k: v for k, v in SNAPSHOT_OK.items() if k != 'shipping'}
@@ -1558,7 +1619,7 @@ def test_payable_methods_는_결제_가능한_수단_이름만_남긴다():
 
 
 @respx.mock
-def test_까대기_사무실_배송지가_목록에_있으면_골라서_쓴다(reg):
+def test_까대기_사무실_배송지가_목록에_있으면_골라서_쓴다(reg, abc_kkadaegi):
     """신규 입력(set_shipping) 없이 `<key>_select_shipping` 으로 기존 사무실 항목을 고른다."""
     abc, spec = _abc_agent(reg)
     snap = {
