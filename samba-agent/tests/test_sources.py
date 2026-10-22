@@ -210,6 +210,6 @@ def test_롯데온은_무신사와_같은_직배_승인_흐름이다(sources):
 
 
 def test_paid_is_cost_는_기본이_꺼져_있다(sources):
-    # ABCmart 는 2026-10-22 부터 켬(원가 = 실결제액)
-    for sid in ('MUSINSA', '29CM', 'SSG', 'FashionPlus', 'SHOEMAKER'):
+    # ABCmart·FashionPlus 는 2026-10-22 부터 켬(원가 = 실결제액)
+    for sid in ('MUSINSA', '29CM', 'SSG', 'SHOEMAKER'):
         assert sources.by_id(sid).paid_is_cost is False, sid
