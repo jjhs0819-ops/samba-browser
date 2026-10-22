@@ -1401,6 +1401,9 @@ class PayerAgent(AgentBase):
             self.tool('click', id=pay_btn, label='결제하기')
             self.tool('wait', ms=PAY_POPUP_WAIT_MS)
             self._stop_if_promo_ended(a)
+        # 네이버페이 결제창이 팝업이 아니라 같은 탭으로 넘어가는 소싱처(롯데온 keypad_in_tab)도 카드를 고른다 —
+        # 팝업 경로에서만 골라서 기본 카드로 결제됐다(실기 2026-10-22 20:01 롯데온). 못 고르면 결제하지 않는다
+        self._select_naverpay_card_in_tab(a)
         # 결제 비밀번호 종류 — 무신사페이는 무신사머니와 비밀번호가 따로다(musinsapay), 사이트 머니는 'site'.
         # 계정에 비밀번호가 여럿이면 없을 때 모호하다(실기)
         card = str(a.handoff.get('card') or a.options.get('card') or '')
@@ -1428,6 +1431,30 @@ class PayerAgent(AgentBase):
                 FailReason.PERMISSION_DENIED,
             )
         self.tool('wait', ms=PAY_RESULT_WAIT_MS)
+
+    def _select_naverpay_card_in_tab(self, a: Assignment) -> None:
+        """팝업에서 못 고른 네이버페이 카드를 같은 탭 결제창에서 고른다(카드 후보가 있을 때만).
+
+        네이버페이 결제창 탭이 보이면 그 탭으로 옮겨 고르고, 없으면 지금 탭에서 고른다 — 후보 카드가 화면에 없으면
+        _select_naverpay_card 가 결제하지 않고 사람에게 넘긴다(넥슨 현대카드 고정, 사용자 2026-10-22).
+        """
+        raw = a.handoff.get('pay_card_candidates')
+        if not (isinstance(raw, list) and any(str(c).strip() for c in raw)):
+            return
+        if getattr(self, '_naverpay_card_done', None) == a.order.order_no:
+            return
+        try:
+            listed = json.loads(self.tool('list_tabs'))
+        except (AgentFailure, ValueError):
+            listed = []
+        naver = [
+            t
+            for t in (listed if isinstance(listed, list) else [])
+            if isinstance(t, dict) and t.get('id') and _pay_host_provider(str(t.get('url') or '')) == 'naverpay'
+        ]
+        if naver:
+            self.tool('switch_tab', id=str(naver[-1]['id']))
+        self._select_naverpay_card(a)
 
     def _select_naverpay_card(self, a: Assignment) -> None:
         """네이버페이 PC 결제창(pay.naver.com)에서 등록 카드를 handoff pay_card_candidates 순서로 고른다(사용자 2026-10-16).

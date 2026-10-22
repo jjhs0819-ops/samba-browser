@@ -1899,3 +1899,37 @@ def test_네이버페이_카드_선택이_확인되면_키패드로_간다(reg):
     # 후보 목록이 없는 주문(무신사 등)은 아무것도 하지 않는다
     plain = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 89000})
     _payer_agent(reg)._select_naverpay_card(plain)
+
+
+@respx.mock
+def test_같은_탭_네이버페이_결제창도_카드를_고른다(reg):
+    """롯데온 keypad_in_tab(실기 2026-10-22 20:01): 팝업이 없어 카드 선택을 건너뛰고 기본 카드로 결제됐다."""
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 34500, 'pay_card_candidates': ['넥슨 현대카드']})
+    tabs = [{'id': 't1', 'url': 'https://www.lotteon.com/p/order'}, {'id': 't2', 'url': 'https://pay.naver.com/payments/x'}]
+    respx.post(f'{URL}/tool/list_tabs').mock(return_value=page(json.dumps(tabs)))
+    switch = respx.post(f'{URL}/tool/switch_tab').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/get_page').mock(return_value=page('INTERACTIVE ELEMENTS:\n[3] radio "넥슨 현대카드 1234" value="on"'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    agent_ = _payer_agent(reg)
+    agent_._select_naverpay_card_in_tab(a)
+    assert json.loads(switch.calls[0].request.content)['args']['id'] == 't2'
+    assert agent_._naverpay_card_done == a.order.order_no
+
+
+@respx.mock
+def test_같은_탭에_넥슨_카드가_없으면_결제하지_않는다(reg):
+    from samba_agent.agents.base import AgentFailure
+
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 34500, 'pay_card_candidates': ['넥슨 현대카드']})
+    respx.post(f'{URL}/tool/list_tabs').mock(return_value=page('[]'))
+    respx.post(f'{URL}/tool/get_page').mock(return_value=page('INTERACTIVE ELEMENTS:\n[5] radio "신한카드 9999" value="on"'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    with pytest.raises(AgentFailure) as e:
+        _payer_agent(reg)._select_naverpay_card_in_tab(a)
+    assert e.value.fail_reason is FailReason.CARD_MISSING
+
+
+def test_카드_후보가_없으면_같은_탭_선택은_아무것도_안_한다(reg):
+    a = assignment(reg, dry_run=False, card='무신사머니', handoff={'cost': 10000})
+    _payer_agent(reg)._select_naverpay_card_in_tab(a)  # 도구 호출 없음(respx 없이 통과)
