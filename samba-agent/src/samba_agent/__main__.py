@@ -393,9 +393,9 @@ def main() -> None:
     # 삼바 승인카드 연동 — worker 가 만들어진 뒤 꽂는다(resume 가 필요). 그 전엔 요청을 버리지 않고 폴러가 다시 올린다
     relay_holder: list[WaveApprovalRelay] = []
 
-    def _approval_request(job: Job, req: dict) -> None:
-        if relay_holder:
-            relay_holder[0].request(job, req)
+    def _approval_request(job: Job, req: dict) -> str | None:
+        # 삼바가 돌려준 state(pending/approved/rejected) — 자동 승인 소싱처면 워커가 이 값으로 재개한다(2026-10-22)
+        return relay_holder[0].request(job, req) if relay_holder else None
 
     worker = Worker(
         WorkerDeps(

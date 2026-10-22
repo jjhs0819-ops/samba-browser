@@ -760,29 +760,59 @@ def test_외부_기입_conflict_error는_보고에_남는다(setup, export_statu
     assert (len(alerts) == 1) is expect_alert
 
 
-def test_검증_전_결제수단은_자동_승인하지_않는다(tmp_path):
-    """페이코처럼 실결제 검증 전 수단이 뽑히면 사람 승인을 기다린다(2026-09-25)."""
+def test_자동승인은_소싱처_목록으로_켠다(tmp_path):
+    """2026-10-22: SAMBA_AUTO_APPROVE 가 소싱처 목록 — 목록에 있는 소싱처만 결제 직전 멈춤 없이 결제한다."""
+    reg = Registry.load(DEFAULT_ROOT)
+    for sources, expect_paid in ((frozenset({'MUSINSA'}), True), (frozenset({'LOTTEON'}), False)):
+        q = JobQueue(tmp_path / f'jobs-{"-".join(sorted(sources))}.sqlite')
+        log: list[str] = []
+        graph = build_supervisor(reg, agents(log, None), checkpointer=MemorySaver(), gate=True)
+        w = Worker(
+            WorkerDeps(
+                queue=q, graph=graph, version='vtest', report=lambda job, line: None,
+                parse_order=order_of, auto_approve_sources=sources,
+            )
+        )
+        q.enqueue('A1', 'U1', {}, 'ts1')
+        job = w.tick()
+        assert ('pay' in log) is expect_paid
+        assert (job.state == 'needs_human') is (not expect_paid)
+
+
+def test_자동승인_훅이_rejected_를_주면_permission_denied(tmp_path):
+    """사장님이 [내가 결제]로 돌린 주문 — 삼바가 승인요청을 rejected 로 답하면 결제하지 않는다."""
     reg = Registry.load(DEFAULT_ROOT)
     q = JobQueue(tmp_path / 'jobs.sqlite')
     log: list[str] = []
-    sent: list[str] = []
     graph = build_supervisor(reg, agents(log, None), checkpointer=MemorySaver(), gate=True)
     w = Worker(
         WorkerDeps(
-            queue=q,
-            graph=graph,
-            version='vtest',
-            report=lambda job, line: sent.append(line),
-            parse_order=order_of,
-            auto_approve=True,
-            manual_approve_methods=('현대',),
+            queue=q, graph=graph, version='vtest', report=lambda job, line: None,
+            parse_order=order_of, auto_approve=True, approval_request=lambda job, req: 'rejected',
         )
     )
     q.enqueue('A1', 'U1', {}, 'ts1')
     job = w.tick()
-    assert job.state == 'needs_human'
+    assert job.state == 'needs_human' and job.error == 'permission_denied'
     assert 'pay' not in log
-    assert any('수동 승인 필요' in s for s in sent)
+
+
+def test_자동승인_훅이_None_이면_대기로_남긴다(tmp_path):
+    """삼바 등록 실패(백엔드 잠시 죽음) — 결제하지 않고 승인 대기로 두면 폴러가 다시 올린다."""
+    reg = Registry.load(DEFAULT_ROOT)
+    q = JobQueue(tmp_path / 'jobs.sqlite')
+    log: list[str] = []
+    graph = build_supervisor(reg, agents(log, None), checkpointer=MemorySaver(), gate=True)
+    w = Worker(
+        WorkerDeps(
+            queue=q, graph=graph, version='vtest', report=lambda job, line: None,
+            parse_order=order_of, auto_approve=True, approval_request=lambda job, req: None,
+        )
+    )
+    q.enqueue('A1', 'U1', {}, 'ts1')
+    job = w.tick()
+    assert job.state == 'needs_human' and job.step == '승인 대기: pay'
+    assert 'pay' not in log
 
 
 def test_카카오페이_비밀번호_미입력이면_다른_수단으로_사지_않고_메모만_남긴다(tmp_path):

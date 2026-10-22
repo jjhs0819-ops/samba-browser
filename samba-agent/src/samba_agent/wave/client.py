@@ -530,16 +530,23 @@ class WaveClient:
     # ---- 발주 승인·이벤트(삼바 주문화면 승인카드, 사용자 2026-10-09) ----
 
     def post_approval(
-        self, key: str, *, stage: str, summary: str, payload: dict[str, object]
+        self,
+        key: str,
+        *,
+        stage: str,
+        summary: str,
+        payload: dict[str, object],
+        auto: bool = False,
     ) -> dict[str, object]:
         """결제 직전 승인요청을 삼바에 올린다. 같은 주문의 대기건은 삼바가 교체한다.
 
         ``key`` 는 작업 키(행 id 또는 상품주문번호). 응답 {'ok', 'approval_id', 'state'}.
+        ``auto=True`` 면 삼바가 즉시 approved(사장님이 '내가 결제'로 돌린 주문이면 rejected)로 답한다(2026-10-22).
         """
         body = self._request(
             'POST',
             f'/orders/{key}/approval',
-            json={'stage': stage, 'summary': summary, 'payload': payload},
+            json={'stage': stage, 'summary': summary, 'payload': payload, 'auto': auto},
         )
         return body if isinstance(body, dict) else {}
 

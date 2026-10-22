@@ -26,12 +26,15 @@ class ApprovalRequest:
     order_no: str
     summary: str
     evidence: tuple[Evidence, ...]
+    # 소싱처 id(MUSINSA 등) — 워커가 자동 승인 소싱처인지 가를 때 쓴다(2026-10-22)
+    source: str = ''
 
     def as_dict(self) -> dict[str, object]:
         return {
             'kind': APPROVAL_INTERRUPT_KEY,
             'stage': self.stage,
             'order_no': self.order_no,
+            'source': self.source,
             'summary': self.summary,
             'evidence': [e.model_dump() for e in self.evidence],
         }
@@ -65,6 +68,7 @@ def approval_request(stage: str, state: RunState) -> ApprovalRequest:
     return ApprovalRequest(
         stage=stage,  # type: ignore[arg-type]
         order_no=order.order_no,
+        source=str(order.source or ''),
         summary='\n'.join(lines),
         evidence=tuple(state.get('evidence', [])),
     )

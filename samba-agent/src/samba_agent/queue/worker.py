@@ -54,7 +54,8 @@ class WorkerDeps:
     approval_report: Callable[[Job, str, str, str], None] | None = None
     # 승인 요청 원본(stage·order_no·summary·evidence) 을 받는 훅 — 삼바 주문화면 승인카드(백엔드)에 올린다
     # (사용자 2026-10-09). 슬랙 보고와 별개로 부르며, 실패해도 작업을 막지 않는다
-    approval_request: Callable[[Job, dict[str, object]], None] | None = None
+    # 반환값은 삼바가 돌려준 state(pending/approved/rejected), 등록 실패면 None(2026-10-22 자동 승인 분기에 쓴다)
+    approval_request: Callable[[Job, dict[str, object]], str | None] | None = None
     # settings.dry_run 이 아직 여기까지 안 들어와서 당장은 기본값 True 로 주입한다.
     dry_run: bool = True
     # dry-run 에서 결제 비밀번호를 몇 자리만 눌러 보고 취소할지(0 이면 결제창까지만)
@@ -93,8 +94,10 @@ class WorkerDeps:
     # True 면 작업이 끝나도 탭을 바로 닫지 않고 **다음 작업이 시작할 때** 닫는다 — 사용자가 결과 화면(주문서·
     # 실패 화면)을 눈으로 확인할 수 있어야 한다(사용자 지시 2026-09-24). 옛 주문서 오독은 다음 작업 시작 전 정리로 막는다
     keep_tabs: bool = False
-    # True 면 결제 승인 요청을 즉시 승인한다(SAMBA_AUTO_APPROVE — 사용자가 자동 이행을 켠 경우)
+    # True 면 소싱처와 상관없이 결제 승인 요청을 즉시 승인한다(옛 SAMBA_AUTO_APPROVE=true)
     auto_approve: bool = False
+    # 자동 승인할 소싱처 id(대문자). '*' 가 있으면 전부(SAMBA_AUTO_APPROVE 목록, 2026-10-22)
+    auto_approve_sources: frozenset[str] = frozenset()
     # 브릿지가 지금 일을 받을 수 있는가(앱 채팅이 도는 동안은 409 busy). 거짓이면 큐를 집지 않고
     # 다음 주기를 기다린다 — 실기: 사용자가 앱에서 채팅을 돌리는 동안 5건이 전부 bridge_down 으로 사람에게 넘어갔다
     ready: Callable[[], bool] | None = None
@@ -301,6 +304,18 @@ class Worker:
             _log.info('%s 작업이 연 탭 %d개 닫음', job.order_no, closed)
         return job
 
+    def _auto_for(self, req: dict[str, object]) -> bool:
+        """이 승인 요청을 사람 없이 승인하는가 — 전부(auto_approve/'*') 또는 요청의 소싱처가 목록에 있을 때."""
+        if self.d.auto_approve or '*' in self.d.auto_approve_sources:
+            return True
+        source = str(req.get('source') or '').strip()
+        if not source:
+            return False
+        from samba_agent.sources import default_sources
+
+        normalized = str(default_sources().normalize(source) or source).upper()
+        return normalized in self.d.auto_approve_sources or source.upper() in self.d.auto_approve_sources
+
     def resume(self, key: str, approved: bool, by: str, stage: str | None = None) -> Job | None:
         """슬랙 승인 버튼 → 멈춘 그래프를 깨운다.
 
@@ -444,10 +459,12 @@ class Worker:
             order_no = str(req.get('order_no') or job.order_no)
             self.d.queue.progress(job.id, agent=f'approval.{stage}', step=f'승인 대기: {stage}')
             self.d.queue.finish(job.id, 'needs_human')
+            auto = self._auto_for(req)
+            state: str | None = None
             if self.d.approval_request is not None:
                 # 삼바 승인카드 — 실패(백엔드 끊김)는 로그만. 폴러가 '요청 없음'을 보면 다시 올린다
                 try:
-                    self.d.approval_request(job, dict(req))
+                    state = self.d.approval_request(job, dict(req))
                 except Exception as e:  # noqa: BLE001 — 승인카드 등록 실패가 큐를 막으면 안 된다
                     _log.warning('승인요청 등록 실패(%s) — 폴러가 다시 올린다', type(e).__name__)
             if self.d.approval_report is not None:
@@ -456,17 +473,19 @@ class Worker:
             else:
                 # 버튼을 달 통로가 없을 때의 폴백 — 사람이 `@삼바` 명령으로 이어가야 한다
                 self.d.report(job, f'승인 요청\n{summary}')
-            manual = next(
-                (m for m in self.d.manual_approve_methods if m and m.lower() in summary.lower()),
-                None,
-            )
-            if manual and stage == 'pay':
-                self.d.report(job, f'수동 승인 필요: {order_no} — 검증 전 결제수단({manual})')
-            if self.d.auto_approve and not (manual and stage == 'pay'):
-                # 사용자가 자동 이행을 켰다 — 요약을 남긴 채 곧바로 승인해 이어 간다
-                self.d.report(job, f'자동 승인: {order_no} {stage}')
-                resumed = self.resume(job.key, True, 'auto-approve', stage)
-                return resumed if resumed is not None else self.d.queue.get_by_id(job.id)  # type: ignore[return-value]
+            if auto:
+                # 자동 승인 소싱처(2026-10-22 매시간 자동결제) — 삼바 응답으로 가른다
+                if state == 'rejected':
+                    # 사장님이 [내가 결제]로 돌린 주문 — 결제하지 않고 멈춘다(주문서 탭은 남는다)
+                    self.d.report(job, f'자동 승인 거부: {order_no} — 사장님이 직접 결제하는 주문')
+                    resumed = self.resume(job.key, False, 'manual', stage)
+                    return resumed if resumed is not None else self.d.queue.get_by_id(job.id)  # type: ignore[return-value]
+                if state == 'approved' or self.d.approval_request is None:
+                    self.d.report(job, f'자동 승인: {order_no} {stage}')
+                    resumed = self.resume(job.key, True, 'auto', stage)
+                    return resumed if resumed is not None else self.d.queue.get_by_id(job.id)  # type: ignore[return-value]
+                # 삼바에 기록하지 못했다(None) 또는 pending — 결제하지 않고 대기. 폴러가 다시 올려 재개한다
+                self.d.report(job, f'자동 승인 보류: {order_no} — 삼바 승인 기록 실패, 폴러가 다시 올린다')
             return self.d.queue.get_by_id(job.id)  # type: ignore[return-value]
         outcome = out['outcome']
         fail = out.get('fail_reason')

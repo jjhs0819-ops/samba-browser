@@ -201,3 +201,72 @@ def test_이벤트_적재_실패는_삼킨다():
     WaveEventSink(client()).agent_result(
         {'order': order}, 'buy', 'buyer.musinsa', AgentResult(status='ok', reason='r'), 1, 1
     )
+
+
+# ---- 자동 승인(2026-10-22 매시간 자동결제) — auto 로 올리고 삼바 응답(approved/rejected)으로 재개 ----
+
+
+@respx.mock
+def test_auto_요청은_auto_true_로_올리고_approved_를_돌려준다(tmp_path):
+    q = JobQueue(tmp_path / 'q.sqlite')
+    job = waiting_job(q)
+    route = respx.post(f'{API}/orders/ord_A1/approval').mock(
+        return_value=httpx.Response(200, json={'ok': True, 'approval_id': 'pa_1', 'state': 'approved'})
+    )
+    relay = WaveApprovalRelay(client(), q, lambda *a: None, auto_for=lambda req: True)
+    assert relay.request(job, REQ) == 'approved'
+    assert json.loads(route.calls[0].request.content)['auto'] is True
+
+
+@respx.mock
+def test_auto_가_아니면_auto_false_로_올리고_pending(tmp_path):
+    q = JobQueue(tmp_path / 'q.sqlite')
+    job = waiting_job(q)
+    route = respx.post(f'{API}/orders/ord_A1/approval').mock(
+        return_value=httpx.Response(200, json={'ok': True, 'approval_id': 'pa_1', 'state': 'pending'})
+    )
+    relay = WaveApprovalRelay(client(), q, lambda *a: None, auto_for=lambda req: False)
+    assert relay.request(job, REQ) == 'pending'
+    assert json.loads(route.calls[0].request.content)['auto'] is False
+
+
+@respx.mock
+def test_등록_실패면_None(tmp_path):
+    q = JobQueue(tmp_path / 'q.sqlite')
+    job = waiting_job(q)
+    respx.post(f'{API}/orders/ord_A1/approval').mock(return_value=httpx.Response(500, json={}))
+    relay = WaveApprovalRelay(client(), q, lambda *a: None, auto_for=lambda req: True)
+    assert relay.request(job, REQ) is None
+
+
+@respx.mock
+def test_폴러가_재요청해_approved_면_바로_재개한다(tmp_path):
+    q = JobQueue(tmp_path / 'q.sqlite')
+    job = waiting_job(q)
+    respx.get(f'{API}/orders/ord_A1/approval').mock(return_value=httpx.Response(200, json={'state': 'none'}))
+    respx.post(f'{API}/orders/ord_A1/approval').mock(
+        return_value=httpx.Response(200, json={'ok': True, 'approval_id': 'pa_1', 'state': 'approved'})
+    )
+    resumed: list = []
+    relay = WaveApprovalRelay(
+        client(), q, lambda k, ok, by, st: resumed.append((k, ok, by)) or job, auto_for=lambda req: True
+    )
+    assert relay.poll_once() == 1
+    assert resumed == [('ord_A1', True, 'auto')]
+
+
+@respx.mock
+def test_자동승인_응답이_rejected_면_결제하지_않는다(tmp_path):
+    # 사장님이 [내가 결제]를 누른 주문 — 삼바가 rejected 로 응답, 로봇은 manual 로 멈춘다
+    q = JobQueue(tmp_path / 'q.sqlite')
+    job = waiting_job(q)
+    respx.get(f'{API}/orders/ord_A1/approval').mock(return_value=httpx.Response(200, json={'state': 'none'}))
+    respx.post(f'{API}/orders/ord_A1/approval').mock(
+        return_value=httpx.Response(200, json={'ok': True, 'approval_id': 'pa_1', 'state': 'rejected'})
+    )
+    resumed: list = []
+    relay = WaveApprovalRelay(
+        client(), q, lambda k, ok, by, st: resumed.append((k, ok, by)) or job, auto_for=lambda req: True
+    )
+    assert relay.poll_once() == 1
+    assert resumed == [('ord_A1', False, 'manual')]

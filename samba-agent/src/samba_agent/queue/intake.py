@@ -150,7 +150,12 @@ class Intake:
             handled.add(order.wave_key)
             ts = self._post_new(intake_line(order))
             job, _created = self._queue.enqueue(
-                order.order_no, self._requester, {}, thread_ts=ts, wave_id=order.wave_id
+                order.order_no,
+                self._requester,
+                # 소싱처를 옵션에 남긴다 — 재기동 뒤 승인 폴러가 자동 승인 소싱처인지 가린다(2026-10-22)
+                {'source': str(order.source or '')},
+                thread_ts=ts,
+                wave_id=order.wave_id,
             )
             if self._supported(order):
                 if wave_order.source_inferred and not self._link_inferred(wave_order, job.id, ts):

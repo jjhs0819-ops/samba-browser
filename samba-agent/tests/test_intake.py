@@ -402,3 +402,11 @@ def test_소싱처_미등록_주문_연결은_행_id_로_부른다(tmp_path):
     Intake(wave, q, reg, slack.post_new, slack.post_line, days=7).run_once()
     assert wave.linked == [('ord_G1', '3347853')]
     assert q.get('ord_G1').order_no == 'G1'
+
+
+def test_접수한_작업_옵션에_소싱처를_남긴다(setup):
+    """재기동 뒤 승인 폴러가 자동 승인 소싱처인지 가릴 때 쓴다(2026-10-22)."""
+    q, _slack, make = setup
+    intake, _wave = make([wave_order('A1', source='MUSINSA')])
+    intake.run_once()
+    assert q.get('A1').options.get('source') == 'MUSINSA'

@@ -31,6 +31,8 @@ _COST_MARGIN = re.compile(r'원가:\s*(?P<cost>[\d,]+)원\s*·\s*마진:\s*(?P<m
 _MAX_EVIDENCE = 20
 
 ResumeFn = Callable[[str, bool, str, str | None], Job | None]
+# 승인 요청 dict(source 포함) → 자동 승인 대상인가(2026-10-22 매시간 자동결제)
+AutoFn = Callable[[dict[str, object]], bool]
 
 
 def waiting_stage(job: Job) -> str | None:
@@ -90,32 +92,50 @@ def approval_older_than_job(status: dict[str, object], job: Job) -> bool:
         return False
     return requested < created
 
+def _source_of_job(job: Job) -> str:
+    """작업 옵션에 적힌 소싱처(intake 가 넣는다). 없으면 빈 문자열 — 자동 승인 판정이 보수적으로 False 가 된다."""
+    return str(job.options.get('source') or '')
+
+
 class WaveApprovalRelay:
     """승인요청 등록 + 결정 폴링. 워커 스레드와 별도 스레드에서 돈다."""
 
     def __init__(
-        self, wave: WaveClient, queue: JobQueue, resume: ResumeFn, poll_s: float = 2.0
+        self,
+        wave: WaveClient,
+        queue: JobQueue,
+        resume: ResumeFn,
+        poll_s: float = 2.0,
+        auto_for: AutoFn | None = None,
     ) -> None:
         self._wave = wave
         self._queue = queue
         self._resume = resume
         self._poll_s = poll_s
+        self._auto_for = auto_for
         # 이번 기동에서 승인요청을 올린 작업 키 — 삼바에 요청이 없으면(재기동·등록 실패) 다시 올린다
         self._requested: set[str] = set()
 
-    def request(self, job: Job, req: dict[str, object]) -> None:
-        """결제 직전 멈춘 작업의 요약을 삼바에 올린다. 실패는 로그만(폴러가 다시 올린다)."""
+    def request(self, job: Job, req: dict[str, object]) -> str | None:
+        """결제 직전 멈춘 작업의 요약을 삼바에 올린다. 삼바가 돌려준 state(pending/approved/rejected), 실패면 None.
+
+        자동 승인 대상(auto_for)이면 auto=True 로 올린다 — 삼바가 바로 approved 로 답하거나, 사장님이
+        [내가 결제]로 돌린 주문이면 rejected 로 답한다. 실패는 로그만(폴러가 다시 올린다).
+        """
         stage = str(req.get('stage') or 'pay')
         summary = mask_text(str(req.get('summary') or ''))
+        auto = bool(self._auto_for(req)) if self._auto_for is not None else False
         try:
-            self._wave.post_approval(
-                job.key, stage=stage, summary=summary, payload=payload_from_request(req)
+            out = self._wave.post_approval(
+                job.key, stage=stage, summary=summary, payload=payload_from_request(req), auto=auto
             )
         except (WaveError, Exception) as e:  # noqa: BLE001 — 등록 실패가 작업을 막으면 안 된다
             _log.warning('승인요청 등록 실패 %s(%s)', job.order_no, type(e).__name__)
-            return
+            return None
         self._requested.add(job.key)
-        _log.info('승인요청 등록 %s %s', job.order_no, stage)
+        state = str(out.get('state') or 'pending')
+        _log.info('승인요청 등록 %s %s%s → %s', job.order_no, stage, '(auto)' if auto else '', state)
+        return state
 
     def poll_once(self) -> int:
         """승인 대기 작업마다 삼바 상태를 본다. 결정이 있으면 재개. 재개한 건수."""
@@ -146,15 +166,21 @@ class WaveApprovalRelay:
                 state = 'none'
             if state == 'none':
                 if job.key not in self._requested:
-                    # 재기동·등록 실패로 삼바에 요청이 없다 — 요약 없이라도 카드를 띄운다
-                    self.request(
+                    # 재기동·등록 실패로 삼바에 요청이 없다 — 요약 없이라도 카드를 띄운다.
+                    # 자동 승인 소싱처면 삼바가 곧바로 approved/rejected 로 답하므로 그 자리에서 재개한다(2026-10-22)
+                    answered = self.request(
                         job,
                         {
                             'stage': stage,
+                            'source': _source_of_job(job),
                             'summary': f'*{stage} 승인 요청* — 주문 {job.order_no}\n(로봇 재기동 — 근거는 로봇 로그 참고)',
                         },
                     )
-                continue
+                    if answered in ('approved', 'rejected'):
+                        state = answered
+                        status = {'state': answered, 'by': 'auto' if answered == 'approved' else 'manual'}
+                if state == 'none':
+                    continue
             if state not in _DECIDED:
                 continue  # pending — 계속 기다린다
             approved = state == 'approved'
