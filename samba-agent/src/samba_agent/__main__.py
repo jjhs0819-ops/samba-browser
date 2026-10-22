@@ -5,6 +5,7 @@
 """
 
 import functools
+import os
 import json
 import logging
 import signal
@@ -203,6 +204,8 @@ def _bridge_ready(bridge: BridgeClient) -> bool:
 
 def main() -> None:
     settings = load_settings()
+    # 즉시할인 종료 표시 같은 작은 상태 파일 위치 — 작업 폴더와 무관하게 고정(payer.promo_mark_path)
+    os.environ.setdefault('SAMBA_STATE_DIR', str(settings.state_dir))
     # 시각을 붙인다 — 도구 호출 사이 간격으로 어느 단계가 느린지 잰다(2026-09-26 주문 1건 수 분 문제)
     logging.basicConfig(
         level=logging.INFO,
@@ -413,7 +416,11 @@ def main() -> None:
             dry_run=settings.dry_run,
             dry_run_digits=settings.dry_run_digits,
             keep_tabs=settings.keep_tabs,
-            auto_approve='*' in settings.auto_approve_sources,
+            # 자동 승인 소싱처 목록(SAMBA_AUTO_APPROVE, 2026-10-22 매시간 자동결제). '*' 면 전부
+            auto_approve=False,
+            auto_approve_sources=settings.auto_approve_sources,
+            # 머니 부족·결제 확인 불가는 슬랙 최상위 메시지로 바로 알린다
+            alert=lambda text: bot.post_new(text),
             manual_approve_methods=tuple(
                 x.strip() for x in settings.manual_approve_methods.split(',') if x.strip()
             ),
@@ -448,7 +455,9 @@ def main() -> None:
 
     relay: WaveApprovalRelay | None = None
     if wave is not None:
-        relay = WaveApprovalRelay(wave, queue, worker.resume, settings.wave_approval_poll_s)
+        relay = WaveApprovalRelay(
+            wave, queue, worker.resume, settings.wave_approval_poll_s, auto_for=worker._auto_for
+        )
         relay_holder.append(relay)
 
     def _diagnose_text(version: str | None) -> str:
@@ -636,7 +645,8 @@ def main() -> None:
     if intake is not None:
         threading.Thread(
             target=intake.run_forever,
-            args=(stop.is_set, float(settings.intake_interval_s)),
+            # 정각 정렬이면 interval_s 는 무시하고 매시 정각에 한 바퀴(매시간 자동결제 배치)
+            args=(stop.is_set, float(settings.intake_interval_s), settings.intake_align_hour),
             daemon=True,
             name='intake',
         ).start()
