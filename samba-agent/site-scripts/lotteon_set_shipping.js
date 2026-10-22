@@ -88,7 +88,7 @@ R.address_detail=detail||null;
 const use=L(await E('사용'),e=>e.role==='button'&&e.text==='사용');
 if(use){await page.click(use.id);await sleep(1200);}
 // 직배 폼도 저장은 confirm 이 한다 — 전화 칸이 빈 채 저장을 누르면 저장이 안 되고 폼이 남는다(실기 2026-10-22
-// 20261021210BEF: 전화를 채운 뒤 confirm 이 다시 저장했지만 '배송지 창이 닫히지 않음'). 수취인정보 동의만 켜 둔다
+// 롯데온 직배 첫 주문: 전화를 채운 뒤 confirm 이 다시 저장했지만 '배송지 창이 닫히지 않음'). 수취인정보 동의만 켜 둔다
 if(!R.gift){
   const ag=L(await E('수취인정보'),e=>e.role==='checkbox');
   if(ag&&ag.value!=='on')await page.click(ag.id);
