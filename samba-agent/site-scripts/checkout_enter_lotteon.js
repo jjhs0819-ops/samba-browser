@@ -2,8 +2,7 @@
 const isEasy = args.card === '간편결제';
 const cardCompanies=['롯데카드','신한카드','KB국민카드','삼성카드','현대카드','BC카드','하나카드','씨티카드','우리BC카드','우리카드','NH농협카드','카카오뱅크','광주카드'];
 const simplePays=['간편결제','카카오페이','네이버페이','토스페이','삼성페이','휴대폰결제','충전결제','퀵계좌이체','온누리상품권'];
-// 수단이 간편결제류(네이버페이 등)면 issuer 는 그 결제창 안에서 고르는 카드다(payer 가 네이버페이 창에서 고름) —
-// 주문서 수단 이름으로 쓰지 않는다(실기 2026-10-22: '무신사 현대카드'로 수단을 찾다 결제창 진입 실패)
+// 간편결제류면 issuer 는 결제창 안 카드 — 수단 이름으로 안 쓴다(10-22)
 const card = (isEasy || simplePays.includes(String(args.card||''))) ? String(args.card) : (args.issuer || args.card || '');
 if (args.tab && (await tabs.list()).some(t => t.id === String(args.tab))) await tabs.switch(String(args.tab));
 { const ot=(await tabs.list()).filter(t=>/orderSheet/.test(t.url||''));
@@ -75,8 +74,7 @@ try{
   const rt=(await page.get({query:'지출증빙용'})).tree;
   const rm=rt.match(/\[(\d+)\] radio "지출증빙용"[^\n]*/);
   if(rm&&!args.biz_no){
-    // 사업자번호가 이 PC(local-aliases)에 없으면 지출증빙을 고르지 않는다 — 번호 없이 지출증빙이면 주문서가 결제를 막는다
-    // (실기 2026-10-22 롯데온). 이미 켜져 있으면 '신청안함' 쪽으로 돌린다
+    // 사업자번호 없으면 지출증빙 안 고름(주문서가 막음, 10-22) — 켜져 있으면 신청안함
     if(/value="on"/.test(rm[0])){const nr=(await page.get({query:'안함'})).tree.split('\n').find(l=>/^\[\d+\] radio "[^"]*(신청 ?안 ?함|발급 ?안 ?함|미신청|미발행)/.test(l));if(nr){await page.click(parseInt(nr.slice(1)));await sleep(900);}}
     receipt='지출증빙 안 함(사업자번호 없음)';
   }else if(rm){
