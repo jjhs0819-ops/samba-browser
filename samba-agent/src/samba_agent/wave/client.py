@@ -22,6 +22,8 @@ from samba_agent.agents.contracts import OrderRef
 from samba_agent.failures import FailReason
 
 DEFAULT_TIMEOUT_S = 10.0
+# 결제 직전 마켓 취소 확인 — 삼바가 마켓 계정 하나를 동기화한다(삼바 쪽 한도 150초 + 여유)
+PRECHECK_TIMEOUT_S = 180.0
 API_PREFIX = '/api/v1/internal/harness'
 
 # HTTP 상태 → 실패 사유. 503 은 서버에 내부 토큰이 설정되지 않은 경우다(권한 문제로 센다)
@@ -531,6 +533,17 @@ class WaveClient:
         body = self._request('POST', f'/orders/{order_no}/memo', json={'line': line})
         return bool(body.get('rows')) if isinstance(body, dict) else False
 
+    def precheck_market_cancel(self, key: str) -> dict[str, object]:
+        """결제 직전 마켓 취소 확인(사용자 2026-10-23 원천 차단) — 삼바가 그 주문의 마켓 계정만 지금 동기화해 본다.
+
+        응답 {'checked', 'cancel_requested', 'approved', 'message'}. 고객 취소요청이면 삼바가 마켓 취소를 승인한다.
+        checked=False(동기화 실패)면 호출부는 결제하지 않는다.
+        """
+        body = self._request(
+            'POST', f'/orders/{key}/precheck-market-cancel', timeout_s=PRECHECK_TIMEOUT_S
+        )
+        return body if isinstance(body, dict) else {}
+
     # ---- 발주 승인·이벤트(삼바 주문화면 승인카드, 사용자 2026-10-09) ----
 
     def post_approval(
@@ -583,14 +596,18 @@ class WaveClient:
         }
 
     def _request(self, method: str, path: str, **kwargs: object) -> object:
-        """호출 1건. 연결 실패는 BRIDGE_DOWN, 상태 코드는 표대로 FailReason 으로 바꾼다."""
+        """호출 1건. 연결 실패는 BRIDGE_DOWN, 상태 코드는 표대로 FailReason 으로 바꾼다.
+
+        ``timeout_s`` 를 주면 그 호출만 제한 시간을 바꾼다(결제 직전 마켓 취소 확인은 마켓 동기화를 기다린다).
+        """
+        timeout = kwargs.pop('timeout_s', None) or self._timeout_s
         try:
             try:
                 r = self._client.request(
                     method,
                     f'{self._base}{path}',
                     headers=self._headers(),
-                    timeout=self._timeout_s,
+                    timeout=timeout,  # type: ignore[arg-type]
                     **kwargs,  # type: ignore[arg-type]
                 )
             except httpx.RemoteProtocolError:
@@ -602,7 +619,7 @@ class WaveClient:
                     method,
                     f'{self._base}{path}',
                     headers=self._headers(),
-                    timeout=self._timeout_s,
+                    timeout=timeout,  # type: ignore[arg-type]
                     **kwargs,  # type: ignore[arg-type]
                 )
         except httpx.TimeoutException as e:

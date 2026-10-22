@@ -24,4 +24,6 @@ class FailReason(StrEnum):
     COST_CHANGED = 'cost_changed'
     # 무신사머니로 결제해야 하는데 잔액이 모자란다 — 충전은 사람 일, 결제하지 않고 알린다(2026-10-22)
     MONEY_INSUFFICIENT = 'money_insufficient'
+    # 결제 직전 마켓 취소요청 확인 — 고객이 취소했다, 결제하지 않는다(삼바가 마켓 취소승인, 사용자 2026-10-23)
+    MARKET_CANCELLED = 'market_cancelled'
     UNKNOWN = 'unknown'

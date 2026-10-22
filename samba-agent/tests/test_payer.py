@@ -949,9 +949,16 @@ def test_결제_직전_재조회가_실패하면_결제하지_않는다(reg):
     assert not enter.called
 
 
+def _precheck(**body):
+    return respx.post(f'{WAVE_API}/orders/A1/precheck-market-cancel').mock(
+        return_value=httpx.Response(200, json={'checked': True, 'cancel_requested': False, **body})
+    )
+
+
 @respx.mock
 def test_재조회가_미처리면_결제를_이어가고_누가_결제했는지_남긴다(reg):
     _wave_order(status='pending')
+    _precheck()
     respx.post(f'{URL}/tool/run_script').mock(return_value=page(ENTER_OK))
     respx.post(f'{URL}/tool/list_tabs').mock(return_value=list_tabs_page(TOSS_POPUP_URL))
     respx.post(f'{URL}/tool/find_elements').mock(return_value=page('[12] textbox "주문자 이름"'))
@@ -966,6 +973,57 @@ def test_재조회가_미처리면_결제를_이어가고_누가_결제했는지
     assert out.status == 'ok'
     assert out.payload['paid_by'] == 'agent'
     assert any(e.label == '결제 직전 재조회' for e in out.evidence)
+    assert any(e.label == '마켓 취소 확인' for e in out.evidence)
+
+
+@respx.mock
+def test_결제_직전_마켓_취소요청이면_결제하지_않는다(reg):
+    # 실기 2026-10-22: 동기화 21:54 → 결제 22:01 → 고객 취소 22:32 — 결제 직전에 마켓을 다시 본다(사용자 10-23)
+    _wave_order(status='pending')
+    _precheck(cancel_requested=True, approved=True, message='롯데ON 취소승인 완료')
+    enter = respx.post(f'{URL}/tool/run_script')
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    out = agent_with_wave(reg)(assignment(reg, dry_run=False))
+    assert (out.status, out.fail_reason) == ('fail', FailReason.MARKET_CANCELLED)
+    assert '취소승인 완료' in out.reason
+    assert not enter.called
+
+
+@respx.mock
+def test_마켓_취소승인이_실패하면_사람에게(reg):
+    _wave_order(status='pending')
+    _precheck(cancel_requested=True, approved=False, message='취소승인 실패: 500')
+    enter = respx.post(f'{URL}/tool/run_script')
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    out = agent_with_wave(reg)(assignment(reg, dry_run=False))
+    assert (out.status, out.fail_reason) == ('needs_human', FailReason.MARKET_CANCELLED)
+    assert not enter.called
+
+
+@respx.mock
+def test_마켓_확인이_안되면_결제하지_않는다(reg):
+    _wave_order(status='pending')
+    _precheck(checked=False, message='마켓 동기화 실패: 401')
+    enter = respx.post(f'{URL}/tool/run_script')
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    out = agent_with_wave(reg)(assignment(reg, dry_run=False))
+    assert out.status == 'needs_human' and '확인 불가' in out.reason
+    assert not enter.called
+
+
+@respx.mock
+def test_마켓_확인_호출이_실패해도_결제하지_않는다(reg):
+    _wave_order(status='pending')
+    respx.post(f'{WAVE_API}/orders/A1/precheck-market-cancel').mock(return_value=httpx.Response(503))
+    enter = respx.post(f'{URL}/tool/run_script')
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    out = agent_with_wave(reg)(assignment(reg, dry_run=False))
+    assert out.status == 'needs_human'
+    assert not enter.called
 
 
 def test_공장이_결제_에이전트에도_삼바웨이브를_꽂는다(reg):

@@ -971,7 +971,51 @@ class PayerAgent(AgentBase):
             raise AgentFailure(
                 'needs_human', f'상태 변경: {status or "(비어 있음)"}', FailReason.UNKNOWN
             )
+        self._precheck_market_cancel(a)
+        try:
+            # 마켓 동기화로 상태가 바뀌었을 수 있다(취소요청 등) — 다시 읽는다
+            current = self._wave.get_order(a.order.wave_key)
+        except WaveError as e:
+            raise AgentFailure(
+                'needs_human', f'결제 직전 SAMBA 재조회 실패(결제하지 않음): {e}', e.reason
+            ) from e
+        status = (current.status or '').strip()
+        if status.lower() != WAVE_PENDING_STATUS or (current.sourcing_order_number or '').strip():
+            raise AgentFailure(
+                'needs_human', f'마켓 확인 뒤 상태 변경: {status or "(비어 있음)"}', FailReason.UNKNOWN
+            )
         self.note('결제 직전 재조회', f'상태 {status} · 소싱주문번호 없음')
+
+    def _precheck_market_cancel(self, a: Assignment) -> None:
+        """결제 직전 마켓 취소요청 확인(사용자 2026-10-23 원천 차단).
+
+        삼바 주문 동기화는 1시간마다라 그 사이 고객 취소를 모른 채 결제할 수 있다(실기 10-22 동기화 21:54 →
+        결제 22:01 → 고객 취소 22:32). 삼바가 그 주문의 마켓 계정만 지금 동기화해 본다. 고객 취소면 삼바가 마켓
+        취소를 승인하고 여기서 끝낸다. 확인 자체가 안 되면(동기화 실패·시간 초과) 결제하지 않는다.
+        """
+        assert self._wave is not None
+        self.step('payer: 결제 직전 마켓 취소 확인')
+        try:
+            out = self._wave.precheck_market_cancel(a.order.wave_key)
+        except WaveError as e:
+            raise AgentFailure(
+                'needs_human', f'결제 직전 마켓 취소 확인 실패(결제하지 않음): {e}', e.reason
+            ) from e
+        message = str(out.get('message') or '')
+        if not out.get('checked'):
+            raise AgentFailure(
+                'needs_human',
+                f'결제 직전 마켓 취소 확인 불가(결제하지 않음): {message or "응답 없음"}',
+                FailReason.UNKNOWN,
+            )
+        if out.get('cancel_requested'):
+            done = '마켓 취소승인 완료' if out.get('approved') else '마켓 취소승인 실패 — 사람이 승인'
+            raise AgentFailure(
+                'fail' if out.get('approved') else 'needs_human',
+                f'고객이 마켓에서 취소요청 — 결제하지 않음 · {done}: {message}',
+                FailReason.MARKET_CANCELLED,
+            )
+        self.note('마켓 취소 확인', '취소요청 없음(마켓 실시간 동기화)')
 
     def tool(self, name: str, /, **args: object) -> str:
         """dry_run 이면 부수효과 도구는 허용 목록에 있어도 아예 부르지 않는다(불변조건).
