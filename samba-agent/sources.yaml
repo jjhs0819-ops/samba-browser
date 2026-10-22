@@ -55,8 +55,10 @@ sources:
     reuse_saved_shipping: false
     order_prep: true   # abc_order_prep — 쿠폰적용 창에서 일반·플러스 쿠폰 최대 적용(2026-09-25, 없어서 쿠폰을 놓쳤다)
     coupon_download: true   # abc_coupon_download — 이벤트 페이지 '전체 쿠폰 다운로드'로 받을 수 있는 쿠폰을 먼저 받는다(2026-09-28)
-    # 키마스터의 ABC(a-rt.com) 계정만 쓴다 — 본 인스턴스의 ABC 구매 계정은 1개(삼바 소싱계정 jjhs0819, 금고 라벨 buy-1)
-    buy_accounts: [buy-1]
+    # 키마스터의 ABC(a-rt.com) 계정만 쓴다 — 본 인스턴스의 ABC 구매 계정은 1개(삼바 소싱계정 jjhs0819).
+    # 금고 라벨은 ABC 로그인 아이디와 같아야 한다: abc_* 스크립트가 주문서 이메일 아이디를 profile(=라벨)과 대조하고,
+    # 구매 단계도 로그인 계정을 라벨과 대조한다(실기 2026-10-22: 라벨 buy-1 → '다른 계정으로 로그인돼 있다: jjhs0819')
+    buy_accounts: [jjhs0819]
   - id: LOTTEON
     key: lotteon
     payment_quotes: true  # 2026-09-23 lotteon_payment_quotes

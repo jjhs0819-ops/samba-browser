@@ -898,7 +898,11 @@ def test_ABC마트_직배는_주소록을_안_고르고_새로_넣고_업무폰_
     abc, spec = _abc_agent(reg)
     calls: list[str] = []
     applied: dict[str, object] = {}
-    inner = _recording_handler('abc_product_snapshot', applied)
+    # 주문서는 ABC 로그인 아이디(이메일 앞부분)를 돌려준다 — 금고 라벨과 같아야 계정 대조를 통과한다
+    # (실기 2026-10-22: 라벨 buy-1 이면 '다른 계정으로 로그인돼 있다: jjhs0819')
+    inner = _recording_handler(
+        'abc_product_snapshot', applied, snapshot={**SNAPSHOT_OK, 'account': 'jjhs0819'}
+    )
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(json.loads(request.content)['args']['name'])
@@ -906,7 +910,7 @@ def test_ABC마트_직배는_주소록을_안_고르고_새로_넣고_업무폰_
 
     respx.post(f'{URL}/tool/run_script').mock(side_effect=handler)
     respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
-    mock_accounts('buy-1')
+    mock_accounts('jjhs0819')
     fill = mock_fill_secret()
     typed = mock_type()
     out = abc(_abc_assignment(reg, spec))
@@ -914,7 +918,7 @@ def test_ABC마트_직배는_주소록을_안_고르고_새로_넣고_업무폰_
     assert 'abc_select_shipping' not in calls and 'abc_set_shipping' in calls
     assert applied['name'] == CUSTOMER['name'] and applied['address'] == CUSTOMER['address']
     assert fill.called and not typed.called  # 고객 번호를 type 으로 넣지 않는다 — 업무폰(fill_secret)
-    assert out.payload['account'] == 'buy-1'
+    assert out.payload['account'] == 'jjhs0819'
     assert out.payload['pay_card_candidates'] == ['넥슨 현대카드']
     assert out.payload['paid_is_cost'] is True
     dumped = json.dumps(out.model_dump(mode='json'), ensure_ascii=False)
