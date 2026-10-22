@@ -22,6 +22,7 @@ from samba_agent.agents.factory import build_agents
 from samba_agent.agents.payer import PayerAgent
 from samba_agent.agents.recorder import RecorderAgent
 from samba_agent.agents.registry import Registry
+from samba_agent.agents.source_detail import detail_script
 from samba_agent.agents.verifier import VerifierAgent
 from samba_agent.api.server import build_app, serve
 from samba_agent.bridge.client import BridgeClient, BridgeError
@@ -557,11 +558,14 @@ def main() -> None:
         xbridge = bridge.scoped(['run_script', 'run_js']).with_lane('xcheck')
 
         def _source_status(row: LedgerRow) -> str | None:
-            """소싱처 주문 상세의 상태 글자(읽기 전용). 못 읽으면 None."""
+            """소싱처 주문 상세의 상태 글자(읽기 전용). 못 읽으면 None.
+
+            스크립트는 산 사이트의 `<key>_order_detail`(무신사·롯데온 — SOURCE_CHECK_SITES 가 거른다)이다.
+            """
             try:
                 raw = xbridge.call(
                     'run_script',
-                    name='musinsa_order_detail',
+                    name=detail_script(row.site),
                     args=json.dumps(
                         {'source_order_no': row.source_order_no, 'profile': row.account}
                     ),

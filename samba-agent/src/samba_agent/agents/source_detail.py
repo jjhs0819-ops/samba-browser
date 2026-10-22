@@ -94,6 +94,9 @@ def billed_cost(detail: dict[str, object], handoff: dict[str, object]) -> float 
             plain = actual_cost({**detail, 'card': ''})
             if plain is not None:
                 return plain - float(billed)
+    if handoff.get('paid_is_cost') is True:
+        # 원가 = 실제 결제 금액(소싱처 표 paid_is_cost, 롯데온 2026-10-16) — 카드사 이름이 읽혀도 계수를 곱지 않는다
+        return actual_cost({**detail, 'card': ''})
     return actual_cost(with_pay_card(detail, handoff))
 
 

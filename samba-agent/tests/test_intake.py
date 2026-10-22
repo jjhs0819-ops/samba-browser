@@ -455,3 +455,9 @@ def test_다음_바퀴_시작에_요약을_슬랙에_올린다(setup):
     q.finish(job.id, 'done')
     intake.run_once()
     assert any('결제 1' in t for t in slack.tops)
+def test_상한_0은_무제한이다(setup):
+    """사용자 2026-10-16 질문("있는 주문 다 받으면 안 되나") — SAMBA_INTAKE_MAX_NEW=0 이면 한 바퀴에 전부 접수한다."""
+    q, slack, _make = setup
+    wave = _FakeWave([wave_order(f'B{i}') for i in range(8)])
+    intake = Intake(wave, q, Registry.load(DEFAULT_ROOT), slack.post_new, slack.post_line, days=7, max_new=0)
+    assert intake.run_once().enqueued == 8

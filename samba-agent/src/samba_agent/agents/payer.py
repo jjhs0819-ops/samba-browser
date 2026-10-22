@@ -696,6 +696,58 @@ def _pay_provider_from_host(url: str) -> str | None:
     return None
 
 
+# 네이버페이 PC 결제창(pay.naver.com) 안 결제 카드 선택(롯데온, 사용자 2026-10-16) — 요소 줄에서 '선택됨'을 알아보는 표식.
+# 앱 get_page 의 요소 줄 모양은 `[N] role "글자" … value="on"`(라디오·체크) 이고, 버튼형 카드 목록이면 aria-pressed/selected/
+# checked 가 붙는다(실측 전 — DRY_RUN 으로 확인). 표식이 전혀 없는 화면이면 글자 존재로만 확인하고 근거에 남긴다
+NAVERPAY_CARD_SELECTED_RE = re.compile(r'value="on"|checked|selected|aria-pressed="true"', re.IGNORECASE)
+NAVERPAY_CARD_POLL_TRIES = 6
+NAVERPAY_CARD_WAIT_MS = 1200
+
+
+def _card_key(text: str) -> str:
+    """카드 이름 대조 열쇠 — 공백·'카드' 글자를 빼고 소문자로('무신사 현대카드' ↔ '무신사현대 카드')."""
+    return re.sub(r'\s+|카드', '', str(text or '')).lower()
+
+
+def naverpay_card_lines(page: str, card: str) -> list[str]:
+    """get_page 요소 목록에서 그 카드 이름이 든 줄들(`[N] …`)."""
+    key = _card_key(card)
+    if not key:
+        return []
+    return [
+        line for line in page.splitlines() if line.startswith('[') and key in _card_key(line)
+    ]
+
+
+def pick_naverpay_card(page: str, candidates: list[str]) -> str | None:
+    """네이버페이 결제창 글자에서 우선순위대로 첫 등록 카드. 없으면 None(결제하지 않는다)."""
+    flat = _card_key(page)
+    for card in candidates:
+        key = _card_key(card)
+        if key and key in flat:
+            return card
+    return None
+
+
+def naverpay_card_selected(page: str, card: str, others: list[str] = ()) -> bool | None:
+    """선택 후 되읽은 화면에서 그 카드가 골라졌는가. True/False, 표식이 없어 가릴 수 없으면 None.
+
+    그 카드 줄에 선택 표식이 있으면 True. 다른 후보 줄에만 표식이 있으면 False. 어느 줄에도 표식이 없으면
+    None(화면이 선택 상태를 글자로 안 보여 준다) — 호출부가 글자 존재로만 확인했다고 근거에 남긴다.
+    """
+    mine = naverpay_card_lines(page, card)
+    if not mine:
+        return False
+    if any(NAVERPAY_CARD_SELECTED_RE.search(line) for line in mine):
+        return True
+    for other in others:
+        if _card_key(other) == _card_key(card):
+            continue
+        if any(NAVERPAY_CARD_SELECTED_RE.search(line) for line in naverpay_card_lines(page, other)):
+            return False
+    return None
+
+
 def _element_id(found: str) -> int | None:
     """find_elements 응답에서 첫 요소 번호를 뽑는다. 없으면 None."""
     m = ELEMENT_ID_RE.search(found)
@@ -1327,6 +1379,9 @@ class PayerAgent(AgentBase):
             if web:
                 seen_popup = True
                 self.tool('switch_tab', id=str(web[-1]['id']))
+                if _pay_host_provider(str(web[-1].get('url') or '')) == 'naverpay':
+                    # 네이버페이 결제창 안에서 결제 카드를 고른다(롯데온 2026-10-16) — 못 고르면 결제하지 않는다
+                    self._select_naverpay_card(a)
                 pay_btn = _element_id(self.tool('find_elements', query='결제하기'))
                 if pay_btn is not None:
                     break
@@ -1373,6 +1428,58 @@ class PayerAgent(AgentBase):
                 FailReason.PERMISSION_DENIED,
             )
         self.tool('wait', ms=PAY_RESULT_WAIT_MS)
+
+    def _select_naverpay_card(self, a: Assignment) -> None:
+        """네이버페이 PC 결제창(pay.naver.com)에서 등록 카드를 handoff pay_card_candidates 순서로 고른다(사용자 2026-10-16).
+
+        구매 단계가 '즉시할인 없음 → 네이버페이' 로 정한 주문만 후보 목록을 싣는다(롯데온: 무신사 현대카드 → 넥슨 현대카드).
+        ① 결제창 글자를 읽어 후보 중 첫 등록 카드를 찾는다 — 둘 다 없으면 결제하지 않고 사람에게.
+        ② 그 카드 글자 요소를 눌러 고른다(글자 대조 — 셀렉터 추측 없음). ③ 되읽어 선택 표식(value="on" 등)이 그 카드에
+        있어야 키패드로 간다. 표식이 다른 후보에 있으면 멈추고, 표식이 화면에 없으면 글자 존재로만 확인했다고 남긴다.
+        결제창이 아직 카드 목록을 안 그렸으면 몇 번 더 읽는다. 한 작업에서 한 번만 한다(결제창 재탐색 때 되풀이 안 함).
+        """
+        raw = a.handoff.get('pay_card_candidates')
+        candidates = [str(c) for c in raw if str(c).strip()] if isinstance(raw, list) else []
+        if not candidates or getattr(self, '_naverpay_card_done', None) == a.order.order_no:
+            return
+        page = ''
+        chosen: str | None = None
+        for _ in range(NAVERPAY_CARD_POLL_TRIES):
+            page = self.tool('get_page')
+            chosen = pick_naverpay_card(page, candidates)
+            if chosen is not None:
+                break
+            self.tool('wait', ms=NAVERPAY_CARD_WAIT_MS)
+        if chosen is None:
+            raise AgentFailure(
+                'needs_human',
+                f'네이버페이 결제창에 결제 카드 후보({" → ".join(candidates)})가 하나도 없다 — 결제하지 않는다. '
+                '네이버페이에 그 카드를 등록하거나 사람이 고른다',
+                FailReason.CARD_MISSING,
+            )
+        self.step(f'payer: 네이버페이 카드 선택({chosen})')
+        before = naverpay_card_selected(page, chosen, candidates)
+        if before is not True:
+            target = _element_id(self.tool('find_elements', query=chosen))
+            if target is None:
+                # 글자는 있는데 누를 요소가 없다 — 이미 기본 선택된 카드일 수 있다. 되읽기로 가린다
+                self.note('네이버페이 카드', f'{chosen}: 누를 요소 없음 — 되읽기로 확인')
+            else:
+                self.tool('click', id=target, label=chosen)
+                self.tool('wait', ms=NAVERPAY_CARD_WAIT_MS)
+        after_page = self.tool('get_page')
+        verdict = naverpay_card_selected(after_page, chosen, candidates)
+        if verdict is False:
+            raise AgentFailure(
+                'needs_human',
+                f'네이버페이 결제창에서 {chosen} 를 골랐는데 되읽은 화면의 선택 카드가 다르다 — 결제하지 않는다',
+                FailReason.CARD_MISSING,
+            )
+        if verdict is None:
+            self.note('네이버페이 카드', f'{chosen} — 화면에 선택 표식이 없어 글자 존재로만 확인(실측 필요)')
+        else:
+            self.note('네이버페이 카드', f'{chosen} 선택 확인')
+        self._naverpay_card_done = a.order.order_no
 
     def _stop_if_promo_ended(self, a: Assignment) -> None:
         """지금 결제창에 '즉시할인 프로모션이 종료' 안내가 떠 있으면 취소를 누르고 결제하지 않는다.

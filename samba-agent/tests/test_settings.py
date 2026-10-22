@@ -77,3 +77,16 @@ def test_정각_정렬_기본은_꺼짐(monkeypatch):
     assert load_settings(env_file=None).intake_align_hour is False
     monkeypatch.setenv('SAMBA_INTAKE_ALIGN_HOUR', 'true')
     assert load_settings(env_file=None).intake_align_hour is True
+def test_접수_상한_0은_허용된다(monkeypatch):
+    """SAMBA_INTAKE_MAX_NEW=0 = 무제한(2026-10-16). 음수는 거부."""
+    import pytest
+    from pydantic import ValidationError
+
+    from samba_agent.settings import load_settings
+
+    monkeypatch.setenv('SAMBA_BRIDGE_TOKEN', 'a' * 64)
+    monkeypatch.setenv('SAMBA_INTAKE_MAX_NEW', '0')
+    assert load_settings(env_file=None).intake_max_new == 0
+    monkeypatch.setenv('SAMBA_INTAKE_MAX_NEW', '-1')
+    with pytest.raises(ValidationError):
+        load_settings(env_file=None)

@@ -1852,15 +1852,15 @@ def test_주문_옵션의_품번_숫자는_사이즈로_보지_않는다():
     assert size_letter_options(['S (품절)', 'M', 'L (품절)', 'XL'], '블랙 M 2406433303') == ['M']
 
 
-def test_롯데온은_포이즌_외_전부_선물하기_포이즌은_까대기다(reg):
-    # 사용자 2026-09-27: 롯데온 = 롯데백화점 판매자만·샵백 경유, 포이즌 외 전부 선물하기, 포이즌은 바로구매(까대기)
-    from samba_agent.agents.buyer import source_of
+def test_롯데온은_전부_직배다_무신사와_같은_승인_흐름(reg):
+    # 2026-10-16 본 인스턴스: 롯데백화점 판매자만, 샵백·선물하기·SSG 교차 비교 없이 전부 고객 직배(sources.yaml order_type)
+    from samba_agent.agents.buyer import shipping_fee_for, source_of
     from samba_agent.agents.contracts import OrderRef
 
     source = source_of('buyer.lotteon')
-    assert source.gift_unless_poison and source.required_seller == '롯데백화점'
-    assert source.entry_route == 'shopback' and source.entry_script == 'lotteon_shopback_entry'
-    assert source.shipping_confirm and source.buy_accounts == ['buyer01']
+    assert source.order_type == 'direct' and source.required_seller == '롯데백화점'
+    assert source.entry_route is None and not source.gift_unless_poison and source.cross_with is None
+    assert source.shipping_confirm and not source.customer_phone and source.buy_accounts == ['buy-1']
 
     spec = reg['buyer.lotteon']
     a = BuyerAgent(
@@ -1874,10 +1874,33 @@ def test_롯데온은_포이즌_외_전부_선물하기_포이즌은_까대기�
         sale_price=50000,
         order_type='direct',
     )
-    # 정가를 몰라도(스냅샷 없음) 선물로 정해진다
-    assert a.order_type_of(other, None) == 'gift'
+    # 정가를 몰라도(스냅샷 없음) 직배로 정해진다 — 정가 스크립트를 부르지 않는다
+    assert a.order_type_of(other, None) == 'direct'
+    assert shipping_fee_for(other, 'direct') == 0.0
+    # 포이즌 판매건·선물 태그도 표가 고정한 직배다(까대기·선물 흐름을 타지 않는다)
     poison = other.model_copy(update={'order_no': 'P1', 'seller': '포이즌'})
-    assert a.order_type_of(poison, None) == 'kkadaegi'
+    assert a.order_type_of(poison, None) == 'direct'
+    gift = other.model_copy(update={'order_no': 'T1', 'order_type': 'gift'})
+    assert a.order_type_of(gift, None) == 'direct'
+
+
+def test_원가가_실결제액인_소싱처의_견적은_카드_계수를_곱하지_않는다():
+    """롯데온 paid_is_cost(사용자 2026-10-16): 간편결제(L.PAY 롯데카드) 줄의 원가 = 결제 금액 그대로."""
+    from samba_agent.agents.buyer import cheapest_quotes, effective_cost
+
+    raw = [
+        {'method': '간편결제', 'card': None, 'cost': 78950, 'reward': 437},
+        {'method': '신용카드', 'card': '현대카드', 'cost': 80000},
+    ]
+    plain = cheapest_quotes(raw, None, {'site'}, easy_pay_card='롯데카드', paid_is_cost=True)
+    assert [(r['method'], r['card'], r['cost'], r['paid']) for r in plain] == [
+        ('간편결제', '롯데카드', 78950, 78950)
+    ]
+    # 표시가 없으면 예전처럼 롯데카드 ×0.98(무신사·다른 소싱처 회귀 없음)
+    legacy = cheapest_quotes(raw, None, {'site'}, easy_pay_card='롯데카드')
+    assert legacy[0]['cost'] == round(78950 * 0.98)
+    assert effective_cost({'cost': 1000, 'card': '현대카드'}, billing=False) == 1000
+    assert effective_cost({'cost': 1000, 'card': '현대카드'}) == round(1000 * 0.973)
 
 
 def test_matching_options_letter_number_size_uses_product_code() -> None:
@@ -2248,3 +2271,93 @@ def test_한_자리_사이즈는_세_자리_코드_선택지와_맞춘다():
     # 두 자리 이상 사이즈(95·260)나 소수(7.5)는 이 규칙 밖
     assert single_digit_code_options(opts, '블랙 95') == []
     assert single_digit_code_options(opts, '7.5') == []
+
+
+@respx.mock
+def test_롯데온_배송_연락처는_고객_번호가_아니라_키마스터_업무폰이다(reg):
+    """사용자 2026-10-16: 롯데온은 고객 번호를 절대 쓰지 않는다 — 앱이 키마스터 신원정보(identity.phone, 업무폰)로 채운다."""
+    spec = reg['buyer.lotteon']
+    a = BuyerAgent(
+        spec, BridgeClient(URL, 'a' * 64, allowed=spec.tools, busy_wait_s=0.0), lambda _p, _m: '{}'
+    )
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    fill = mock_fill_secret()
+    typed = mock_type()
+    # 삼바웨이브가 고객 번호를 줘도 쓰지 않는다
+    a._fill_phone({'phone_field_id': 7}, phone='010-1234-5678')
+    assert fill.called and not typed.called
+    assert json.loads(fill.calls[0].request.content)['args'] == {
+        'elementId': 7,
+        'itemType': 'identity',
+        'field': 'identity.phone',
+    }
+    for call in respx.calls:
+        if call.request.content:
+            assert '5678' not in call.request.content.decode('utf-8')
+
+
+def test_롯데온_결제수단은_즉시할인_적용_최저_없으면_네이버페이_현대카드():
+    """사용자 2026-10-16: 건마다 다른 할인 카드 — 총액이 실제로 내려간 수단 중 최저. 카카오 기본 1,000원은 제외.
+    할인 수단이 없으면 네이버페이 + 무신사 현대카드. 원가 = 결제액."""
+    from samba_agent.agents.buyer import cheapest_quotes, pick_discounted_or_fallback
+
+    base = 100000
+    payable = {'site', 'naver', 'musinsapay'}
+    raw = [
+        {'method': '간편결제', 'card': None, 'cost': 100000},  # 할인 없음(회색 타일과 같다)
+        {'method': '네이버페이', 'card': None, 'cost': 100000},
+        {'method': '카카오페이', 'card': None, 'cost': 99000, 'discount': '카카오페이 머니 기본'},  # 1,000원 기본 할인
+    ]
+    quotes = cheapest_quotes(raw, None, None, paid_is_cost=True)
+    picked, why, wait = pick_discounted_or_fallback(
+        quotes, base, '네이버페이', ['무신사 현대카드', '넥슨 현대카드'], 1000, payable
+    )
+    assert picked is not None and picked['method'] == '네이버페이' and picked['card'] == '무신사 현대카드'
+    assert picked['cost'] == 100000 and '즉시할인 없음' in why and not wait
+    # 결제 단계가 네이버페이 창 안에서 이 순서로 카드를 고른다
+    assert picked['card_candidates'] == ['무신사 현대카드', '넥슨 현대카드']
+
+    # 롯데카드 10% 즉시할인(L.PAY 간편결제 — PC 결제 비밀번호)이 붙으면 그 줄로 결제
+    raw2 = [*raw, {'method': '간편결제', 'card': '롯데카드', 'cost': 90000, 'discount': '롯데카드 10% 즉시할인'}]
+    picked2, why2, wait2 = pick_discounted_or_fallback(
+        cheapest_quotes(raw2, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
+    )
+    assert picked2 is not None and (picked2['method'], picked2['card'], picked2['cost']) == ('간편결제', '롯데카드', 90000)
+    assert '즉시할인 적용' in why2 and not wait2
+    # 네이버페이가 허용 수단에 없으면(키마스터 naver 없음) 다른 수단으로 대신 사지 않는다
+    none, reason, wait3 = pick_discounted_or_fallback(
+        cheapest_quotes(raw, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, {'site'}
+    )
+    assert none is None and '네이버페이' in reason and not wait3
+    # 기본 총액을 못 읽으면 고르지 않는다
+    assert pick_discounted_or_fallback(quotes, 0, '네이버페이', [], 1000, payable)[0] is None
+
+
+def test_롯데온_폰결제_할인이_가장_크면_결제_대기():
+    """사용자 2026-10-22: 토스페이·카카오페이 등으로 받는 (롯데카드) 할인이 가장 크면 폰이 필요하다 — 결제하지 않고 대기.
+    같은 금액의 PC 수단(L.PAY 롯데카드)이 있으면 그걸로 결제한다."""
+    from samba_agent.agents.buyer import cheapest_quotes, pick_discounted_or_fallback
+
+    base = 100000
+    payable = {'site', 'naver', 'musinsapay'}
+    raw = [
+        {'method': '간편결제', 'card': '롯데카드', 'cost': 95000, 'discount': '롯데카드 5% 즉시할인'},
+        {'method': '네이버페이', 'card': None, 'cost': 100000},
+        {'method': '토스페이', 'card': '롯데카드', 'cost': 90000, 'discount': '토스페이 롯데카드 10%'},
+    ]
+    picked, why, wait = pick_discounted_or_fallback(
+        cheapest_quotes(raw, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
+    )
+    assert picked is None and wait and '폰' in why and '토스페이' in why
+    # 카카오페이 머니 7%(기본 1,000원 초과)도 폰 승인 — 대기
+    raw2 = [raw[1], {'method': '카카오페이', 'card': None, 'cost': 93000}]
+    picked2, _, wait2 = pick_discounted_or_fallback(
+        cheapest_quotes(raw2, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
+    )
+    assert picked2 is None and wait2
+    # 같은 금액이면 PC 수단(L.PAY 롯데카드)으로 결제
+    raw3 = [{**raw[0], 'cost': 90000}, raw[1], raw[2]]
+    picked3, _, wait3 = pick_discounted_or_fallback(
+        cheapest_quotes(raw3, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
+    )
+    assert picked3 is not None and picked3['method'] == '간편결제' and not wait3

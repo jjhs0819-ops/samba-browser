@@ -1813,3 +1813,78 @@ def test_결제창_머니_부족은_money_insufficient():
     assert enter_fail_reason({'ok': False, 'error': 'money-unavailable'}) is FailReason.MONEY_INSUFFICIENT
     assert enter_fail_reason({'ok': False, 'error': 'card-not-selected'}) is FailReason.UNKNOWN
     assert enter_fail_reason({'ok': False}) is FailReason.UNKNOWN
+def test_네이버페이_결제창_카드는_우선순위대로_고르고_되읽어_확인한다():
+    """롯데온 '즉시할인 없음' 건(사용자 2026-10-16): 무신사 현대카드 → 없으면 넥슨 현대카드. 글자 대조만 쓴다."""
+    from samba_agent.agents.payer import naverpay_card_selected, pick_naverpay_card
+
+    cands = ['무신사 현대카드', '넥슨 현대카드']
+    both = 'INTERACTIVE ELEMENTS:\n[3] radio "넥슨 현대카드 1234" value="on"\n[4] radio "무신사현대카드 5678"\nPAGE TEXT:\n결제수단 넥슨 현대카드'
+    assert pick_naverpay_card(both, cands) == '무신사 현대카드'
+    # 아직 넥슨이 골라져 있다 → False(다른 후보에 표식)
+    assert naverpay_card_selected(both, '무신사 현대카드', cands) is False
+    after = both.replace('"넥슨 현대카드 1234" value="on"', '"넥슨 현대카드 1234"').replace('5678"', '5678" value="on"')
+    assert naverpay_card_selected(after, '무신사 현대카드', cands) is True
+    # 무신사 현대카드가 없으면 넥슨 현대카드
+    only_nexon = 'INTERACTIVE ELEMENTS:\n[3] button "넥슨 현대카드 1234"\n[5] button "신한카드 9999"'
+    assert pick_naverpay_card(only_nexon, cands) == '넥슨 현대카드'
+    # 표식이 전혀 없는 화면 — 가릴 수 없다(None)
+    assert naverpay_card_selected(only_nexon, '넥슨 현대카드', cands) is None
+    # 둘 다 없음
+    assert pick_naverpay_card('INTERACTIVE ELEMENTS:\n[5] button "신한카드 9999"', cands) is None
+
+
+def _payer_agent(reg):
+    spec = reg['payer']
+    return PayerAgent(spec, BridgeClient(URL, 'a' * 64, allowed=spec.tools, busy_wait_s=0.0), lambda _p, _m: '{}')
+
+
+@respx.mock
+def test_네이버페이_결제창에_후보_카드가_둘_다_없으면_결제하지_않는다(reg):
+    from samba_agent.agents.base import AgentFailure
+
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 89000, 'pay_card_candidates': ['무신사 현대카드', '넥슨 현대카드']})
+    respx.post(f'{URL}/tool/get_page').mock(return_value=page('INTERACTIVE ELEMENTS:\n[5] radio "신한카드 9999" value="on"'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    click = respx.post(f'{URL}/tool/click').mock(return_value=page('ok'))
+    with pytest.raises(AgentFailure) as e:
+        _payer_agent(reg)._select_naverpay_card(a)
+    assert e.value.status == 'needs_human' and e.value.fail_reason is FailReason.CARD_MISSING
+    assert '후보' in e.value.reason and '무신사 현대카드' in e.value.reason
+    assert not click.called
+
+
+@respx.mock
+def test_네이버페이_카드를_골랐는데_되읽은_선택이_다르면_결제하지_않는다(reg):
+    from samba_agent.agents.base import AgentFailure
+
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 89000, 'pay_card_candidates': ['무신사 현대카드', '넥슨 현대카드']})
+    screen = 'INTERACTIVE ELEMENTS:\n[3] radio "넥슨 현대카드 1234" value="on"\n[4] radio "무신사 현대카드 5678"'
+    respx.post(f'{URL}/tool/get_page').mock(return_value=page(screen))  # 눌러도 화면이 안 바뀐다
+    respx.post(f'{URL}/tool/find_elements').mock(return_value=page('[4] radio "무신사 현대카드 5678"'))
+    click = respx.post(f'{URL}/tool/click').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    with pytest.raises(AgentFailure) as e:
+        _payer_agent(reg)._select_naverpay_card(a)
+    assert click.called and json.loads(click.calls[0].request.content)['args']['id'] == 4
+    assert e.value.status == 'needs_human' and '선택 카드가 다르다' in e.value.reason
+
+
+@respx.mock
+def test_네이버페이_카드_선택이_확인되면_키패드로_간다(reg):
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 89000, 'pay_card_candidates': ['무신사 현대카드', '넥슨 현대카드']})
+    before = 'INTERACTIVE ELEMENTS:\n[3] radio "넥슨 현대카드 1234" value="on"\n[4] radio "무신사 현대카드 5678"'
+    after = 'INTERACTIVE ELEMENTS:\n[3] radio "넥슨 현대카드 1234"\n[4] radio "무신사 현대카드 5678" value="on"'
+    respx.post(f'{URL}/tool/get_page').mock(side_effect=[page(before), page(after)])
+    respx.post(f'{URL}/tool/find_elements').mock(return_value=page('[4] radio "무신사 현대카드 5678"'))
+    click = respx.post(f'{URL}/tool/click').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    agent_ = _payer_agent(reg)
+    agent_._select_naverpay_card(a)
+    assert click.called
+    assert any('선택 확인' in e.detail for e in agent_.evidence)
+    # 후보 목록이 없는 주문(무신사 등)은 아무것도 하지 않는다
+    plain = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 89000})
+    _payer_agent(reg)._select_naverpay_card(plain)

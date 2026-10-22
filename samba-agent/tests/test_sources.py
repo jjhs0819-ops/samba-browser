@@ -172,3 +172,33 @@ def test_경로_이름은_정해진_것만_받는다(tmp_path):
     )
     with pytest.raises(ValueError):
         Sources.load(tmp_path)
+
+
+def test_롯데온은_무신사와_같은_직배_승인_흐름이다(sources):
+    """2026-10-16 본 인스턴스: 샵백·선물하기·SSG 교차 비교를 끄고 전부 직배 + 고객 번호 + 원가 = 실결제액."""
+    row = sources.by_id('LOTTEON')
+    assert row.status == 'active' and row.key == 'lotteon'
+    assert row.order_type == 'direct'
+    assert row.entry_route is None and row.gift_unless_poison is False and row.cross_with is None
+    assert row.required_seller == '롯데백화점'
+    # 배송 연락처는 고객 번호가 아니라 업무폰(키마스터 신원정보) — 사용자 2026-10-16
+    assert row.customer_phone is False and row.shipping_confirm is True
+    # 결제수단: 즉시할인 최대 → 없으면 네이버페이 + 무신사 현대카드(없으면 넥슨 현대카드), 카카오 기본 1,000원 제외
+    assert row.easy_pay_card is None and row.charge_pay is False
+    assert row.pay_fallback_method == '네이버페이'
+    assert row.pay_fallback_cards == ['무신사 현대카드', '넥슨 현대카드']
+    assert row.kakao_basic_discount_won == 1000
+    assert row.paid_is_cost is True
+    assert row.payment_quotes is True and row.pay_rule is False
+    assert row.buy_accounts == ['buy-1']
+    assert row.snapshot_script == 'lotteon_product_snapshot'
+    assert row.checkout_script_name == 'checkout_enter_lotteon'
+    # 무신사 쪽은 그대로다(회귀 없음)
+    musinsa = sources.by_id('MUSINSA')
+    assert musinsa.paid_is_cost is False and musinsa.order_type is None and musinsa.pay_rule is True
+    assert musinsa.customer_phone is True and musinsa.pay_fallback_method is None
+
+
+def test_paid_is_cost_는_기본이_꺼져_있다(sources):
+    for sid in ('MUSINSA', '29CM', 'ABCmart', 'SSG', 'FashionPlus', 'SHOEMAKER'):
+        assert sources.by_id(sid).paid_is_cost is False, sid

@@ -106,7 +106,8 @@ class Intake:
         self._post_line = post_line
         self._days = days
         self._requester = requester
-        # 한 바퀴에 새로 접수하는 상한 — 첫 기동 때 수십 건이 슬랙에 한꺼번에 쏟아지지 않게
+        # 한 바퀴에 새로 접수하는 상한(모든 소싱처 합산) — 첫 기동 때 수십 건이 슬랙에 한꺼번에 쏟아지지 않게.
+        # 0 이면 무제한(2026-10-16)
         self._max_new = max_new
         # 수집 범위 — 비어 있으면 전부. 소싱처 id(대문자)로 비교한다
         self._sources = frozenset(x.upper() for x in sources)
@@ -164,7 +165,7 @@ class Intake:
             if order.wave_key in handled or self._already_queued(order):
                 skipped_live += 1
                 continue
-            if enqueued + unsupported >= self._max_new:
+            if self._max_new and enqueued + unsupported >= self._max_new:
                 break
             handled.add(order.wave_key)
             ts = self._post_new(intake_line(order))
