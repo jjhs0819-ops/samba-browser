@@ -568,8 +568,14 @@ def excluded_tile(name: str) -> bool:
 
 
 def phone_pay_tile(name: str) -> bool:
-    """즉시할인 타일이 토스·카카오·네이버·KB Pay·삼성·애플 같은 결제앱인가."""
-    return bool(PHONE_PAY_TILE_RE.search(name or ''))
+    """즉시할인 타일이 토스·카카오·네이버·KB Pay·삼성페이·애플페이 같은 결제앱인가.
+
+    '무신사페이 × 삼성카드' 처럼 무신사페이 안의 카드사 이름은 결제앱이 아니다 — 무신사페이로 결제한다.
+    """
+    text = (name or '').strip()
+    if text.startswith('무신사페이'):
+        return False
+    return bool(PHONE_PAY_TILE_RE.search(text))
 
 
 def candidate_tiles(tiles: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -3103,13 +3109,14 @@ class BuyerAgent(AgentBase):
                 if not r.get('usable'):
                     self.note('결제 규칙', mask_text(f'{name} -{amount:,.0f}원은 이 주문에 적용 안 됨({r.get("note") or r.get("method")})'))
                     continue
-                if phone_pay_tile(name):
+                if phone_pay_tile(name) or r.get('method') != '무신사페이':
+                    # 결제앱(토스·카카오 등) 또는 눌러 보니 무신사페이가 아닌 수단 — 로봇이 낼 수 없는 결제라 사람에게
                     raise AgentFailure(
                         'needs_human',
-                        f'{name} 즉시할인 -{amount:,.0f}원이 최대 — 결제앱이라 결제하지 않음, 사람이 결제',
+                        f'{name} 즉시할인 -{amount:,.0f}원이 최대 — 결제앱({r.get("method") or name})이라 결제하지 않음, 사람이 결제',
                         FailReason.PAY_RULE_STOP,
                     )
-                if r.get('method') == '무신사페이' and _as_float(r.get('cost')) > 0:
+                if _as_float(r.get('cost')) > 0:
                     chosen = {
                         'card': clean_pay_card(str(r.get('card') or '')) or name,
                         'paid': _as_float(r.get('cost')),

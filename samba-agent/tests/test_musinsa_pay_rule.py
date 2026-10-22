@@ -79,11 +79,8 @@ def test_결제앱_타일_판별():
     assert phone_pay_tile('토스페이 × 삼성카드') and phone_pay_tile('카카오페이') and phone_pay_tile('KB Pay')
     assert phone_pay_tile('네이버페이') and phone_pay_tile('삼성페이') and phone_pay_tile('Apple Pay')
     assert not phone_pay_tile('무신사페이 × 하나카드')
-
-
-def test_후보_타일은_BC_페이코를_빼고_금액_큰_순():
-    names = [t['name'] for t in candidate_tiles(INFO['tiles'])]
-    assert names == ['토스페이 × 삼성카드', '무신사페이 × 하나카드', 'KB Pay', '무신사페이 × 농협카드']
+    # 무신사페이 안의 카드사 이름(삼성·현대·KB국민)은 결제앱이 아니다 — 무신사페이로 결제한다
+    assert not phone_pay_tile('무신사페이 × 삼성카드') and not phone_pay_tile('무신사페이 × KB국민카드')
 
 
 def test_카드_글자_정리():
@@ -444,3 +441,31 @@ def test_결제창_즉시할인_종료_안내를_알아본다():
     page = '즉시할인 프로모션이 종료됐어요. 프로모션 예산이 조기 소진되어 즉시할인이 적용되지 않습니다. 할인 없이 결제하시겠어요? 취소 결제하기'
     assert pm.promo_ended(page)
     assert not pm.promo_ended('무신사페이 결제 73,300원 결제하기')
+
+
+@respx.mock
+def test_무신사페이_삼성카드_타일은_카드로_결제한다(musinsa) -> None:
+    calls: list = []
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
+    read = {**read, 'tiles': [{'name': '무신사페이 × 삼성카드', 'amount': 5000}]}
+    _mock(read, {'무신사페이 × 삼성카드': _tile(True, card='삼성카드 (12*)')}, calls)
+    snap = _snap()
+    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
+    assert (snap['pay_card_name'], snap['pay_tile']) == ('삼성카드', '무신사페이 × 삼성카드')
+
+
+@respx.mock
+def test_적용됐는데_무신사페이가_아닌_수단이면_사람에게(musinsa) -> None:
+    # 이름으로 못 알아본 결제앱 — 눌렀더니 수단이 무신사페이가 아니면 로봇이 못 내는 결제다
+    calls: list = []
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
+    read = {**read, 'tiles': [{'name': '신한SOL페이', 'amount': 7000}]}
+    _mock(read, {'신한SOL페이': _tile(True, method='신한SOL페이', card='')}, calls)
+    with pytest.raises(AgentFailure) as e:
+        musinsa._apply_payment_quotes(_a(), 'buy-1', _snap())
+    assert e.value.fail_reason is FailReason.PAY_RULE_STOP
+
+
+def test_후보_타일은_BC_페이코를_빼고_금액_큰_순():
+    names = [t['name'] for t in candidate_tiles(INFO['tiles'])]
+    assert names == ['토스페이 × 삼성카드', '무신사페이 × 하나카드', 'KB Pay', '무신사페이 × 농협카드']
