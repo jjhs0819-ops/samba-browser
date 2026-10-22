@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     # 자동 수집 창(일)과 주기(초) — Task D 의 intake 고리가 쓴다
     intake_days: int = Field(default=7, ge=1, alias='SAMBA_INTAKE_DAYS')
     intake_interval_s: int = Field(default=300, ge=10, alias='SAMBA_INTAKE_INTERVAL_S')
+    # True 면 한 바퀴 뒤 다음 정각까지 자고 정각마다 돈다(매시간 배치, 2026-10-22). interval_s 는 무시된다
+    intake_align_hour: bool = Field(default=False, alias='SAMBA_INTAKE_ALIGN_HOUR')
     # 자동 수집 고리를 띄울지. 꺼 두면 슬랙 `주문처리 전체` 로 수동 수집만 한다
     intake_enabled: bool = Field(default=True, alias='SAMBA_INTAKE_ENABLED')
     # 한 바퀴에 새로 접수하는 상한(슬랙 폭주 방지)
@@ -49,8 +51,9 @@ class Settings(BaseSettings):
     intake_all_sellers_sources: str = Field(default='', alias='SAMBA_INTAKE_ALL_SELLERS_SOURCES')
     # 결제에 쓸 수 있는 결제 제공자(쉼표, 비우면 키마스터에 있는 것 전부). 예: site,musinsapay
     allowed_pay_providers: str = Field(default='', alias='SAMBA_ALLOWED_PAY_PROVIDERS')
-    # True 면 결제 승인 요청을 사람 대신 즉시 승인한다(사용자가 자동 이행을 켠 경우만)
-    auto_approve: bool = Field(default=False, alias='SAMBA_AUTO_APPROVE')
+    # 결제 승인 요청을 사람 대신 즉시 승인할 소싱처 — 'true'(전부) / 'false' / 쉼표 목록(예: MUSINSA,LOTTEON).
+    # 2026-10-22 매시간 자동결제 전환: 소싱처별로 켠다(롯데온은 별도 세션이 같은 스위치로 켠다)
+    auto_approve: str = Field(default='false', alias='SAMBA_AUTO_APPROVE')
     # False 면 이행 불가(품절·마진 미달) 주문에 가격X/재고X 표시·취소요청을 삼바에 쓰지 않는다 — 1단계(승인 모드)는
     # 카드에 보여만 주고 사람이 정한다(설계서 §8 마진 행, 사용자 2026-10-11). 2단계에서 켠다
     flag_orders: bool = Field(default=True, alias='SAMBA_FLAG_ORDERS')
@@ -62,6 +65,8 @@ class Settings(BaseSettings):
     compare_accounts_max: int = Field(default=5, ge=1, alias='SAMBA_COMPARE_ACCOUNTS_MAX')
     root: Path = Field(default=DEFAULT_ROOT, alias='SAMBA_AGENT_ROOT')
     db_path: Path = Field(default=DEFAULT_ROOT / 'jobs.sqlite', alias='SAMBA_DB_PATH')
+    # 로봇이 남기는 작은 상태 파일(즉시할인 종료 표시 등) 폴더 — 작업 폴더에 의존하지 않게 절대경로
+    state_dir: Path = Field(default=DEFAULT_ROOT, alias='SAMBA_STATE_DIR')
     # 판정·진단 산출물 위치. gate·eval·API 가 같은 곳을 본다(리뷰 지적 — I4)
     report_dir: Path = Field(default=DEFAULT_ROOT / 'ops' / 'reports', alias='SAMBA_REPORT_DIR')
     # 프롬프트 허브 커밋 — 추적 메타데이터에 실린다. 허브를 안 쓰면 'local' 이다
@@ -110,6 +115,17 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return tuple(x.strip() for x in v.split(',') if x.strip())
         return v
+
+
+    @property
+    def auto_approve_sources(self) -> frozenset[str]:
+        """자동 승인할 소싱처(대문자). 'true' 는 {'*'}(전부), 'false'·빈값은 빈 집합."""
+        raw = (self.auto_approve or '').strip()
+        if raw.lower() in ('', 'false', '0', 'no', 'off'):
+            return frozenset()
+        if raw.lower() in ('true', '1', 'yes', 'on'):
+            return frozenset({'*'})
+        return frozenset(x.strip().upper() for x in raw.split(',') if x.strip())
 
 
 def load_settings(env_file: str | Path | None = '.env') -> Settings:

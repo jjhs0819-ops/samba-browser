@@ -57,3 +57,22 @@ def test_판정_산출물_위치는_설정_하나로_정해진다(monkeypatch, t
     assert default_report_dir() == DEFAULT_ROOT / 'ops' / 'reports'
     monkeypatch.setenv('SAMBA_REPORT_DIR', str(tmp_path / 'r'))
     assert default_report_dir() == tmp_path / 'r'
+
+
+def test_자동승인은_소싱처_목록이다(monkeypatch):
+    monkeypatch.setenv('SAMBA_BRIDGE_TOKEN', 'f' * 64)
+    monkeypatch.setenv('SAMBA_AUTO_APPROVE', 'MUSINSA, lotteon')
+    assert load_settings(env_file=None).auto_approve_sources == frozenset({'MUSINSA', 'LOTTEON'})
+    monkeypatch.setenv('SAMBA_AUTO_APPROVE', 'true')
+    assert load_settings(env_file=None).auto_approve_sources == frozenset({'*'})
+    monkeypatch.setenv('SAMBA_AUTO_APPROVE', 'false')
+    assert load_settings(env_file=None).auto_approve_sources == frozenset()
+    monkeypatch.delenv('SAMBA_AUTO_APPROVE')
+    assert load_settings(env_file=None).auto_approve_sources == frozenset()
+
+
+def test_정각_정렬_기본은_꺼짐(monkeypatch):
+    monkeypatch.setenv('SAMBA_BRIDGE_TOKEN', 'f' * 64)
+    assert load_settings(env_file=None).intake_align_hour is False
+    monkeypatch.setenv('SAMBA_INTAKE_ALIGN_HOUR', 'true')
+    assert load_settings(env_file=None).intake_align_hour is True

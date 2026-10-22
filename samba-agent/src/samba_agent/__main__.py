@@ -413,7 +413,7 @@ def main() -> None:
             dry_run=settings.dry_run,
             dry_run_digits=settings.dry_run_digits,
             keep_tabs=settings.keep_tabs,
-            auto_approve=settings.auto_approve,
+            auto_approve='*' in settings.auto_approve_sources,
             manual_approve_methods=tuple(
                 x.strip() for x in settings.manual_approve_methods.split(',') if x.strip()
             ),
