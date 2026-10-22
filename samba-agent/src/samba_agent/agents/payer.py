@@ -6,7 +6,9 @@
 """
 
 import json
+import os
 import re
+from pathlib import Path
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse, urlsplit
 
@@ -136,8 +138,10 @@ _PAID_TEXT = ('주문이 완료', '주문완료', '주문 완료')
 
 # 결제창의 즉시할인 예산 소진 안내(실기 2026-10-13 무신사페이 농협카드)
 PROMO_ENDED_MARKERS = ('즉시할인 프로모션이 종료', '할인 없이 결제하시겠어요', '프로모션 예산이 조기 소진')
-# 오늘 농협 즉시할인 예산이 소진됐다는 표시 파일(로봇 작업 폴더) — 구매 단계가 보고 그날은 농협 타일을 쓰지 않는다
-NH_PROMO_MARK_FILE = 'nh_promo_ended.txt'
+# 오늘 즉시할인 예산이 소진된 타일 이름들(JSON {date, tiles}) — 구매 단계가 보고 그날은 그 타일을 쓰지 않는다(2026-10-22 타일별)
+PROMO_MARK_FILE = 'promo_ended.json'
+# 결제창 안내를 보고 머니로 다시 준비해야 한다는 표식 — 워커가 이 글자를 보고 재접수 작업에 force_money 를 단다
+FORCE_MONEY_MARK = '무신사머니로 다시 준비'
 
 
 def promo_ended(page: str) -> bool:
@@ -149,22 +153,39 @@ def _today_kst() -> str:
     return datetime.now(_KST).date().isoformat()
 
 
-def mark_nh_promo_ended() -> None:
-    """오늘 농협 즉시할인 예산 소진을 파일에 적는다. 실패는 무시(다음 결제창에서 다시 걸린다)."""
+def promo_mark_path() -> Path:
+    """표시 파일 위치 — SAMBA_STATE_DIR(로봇 상태 폴더), 없으면 현재 작업 폴더."""
+    return Path(os.environ.get('SAMBA_STATE_DIR') or '.') / PROMO_MARK_FILE
+
+
+def _read_promo_marks() -> set[str]:
+    """오늘 날짜의 종료 타일 집합. 파일이 없거나 날짜가 다르면 빈 집합."""
     try:
-        with open(NH_PROMO_MARK_FILE, 'w', encoding='utf-8') as f:
-            f.write(_today_kst())
+        data = json.loads(promo_mark_path().read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(data, dict) or data.get('date') != _today_kst():
+        return set()
+    tiles = data.get('tiles')
+    return {str(t) for t in tiles} if isinstance(tiles, list) else set()
+
+
+def mark_promo_ended(tile: str) -> None:
+    """오늘 이 타일의 즉시할인 예산 소진을 파일에 적는다. 실패는 무시(다음 결제창에서 다시 걸린다)."""
+    if not tile:
+        return
+    tiles = _read_promo_marks() | {tile}
+    try:
+        promo_mark_path().write_text(
+            json.dumps({'date': _today_kst(), 'tiles': sorted(tiles)}, ensure_ascii=False), encoding='utf-8'
+        )
     except OSError:
         pass
 
 
-def nh_promo_ended_today() -> bool:
-    """오늘 농협 즉시할인 예산 소진 표시가 있는가."""
-    try:
-        with open(NH_PROMO_MARK_FILE, encoding='utf-8') as f:
-            return f.read().strip() == _today_kst()
-    except OSError:
-        return False
+def promo_ended_today(tile: str) -> bool:
+    """오늘 이 타일의 즉시할인 예산 소진 표시가 있는가."""
+    return bool(tile) and tile in _read_promo_marks()
 
 
 def drop_urls(list_tabs_output: str, urls: set[str]) -> str:

@@ -29,7 +29,7 @@ def test_토큰이_없으면_실패한다(monkeypatch):
         load_settings(env_file=None)
 
 
-def test_실패_사유는_스펙_9종에_결제_중단·주문서_소실·결제규칙_정지를_더한_12종이다():
+def test_실패_사유는_스펙_9종에_결제_중단·주문서_소실·결제규칙_정지·원가변동·머니부족을_더한_14종이다():
     assert {r.value for r in FailReason} == {
         'out_of_stock',
         'margin',
@@ -44,6 +44,7 @@ def test_실패_사유는_스펙_9종에_결제_중단·주문서_소실·결제
         'order_form_gone',
         'pay_rule_stop',
         'cost_changed',
+        'money_insufficient',
     }
 
 

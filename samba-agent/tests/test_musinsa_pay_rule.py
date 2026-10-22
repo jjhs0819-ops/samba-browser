@@ -1,14 +1,15 @@
-# 무신사 결제 규칙(사용자 2026-10-12) — 현대카드 청구할인 우선 · 농협 즉시할인 · 폰결제 할인 정지 · 탭 소실 재구성
+# 무신사 결제 규칙(2026-10-22) — 현대카드 청구할인 1순위 · 최대 즉시할인 타일(BC·페이코 제외, 결제앱이면 정지) · 머니(부족하면 사람) · 탭 소실 재구성
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from samba_agent.agents.buyer import (
     billing_factor,
+    candidate_tiles,
     clean_pay_card,
+    excluded_tile,
     hyundai_choice,
-    is_nh_tile,
-    other_tiles_over,
+    phone_pay_tile,
 )
 from samba_agent.agents.contracts import AgentResult, OrderRef
 from samba_agent.agents.payer import order_tab_gone
@@ -67,21 +68,27 @@ def test_화면_청구예상이_다르면_화면값을_쓴다():
     assert c is not None and c['paid'] - c['billed_discount'] == 73000
 
 
-def test_농협_타일_판별():
-    assert is_nh_tile('무신사페이 × 농협카드')
-    assert is_nh_tile('무신사페이 x NH카드')
-    assert not is_nh_tile('무신사페이 × 하나카드')
-    assert not is_nh_tile('카카오페이 × 농협카드')
+def test_BC_페이코_타일_판별():
+    assert excluded_tile('무신사페이 × BC카드')
+    assert excluded_tile('카카오페이 × 비씨카드')
+    assert excluded_tile('페이코') and excluded_tile('PAYCO')
+    assert not excluded_tile('무신사페이 × 농협카드')
+
+
+def test_결제앱_타일_판별():
+    assert phone_pay_tile('토스페이 × 삼성카드') and phone_pay_tile('카카오페이') and phone_pay_tile('KB Pay')
+    assert phone_pay_tile('네이버페이') and phone_pay_tile('삼성페이') and phone_pay_tile('Apple Pay')
+    assert not phone_pay_tile('무신사페이 × 하나카드')
+
+
+def test_후보_타일은_BC_페이코를_빼고_금액_큰_순():
+    names = [t['name'] for t in candidate_tiles(INFO['tiles'])]
+    assert names == ['토스페이 × 삼성카드', '무신사페이 × 하나카드', 'KB Pay', '무신사페이 × 농협카드']
 
 
 def test_카드_글자_정리():
     assert clean_pay_card('NH카드 (275*) 할인 적용 중') == 'NH카드'
     assert clean_pay_card('무신사 현대카드 (3104)') == '무신사 현대카드'
-
-
-def test_다른_수단_타일은_고른_혜택보다_큰_것만_큰_순서로():
-    names = [t['name'] for t in other_tiles_over(INFO['tiles'], 3815)]
-    assert names == ['카카오페이 × BC카드', '토스페이 × 삼성카드', 'KB Pay']  # 무신사페이 타일·페이코 2,000 은 뺀다
 
 
 def test_무신사_현대카드에는_일반_현대_계수를_곱하지_않는다():
@@ -240,52 +247,74 @@ def _snap() -> dict[str, object]:
 
 
 @respx.mock
-def test_구매_현대카드_한도가_있으면_청구예상_원가(musinsa) -> None:
+def test_현대_한도가_남으면_타일을_누르지_않는다(musinsa) -> None:
     calls: list = []
-    _mock(INFO, {}, calls)  # 폰 타일은 모두 적용 안 됨
+    _mock(INFO, {}, calls)
     snap = _snap()
     musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
     assert (snap['pay_method'], snap['pay_card_name'], snap['cost'], snap['billed_discount']) == ('무신사페이', '무신사 현대카드', 72485, 3815)
     assert snap.get('pay_tile') is None
-    tried = [args['tile'] for name, args in calls if args.get('mode') == 'tile']
-    assert tried == ['카카오페이 × BC카드', '토스페이 × 삼성카드', 'KB Pay']  # 농협은 시험하지 않는다(현대 우선)
+    assert [args['tile'] for _n, args in calls if args.get('mode') == 'tile'] == []
+
+
+def _tile(usable: bool, method: str = '무신사페이', card: str = 'NH카드 (275*)', cost: int = 73300) -> dict:
+    return {'ok': True, 'usable': usable, 'method': method, 'card': card, 'cost': cost, 'reward': 0, 'applied': usable}
 
 
 @respx.mock
-def test_구매_현대_한도가_없으면_농협_즉시할인(musinsa) -> None:
+def test_현대_없으면_가장_큰_타일부터_눌러_적용된_첫_타일(musinsa) -> None:
     calls: list = []
     read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
-    nh = {'ok': True, 'usable': True, 'method': '무신사페이', 'card': 'NH카드 (275*)', 'cost': 73300, 'reward': 0, 'applied': True}
-    _mock(read, {'무신사페이 × 농협카드': nh}, calls)
+    read = {**read, 'tiles': [
+        {'name': '무신사페이 × 하나카드', 'amount': 4000},
+        {'name': '무신사페이 × BC카드', 'amount': 4000},
+        {'name': '무신사페이 × 농협카드', 'amount': 3000},
+    ]}
+    _mock(read, {'무신사페이 × 하나카드': _tile(False), '무신사페이 × 농협카드': _tile(True)}, calls)
     snap = _snap()
     musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
     assert (snap['pay_card_name'], snap['pay_tile'], snap['cost'], snap['pay_amount']) == ('NH카드', '무신사페이 × 농협카드', 73300, 73300)
-    assert snap.get('billed_discount') == 0.0
+    assert [args['tile'] for _n, args in calls if args.get('mode') == 'tile'] == ['무신사페이 × 하나카드', '무신사페이 × 농협카드']
 
 
 @respx.mock
-def test_구매_폰결제_할인이_실제로_더_크면_멈춘다(musinsa) -> None:
+def test_BC_페이코_타일은_후보에서_뺀다(musinsa) -> None:
     calls: list = []
-    kakao = {'ok': True, 'usable': True, 'method': '카카오페이', 'cost': 70300, 'applied': False}
-    _mock(INFO, {'카카오페이 × BC카드': kakao}, calls)
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
+    read = {**read, 'tiles': [{'name': '무신사페이 × BC카드', 'amount': 5000}, {'name': '페이코', 'amount': 9000}]}
+    _mock(read, {'무신사페이 × BC카드': _tile(True, card='BC카드'), '페이코': _tile(True, method='페이코')}, calls)
+    snap = _snap()
+    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
+    assert snap['pay_method'] == '무신사머니'
+    assert [args['tile'] for _n, args in calls if args.get('mode') == 'tile'] == []
+
+
+@respx.mock
+def test_최대_타일이_결제앱이고_적용되면_pay_rule_stop(musinsa) -> None:
+    calls: list = []
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
+    _mock(read, {'토스페이 × 삼성카드': _tile(True, method='토스페이', card='삼성카드', cost=71300)}, calls)
     with pytest.raises(AgentFailure) as e:
         musinsa._apply_payment_quotes(_a(), 'buy-1', _snap())
     assert e.value.fail_reason is FailReason.PAY_RULE_STOP
-    assert '카카오페이 × BC카드' in e.value.reason and '6,000' in e.value.reason
-
-
-def test_머니_잔액이_모자라면_머니로_고르지_않는다():
-    from samba_agent.agents.buyer import money_choice
-
-    assert money_choice({'money': {'cost': 76300, 'balance': 197625, 'reward': 0}})['method'] == '무신사머니'
-    assert money_choice({'money': {'cost': 76300, 'balance': 50000, 'reward': 0}}) is None
+    assert '토스페이 × 삼성카드' in e.value.reason and '5,000' in e.value.reason
 
 
 @respx.mock
-def test_구매_현대_한도도_농협도_없으면_기본_무신사머니(musinsa) -> None:
+def test_결제앱_타일이_회색이면_다음_카드_타일(musinsa) -> None:
     calls: list = []
     read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
-    read = {**read, 'tiles': [t for t in INFO['tiles'] if '농협' not in t['name']]}
+    read = {**read, 'tiles': [{'name': 'KB Pay', 'amount': 20000}, {'name': '무신사페이 × 농협카드', 'amount': 3000}]}
+    _mock(read, {'KB Pay': _tile(False, method='KB Pay'), '무신사페이 × 농협카드': _tile(True)}, calls)
+    snap = _snap()
+    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
+    assert snap['pay_tile'] == '무신사페이 × 농협카드'
+
+
+@respx.mock
+def test_타일_전부_미적용이고_머니_충분이면_무신사머니(musinsa) -> None:
+    calls: list = []
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
     _mock(read, {}, calls)
     snap = _snap()
     musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
@@ -294,18 +323,63 @@ def test_구매_현대_한도도_농협도_없으면_기본_무신사머니(musi
 
 
 @respx.mock
-def test_구매_농협_할인이_적용_안_되면_무신사머니(musinsa) -> None:
+def test_타일_전부_미적용이고_머니_부족이면_money_insufficient(musinsa) -> None:
     calls: list = []
     read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
-    _mock(read, {'무신사페이 × 농협카드': {'ok': True, 'usable': False, 'method': '무신사페이'}}, calls)
+    read = {**read, 'money': {**INFO['money'], 'balance': 50000}}
+    _mock(read, {}, calls)
+    with pytest.raises(AgentFailure) as e:
+        musinsa._apply_payment_quotes(_a(), 'buy-1', _snap())
+    assert e.value.fail_reason is FailReason.MONEY_INSUFFICIENT
+    assert '50,000' in e.value.reason and '76,300' in e.value.reason
+
+
+@respx.mock
+def test_force_money_면_현대_타일_모두_건너뛰고_머니(musinsa) -> None:
+    calls: list = []
+    _mock(INFO, {'무신사페이 × 하나카드': _tile(True, card='하나카드')}, calls)
+    snap = _snap()
+    a = _a()
+    a = a.model_copy(update={'options': {'force_money': '1'}})
+    musinsa._apply_payment_quotes(a, 'buy-1', snap)
+    assert snap['pay_method'] == '무신사머니'
+    assert [args['tile'] for _n, args in calls if args.get('mode') == 'tile'] == []
+
+
+@respx.mock
+def test_오늘_종료_표시된_타일은_건너뛴다(musinsa, tmp_path, monkeypatch) -> None:
+    from samba_agent.agents import payer as pm
+
+    monkeypatch.setenv('SAMBA_STATE_DIR', str(tmp_path))
+    pm.mark_promo_ended('무신사페이 × 하나카드')
+    calls: list = []
+    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
+    read = {**read, 'tiles': [{'name': '무신사페이 × 하나카드', 'amount': 4000}, {'name': '무신사페이 × 농협카드', 'amount': 3000}]}
+    _mock(read, {'무신사페이 × 하나카드': _tile(True, card='하나카드'), '무신사페이 × 농협카드': _tile(True)}, calls)
     snap = _snap()
     musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
-    assert snap['pay_method'] == '무신사머니'
+    assert snap['pay_tile'] == '무신사페이 × 농협카드'
+    assert [args['tile'] for _n, args in calls if args.get('mode') == 'tile'] == ['무신사페이 × 농협카드']
 
 
-def test_페이코_타일은_정지_비교에서_뺀다():
-    names = [t['name'] for t in other_tiles_over(INFO['tiles'], 0)]
-    assert '페이코' not in names and '카카오페이 × BC카드' in names
+def test_프로모션_표시는_타일별_당일만(tmp_path, monkeypatch):
+    from samba_agent.agents import payer as pm
+
+    monkeypatch.setenv('SAMBA_STATE_DIR', str(tmp_path))
+    assert not pm.promo_ended_today('무신사페이 × 농협카드')
+    pm.mark_promo_ended('무신사페이 × 농협카드')
+    pm.mark_promo_ended('무신사페이 × 하나카드')
+    assert pm.promo_ended_today('무신사페이 × 농협카드') and pm.promo_ended_today('무신사페이 × 하나카드')
+    assert not pm.promo_ended_today('KB Pay')
+    monkeypatch.setattr(pm, '_today_kst', lambda: '2099-01-01')
+    assert not pm.promo_ended_today('무신사페이 × 농협카드')
+
+
+def test_머니_잔액이_모자라면_머니로_고르지_않는다():
+    from samba_agent.agents.buyer import money_choice
+
+    assert money_choice({'money': {'cost': 76300, 'balance': 197625, 'reward': 0}})['method'] == '무신사머니'
+    assert money_choice({'money': {'cost': 76300, 'balance': 50000, 'reward': 0}}) is None
 
 
 def test_결제_전부터_있던_주문완료_탭은_이미_결제로_보지_않는다():
@@ -364,28 +438,9 @@ def test_결제_전부터_떠_있던_완료화면_주소는_주문번호에서_�
     assert _source_order_no('', drop_urls(tabs, {old})) is None
 
 
-def test_결제창_즉시할인_종료_안내를_알아본다(tmp_path, monkeypatch):
+def test_결제창_즉시할인_종료_안내를_알아본다():
     from samba_agent.agents import payer as pm
 
     page = '즉시할인 프로모션이 종료됐어요. 프로모션 예산이 조기 소진되어 즉시할인이 적용되지 않습니다. 할인 없이 결제하시겠어요? 취소 결제하기'
     assert pm.promo_ended(page)
     assert not pm.promo_ended('무신사페이 결제 73,300원 결제하기')
-    monkeypatch.chdir(tmp_path)
-    assert not pm.nh_promo_ended_today()
-    pm.mark_nh_promo_ended()
-    assert pm.nh_promo_ended_today()
-
-
-@respx.mock
-def test_구매_농협_예산_소진_표시가_있으면_무신사머니(musinsa, tmp_path, monkeypatch) -> None:
-    from samba_agent.agents import payer as pm
-
-    monkeypatch.chdir(tmp_path)
-    pm.mark_nh_promo_ended()
-    calls: list = []
-    read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
-    _mock(read, {'무신사페이 × 농협카드': {'ok': True, 'usable': True, 'method': '무신사페이', 'card': 'NH카드', 'cost': 73300}}, calls)
-    snap = _snap()
-    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
-    assert snap['pay_method'] == '무신사머니'
-    assert not any(args.get('tile') == '무신사페이 × 농협카드' for _, args in calls)
