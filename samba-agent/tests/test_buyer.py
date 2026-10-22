@@ -2422,3 +2422,27 @@ def test_롯데온_폰결제_할인이_가장_크면_결제_대기():
         cheapest_quotes(raw3, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
     )
     assert picked3 is not None and picked3['method'] == '간편결제' and not wait3
+
+
+def test_건물번호가_상세에_있는_주문은_도로명열쇠와_구로_대조한다():
+    """실기 2026-10-22 롯데온 직배: 주소 '…로' + 상세 '141, 105동 …', 검색 결과 줄에 지번 숫자가 더 붙어
+    숫자 토큰 비교가 어긋나 '배송지 입력 검증에 실패'로 멈췄다. 도로명+번호와 시·군·구가 같으면 같은 곳."""
+    from samba_agent.agents.buyer import _shipping_mismatch_shape, shipping_matches
+
+    want = {'name': '홍길동', 'address': '서울특별시 동대문구 답십리로', 'address_detail': '141, 105동 302호 (답십리동, 아파트)'}
+    got = {
+        'name': '홍길동',
+        'address': '서울특별시 동대문구 답십리로 141 (답십리동, 아파트) 서울특별시 동대문구 답십리동 1000',
+        'address_detail': '105동 302호',
+        'zip': '02590',
+    }
+    assert shipping_matches(want, got)
+    # 다른 도시의 같은 도로명·번호는 아니다(나주→경주, 2026-10-02)
+    assert not shipping_matches(want, {**got, 'address': '경상북도 경주시 답십리로 141'})
+    # 건물번호가 다르면 아니다
+    assert not shipping_matches(want, {**got, 'address': '서울특별시 동대문구 답십리로 14'})
+    # 호수가 다르면 아니다
+    assert not shipping_matches(want, {**got, 'address_detail': '105동 303호'})
+    # 진단 문구에는 원문이 없다
+    shape = _shipping_mismatch_shape(want, {**got, 'address': '서울 성동구 왕십리로 1'})
+    assert '도로명열쇠 다름' in shape and '답십리' not in shape and '홍길동' not in shape

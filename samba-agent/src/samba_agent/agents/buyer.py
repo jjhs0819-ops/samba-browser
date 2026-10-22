@@ -105,6 +105,19 @@ def _norm_address(text: str) -> str:
     return _ADDR_DROP.sub('', text).lower()
 
 
+def _shipping_mismatch_shape(expected: dict[str, object], applied: dict[str, object]) -> str:
+    """배송지 대조 실패 진단 — 원문 없이 이름 일치 여부·숫자 토큰·도로명 열쇠 일치 여부만."""
+    name_ok = _norm(str(expected.get('name', ''))) == _norm(str(applied.get('name', '')))
+    exp_full = f'{expected.get("address", "")} {expected.get("address_detail") or ""}'
+    app_full = f'{applied.get("address", "")} {applied.get("address_detail") or ""}'
+    return (
+        f'이름 {"같음" if name_ok else "다름"} · 숫자 주문 {len(re.findall(r"[0-9]+", exp_full))}개/되읽음 '
+        f'{len(re.findall(r"[0-9]+", app_full))}개 · 도로명열쇠 '
+        f'{"같음" if road_key(exp_full) and road_key(exp_full) == road_key(applied.get("address")) else "다름"} · '
+        f'우편번호 {"있음" if applied.get("zip") or applied.get("postal_code") else "없음"}'
+    )
+
+
 def road_key(address: object) -> str:
     """주소에서 도로명+건물번호(또는 지번 동·리+번지)만 공백 없이 — 결제 직전 주문서에 받는 분 주소가 맞게 들어갔는지
     대조하는 열쇠. 전체 주소는 handoff 에 싣지 않는다(실기 2026-10-02 롯데온 선물: 주소 검색이 다른 도시를 골라 경주로 감)."""
@@ -158,9 +171,22 @@ def shipping_matches(expected: dict[str, object], applied: dict[str, object]) ->
     # 주문 주소에 건물번호가 없고 상세주소가 번호로 시작하는 주문(실기 2026-10-01 패션플러스: 주소 '…로', 상세 '29, …')은
     # 사이트가 '…로 29' + 상세로 나눠 되읽는다 — 양쪽 모두 주소+상세를 붙여 숫자 토큰을 비교한다
     b_full = _norm_address(f'{applied.get("address", "")} {applied.get("address_detail") or ""}')
-    return (
-        bool(full) and re.findall(r'\d+', full) == re.findall(r'\d+', b_full) and a[-6:] in b_full
-    )
+    if bool(full) and re.findall(r'\d+', full) == re.findall(r'\d+', b_full) and a[-6:] in b_full:
+        return True
+    # 마지막: 도로명+건물번호 열쇠와 시·군·구가 같으면 같은 곳이다 — 주소 검색 결과 줄에 지번·우편번호 같은 숫자가
+    # 더 붙어 와 숫자 토큰 비교가 어긋났다(실기 2026-10-22 롯데온 직배: 주소 '…답십리로' + 상세 '141, 105동 …' 주문이
+    # '배송지 입력 검증에 실패'로 멈춤). 시·군·구가 다른 같은 도로명(나주→경주, 2026-10-02)은 여기서 걸러진다
+    key_exp = road_key(f'{expected.get("address", "")} {expected.get("address_detail") or ""}')
+    key_app = road_key(applied.get('address'))
+    if not key_exp or key_exp != key_app:
+        return False
+    gu = _SIGUNGU_RE.findall(str(expected.get('address') or ''))
+    applied_text = re.sub(r'\s+', '', str(applied.get('address') or ''))
+    return not gu or any(g in applied_text for g in gu)
+
+
+# 시·군·구 이름(광역·특별시는 표기가 '서울'·'서울특별시'로 갈려 빼고 본다)
+_SIGUNGU_RE = re.compile(r'(?<![가-힣])((?!서울|부산|대구|인천|광주|대전|울산|세종)[가-힣]{1,5}(?:시|군|구))(?=\s)')
 
 
 # 결제수단 이름 → 키마스터 결제 제공자(src/shared/vault.ts PaymentProvider). 앞에서부터 먼저 맞는 것
@@ -4755,9 +4781,12 @@ class BuyerAgent(AgentBase):
             # 스크립트가 남긴 사유(note)를 붙인다 — 예전엔 사유 없이 멈춰 비교 오탐인지 스크립트 실패인지 몰랐다(job 207)
             # note 가 없으면 오류 코드(name-input-nf 등)라도 남긴다 — 사유 없는 실패는 원인을 못 가른다(실기 2026-09-29)
             note = str(applied.get('note') or applied.get('error') or '').strip()
+            if not note:
+                # 스크립트는 성공으로 돌려줬는데 대조가 어긋난 경우 — 어디가 달랐는지 모양만 남긴다(개인정보 없이 숫자·글자 수)
+                note = _shipping_mismatch_shape(shipping, applied)
             raise AgentFailure(
                 'needs_human',
-                '배송지 입력 검증에 실패했다' + (f': {mask_text(note[:80])}' if note else ''),
+                '배송지 입력 검증에 실패했다' + (f': {mask_text(note[:120])}' if note else ''),
                 FailReason.UNKNOWN,
             )
         self._fill_phone(applied, phone=shipping.get('phone'))
