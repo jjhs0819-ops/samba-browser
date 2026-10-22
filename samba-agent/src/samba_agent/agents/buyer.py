@@ -449,7 +449,7 @@ def pick_discounted_or_fallback(
        결제 비밀번호가 있는 L.PAY 간편결제 롯데카드·네이버페이 등)이면 그 줄로 결제한다. 같은 금액의 PC 수단이 있으면 그것.
     ③ 가장 큰 할인이 폰 승인 수단(토스페이·카카오페이 등의 롯데카드, 신용카드 앱카드)뿐이면 결제하지 않는다 —
        (None, 사유, True): 사장님 폰이 필요하니 결제 대기.
-    ④ 할인 후보가 없으면 fallback_method(네이버페이) 줄로 결제하고 카드는 fallback_cards[0](무신사 현대카드)로 고른다.
+    ④ 할인 후보가 없으면 fallback_method(네이버페이) 줄로 결제하고 카드는 fallback_cards[0](넥슨 현대카드 — 무신사 현대카드는 무신사 전용, 사용자 2026-10-22)로 고른다.
        그 수단이 낼 수 있는 견적에 없으면 None — 호출부가 사람에게 넘긴다(다른 수단으로 대신 결제하지 않는다).
 
     quotes 는 결제 가능 여부로 거르기 전 견적(cheapest_quotes(payable=None))이다. payable 이 None 이면 전부 낼 수 있다고 본다.
@@ -4832,7 +4832,18 @@ class BuyerAgent(AgentBase):
                 FailReason.UNKNOWN,
             )
         self._fill_phone(applied, phone=shipping.get('phone'))
-        self._confirm_shipping(shipping, args)
+        # 확정 스크립트가 입력 스크립트가 채운 칸을 번호로 되읽게 넘긴다(패션플러스, 실기 2026-10-22 '폼 이름이 다르다')
+        field_ids = {
+            dst: applied[src]
+            for src, dst in (
+                ('name_field_id', 'name_id'),
+                ('phone_field_id', 'phone_id'),
+                ('zip_field_id', 'zip_id'),
+                ('road_field_id', 'road_id'),
+            )
+            if isinstance(applied.get(src), int)
+        }
+        self._confirm_shipping(shipping, {**args, **field_ids})
         # 결제 직전 주문서 대조용 열쇠(도로명+번호) — 전체 주소는 남기지 않는다
         self._ship_key = road_key(shipping.get('address'))
         # 마스킹 규칙이 이름을 가리려면 라벨이 앞에 있어야 한다(ops.masking) — 라벨을 붙여서 가린다
@@ -4886,7 +4897,11 @@ class BuyerAgent(AgentBase):
             return
         confirmed = self.script_json(
             spec.confirm_shipping_script,
-            {k: v for k, v in args.items() if k in ('name', 'address', 'profile', 'tab')},
+            {
+                k: v
+                for k, v in args.items()
+                if k in ('name', 'address', 'profile', 'tab', 'name_id', 'phone_id', 'zip_id', 'road_id')
+            },
             goal='배송지 폼을 저장·적용해 주문서에 반영하고, 주문서에서 되읽은 이름·주소를 ok:true 와 함께 돌려준다.',
             check=lambda o: (
                 None

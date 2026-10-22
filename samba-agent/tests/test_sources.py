@@ -154,8 +154,10 @@ def test_ABC마트는_직배_네이버페이_넥슨현대카드_그랜드스테�
     assert src.by_id('GrandStage').order_type == 'kkadaegi'
     assert src.by_id('MUSINSA').order_type is None
     # 다른 소싱처는 새 필드 기본값 그대로(회귀 없음)
-    for sid in ('MUSINSA', 'LOTTEON', 'GrandStage', 'SSG'):
+    for sid in ('MUSINSA', 'GrandStage', 'SSG'):
         assert src.by_id(sid).naverpay_cards == [] and src.by_id(sid).reuse_saved_shipping is True, sid
+    # 롯데온도 네이버페이면 넥슨 현대카드 고정(사용자 2026-10-22 — 무신사 현대카드는 무신사 전용)
+    assert src.by_id('LOTTEON').naverpay_cards == ['넥슨 현대카드']
 
 
 def test_SSG_는_신세계몰_경로비교_견적을_켜고_사용_중이다(sources):
@@ -193,10 +195,11 @@ def test_롯데온은_무신사와_같은_직배_승인_흐름이다(sources):
     assert row.required_seller == '롯데백화점'
     # 배송 연락처는 고객 번호가 아니라 업무폰(키마스터 신원정보) — 사용자 2026-10-16
     assert row.customer_phone is False and row.shipping_confirm is True
-    # 결제수단: 즉시할인 최대 → 없으면 네이버페이 + 무신사 현대카드(없으면 넥슨 현대카드), 카카오 기본 1,000원 제외
+    # 결제수단: 즉시할인 최대 → 없으면 네이버페이 + 넥슨 현대카드(무신사 현대카드는 무신사 전용), 카카오 기본 1,000원 제외
     assert row.easy_pay_card is None and row.charge_pay is False
     assert row.pay_fallback_method == '네이버페이'
-    assert row.pay_fallback_cards == ['무신사 현대카드', '넥슨 현대카드']
+    assert row.pay_fallback_cards == ['넥슨 현대카드']
+    assert row.naverpay_cards == ['넥슨 현대카드']
     assert row.kakao_basic_discount_won == 1000
     assert row.paid_is_cost is True
     assert row.payment_quotes is True and row.pay_rule is False

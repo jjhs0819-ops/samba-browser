@@ -42,6 +42,10 @@ BUYER_HANDOFF_FIELDS = (
     'pay_card_name',
     'pay_tile',
     'billed_discount',
+    # 원가 = 실결제액 소싱처(롯데온·ABC·패션플러스) — 기록의 결제 뒤 원가(billed_cost)가 카드 계수를 곱지 않게(실기 10-22 롯데온 ×0.973)
+    'paid_is_cost',
+    # 네이버페이 결제창 안 카드 순서(넥슨 현대카드 고정) — 빠지면 결제 단계가 카드를 안 고르고 기본 카드로 낸다(실기 10-22)
+    'pay_card_candidates',
 )
 
 

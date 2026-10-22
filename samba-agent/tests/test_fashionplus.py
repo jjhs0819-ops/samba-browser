@@ -160,3 +160,38 @@ def test_모든_계정이_상품_전체_품절이면_확정_품절로_끝난다(
         buyer._pick_cheapest(_assignment(buyer), ACCOUNTS)
     assert e.value.reason.startswith(CONFIRMED_SOLD_OUT)
     assert e.value.fail_reason is FailReason.OUT_OF_STOCK
+
+
+def test_배송지_확정은_입력_스크립트가_채운_칸_번호로_되읽는다(buyer, monkeypatch) -> None:
+    """실기 2026-10-22: 확정 스크립트가 칸을 순서로 추측해 3건 모두 '폼 이름이 다르다' — 입력이 돌려준 번호를 넘긴다."""
+    ship = {'name': '홍길동', 'address': '서울 강동구 천중로35길 6-1', 'phone': '01000000000'}
+    applied = {
+        'ok': True,
+        'name': '홍길동',
+        'address': '서울 강동구 천중로35길 6-1',
+        'phone_field_id': 1000004,
+        'name_field_id': 1000002,
+        'zip_field_id': 1000006,
+        'road_field_id': 1000009,
+    }
+    seen: list[dict[str, object]] = []
+
+    def fake_script(self, name, args, **kw):
+        seen.append({**args, 'script': name})
+        return (
+            applied
+            if name.endswith('_set_shipping')
+            else {'ok': True, 'name': ship['name'], 'address': ship['address']}
+        )
+
+    monkeypatch.setattr(BuyerAgent, 'script_json', fake_script)
+    monkeypatch.setattr(BuyerAgent, '_fill_phone', lambda self, applied, phone=None: None)
+    buyer._apply_shipping(_assignment(buyer), dict(ship), 'buyer01')
+    confirm = next(s for s in seen if str(s['script']).endswith('_confirm_shipping'))
+    assert (confirm['name_id'], confirm['phone_id'], confirm['zip_id'], confirm['road_id']) == (
+        1000002,
+        1000004,
+        1000006,
+        1000009,
+    )
+    assert 'phone' not in confirm

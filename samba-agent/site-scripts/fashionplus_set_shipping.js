@@ -2,7 +2,7 @@
 // 패션플러스 주문서 배송지 입력 — '배송지 변경' 창(iframe)의 '새 주소 입력'에 이름·주소(우편번호 찾기 팝업)·상세주소를 넣고 되읽는다.
 // 전화 칸은 비워 두고 phone_field_id 로 알린다(하네스가 fill_secret 으로 채운다 — 한 칸, 숫자만). '등록하기'는 누르지 않는다(확정은 fashionplus_confirm_shipping)
 // 탭: args.tab > 이 레인의 패션플러스 주문서 탭 하나 · args: name, address, address_detail, postal_code, profile, tab
-// 반환 {ok,name,address,address_detail,zip,phone_field_id,phone_formats,order_tab,note}
+// 반환 {ok,name,address,address_detail,zip,phone_field_id,name_field_id,zip_field_id,road_field_id,phone_formats,order_tab,note}
 const OF = /fashionplus\.co\.kr\/order\/\d+(?:[?#]|$)/
 // 배송지 창(iframe)이 넘어가는 중에 읽으면 프레임 호출이 시간 초과로 던진다 — 잠깐 쉬고 다시 읽는다(2026-10-01)
 const tree = async o => { for (let i = 0; i < 4; i++) { try { return String((await page.get(o)).tree || '') } catch (e) { await sleep(1500) } } return '' }
@@ -104,6 +104,10 @@ return {
   address_detail: dt,
   zip,
   phone_field_id: idOfLine(phoneL),
+  // 확정 스크립트가 같은 칸을 번호로 되읽는다(순서 추측 금지, 2026-10-22)
+  name_field_id: idOfLine(nameL),
+  zip_field_id: idOfLine(zipL),
+  road_field_id: idOfLine(roadL),
   phone_formats: ['digits'],
   order_tab: tab,
   note: got(idOfLine(phoneL)) ? 'phone field not empty' : null

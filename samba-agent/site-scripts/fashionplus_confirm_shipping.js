@@ -17,10 +17,15 @@ const fr = await big()
 const k = fr.findIndex(l => /link "우편번호 찾기"/.test(l))
 if (k < 3) return fail('새 주소 입력 폼이 열려 있지 않다', { order_tab: tab })
 const valOf = l => ((l || '').match(/value="([^"]*)"/) || [])[1] || ''
-// 칸을 채우면 칸 사이에 '지우기' 버튼이 끼어든다(B05369 실측) — 입력칸만 세서 고른다
-const [nameL, phoneL, zipL] = fr.slice(0, k).filter(l => /textbox/.test(l)).slice(-3)
-const roadL = fr.slice(k + 1).find(l => /textbox/.test(l))
-if (valOf(nameL) !== name) return fail('폼 이름이 다르다', { order_tab: tab })
+// 칸은 set_shipping 이 채운 요소 번호(args.*_id)로 고른다 — 순서로 추측하면 전화를 넣은 뒤 칸 모양이 바뀌어 한 칸씩 밀린다
+// (실기 2026-10-22 3건 '폼 이름이 다르다'). 번호가 없거나 못 찾으면 예전 방식: 입력칸만 세서 고른다('지우기' 버튼이 끼어든다, B05369)
+const byId = id => (id ? fr.find(l => l.startsWith('[' + id + ']')) : null)
+const tb = fr.slice(0, k).filter(l => /textbox/.test(l)).slice(-3)
+const nameL = byId(args.name_id) || tb[0], phoneL = byId(args.phone_id) || tb[1], zipL = byId(args.zip_id) || tb[2]
+const roadL = byId(args.road_id) || fr.slice(k + 1).find(l => /textbox/.test(l))
+// 실패 사유엔 모양만(개인정보 없이) — 글자 수·입력칸 수·번호 일치
+const shape = `글자 ${valOf(nameL).length}/${name.length}·입력칸 ${fr.filter(l => /textbox/.test(l)).length}·번호 ${args.name_id ? (byId(args.name_id) ? '일치' : '없음') : '미전달'}`
+if (valOf(nameL) !== name) return fail(`폼 이름이 다르다(${shape})`, { order_tab: tab })
 if (!valOf(zipL) || !valOf(roadL)) return fail('폼 주소가 비었다', { order_tab: tab })
 if (!/value="[^"]+"/.test(phoneL || '')) return fail('전화 칸이 비었다', { order_tab: tab })
 const def = fr.findIndex(l => /clickable "기본 배송지로 설정"/.test(l))

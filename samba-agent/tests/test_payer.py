@@ -268,6 +268,17 @@ def test_구매_인계값에_상품번호와_상품명이_실린다():
     assert (out['product_no'], out['product_name'], out['buy_source']) == ('3544786', '에어포스', '29CM')
 
 
+def test_구매_인계값에_네이버페이_카드_후보와_실결제_원가가_실린다():
+    # 실기 2026-10-22 롯데온: 두 값이 인계에서 빠져 카드 선택을 건너뛰고(기본 카드 결제) 원가에 카드 계수(×0.973)가 곱해졌다
+    from samba_agent.agents.contracts import AgentResult
+    from samba_agent.supervisor.assign import _handoff
+
+    r = AgentResult(status='ok', reason='ok', payload={'pay_card_candidates': ['넥슨 현대카드'], 'paid_is_cost': True})
+    out = _handoff({'results': {'buyer.lotteon': r}})
+    assert out['pay_card_candidates'] == ['넥슨 현대카드']
+    assert out['paid_is_cost'] is True
+
+
 @respx.mock
 def test_카드_요구_거절은_카드_없음으로_분류한다(reg):
     respx.post(f'{URL}/tool/run_script').mock(return_value=page(ENTER_OK))

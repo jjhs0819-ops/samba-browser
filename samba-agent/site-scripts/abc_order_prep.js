@@ -123,15 +123,18 @@ const b = await text()
 return { bal: num((b.match(/사용가능\s*포인트\s*([\d,]+)\s*P/) || [])[1]), used: num((b.match(/포인트\s*사용\s*([\d,]+)\s*P\s*기프트카드/) || [])[1]) }
 }
 let pts = await readPts()
-const box = async () => { await focus(); return num(valOf(lines(await page.get({ selector: 'input[placeholder*="100 단위"]' }))[0])) }
-if (pts.bal >= 50000 && !pts.used) {
-for (let i = 0; i < 2 && !(await box()); i++) { if (!(await clickId(await page.idOf('모두사용')))) break; await sleep(400) }
-if ((await box()) && (await clickId(await page.idOf('포인트 적용')))) for (let i = 0; i < 15 && !(await readPts()).used; i++) await sleep(250)
+// 포인트(사용자 10-22): 포인트 빼기 전 금액이 10만원 초과일 때만 1만P, 아니면 안 씀
+const tot = num(((await text()).match(/총\s*결제예정금액\s*([\d,]+)\s*원/) || [])[1]) + pts.used
+const want = tot > 100000 && pts.bal + pts.used >= 10000 ? 10000 : 0
+if (pts.used !== want) {
+await focus()
+const bl = lines(await page.get({ selector: 'input[placeholder*="100 단위"]', interactive: true }))[0]
+if (bl) { await page.type(parseInt(bl.slice(1)), String(want), false); await sleep(300) }
+if (await clickId(await page.idOf('포인트 적용'))) for (let i = 0; i < 15 && (await readPts()).used !== want; i++) await sleep(250)
 pts = await readPts()
-notes.push(pts.used ? `포인트 ${pts.used}` : '포인트 미적용')
-} else if (pts.used && pts.bal + pts.used < 50000) {
-return { ok: false, total: null, points_used: pts.used, note: `포인트 ${pts.used} 이미 적용(5만 미만)` }
-} else notes.push(pts.used ? `포인트 ${pts.used}(이미 적용)` : `포인트 미사용(보유 ${pts.bal}P)`)
+if (pts.used !== want) return { ok: false, total: null, points_used: pts.used, note: `포인트 ${want} 적용 실패(현재 ${pts.used})` }
+}
+notes.push(`포인트 ${pts.used}(전 ${tot})`)
 const t = await text()
 const tm = t.match(/총\s*결제예정금액\s*([\d,]+)\s*원/)
 if (!tm) return { ok: false, total: null, note: '결제예정금액 못 읽음' }

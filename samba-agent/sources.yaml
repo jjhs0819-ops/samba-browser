@@ -78,10 +78,11 @@ sources:
     customer_phone: false
     # 결제수단(사용자 2026-10-16): 롯데온은 할인 카드가 건마다 다르다 — 주문서 견적(lotteon_payment_quotes)에서 총액이
     # 실제로 내려간 수단 중 최저로 결제. 카카오페이 머니 기본 1,000원 할인은 안 씀. 할인 수단이 없으면 네이버페이 +
-    # 무신사 현대카드(없으면 넥슨 현대카드). 고정 간편결제 카드(easy_pay_card) 가정은 뺐다 — 네이버페이를 쓰려면
+    # 넥슨 현대카드(무신사 현대카드는 무신사 전용 — 사용자 2026-10-22). 고정 간편결제 카드(easy_pay_card) 가정은 뺐다 — 네이버페이를 쓰려면
     # SAMBA_ALLOWED_PAY_PROVIDERS 에 naver 가 있어야 하고 키마스터에 naver 결제 항목이 있어야 한다
     pay_fallback_method: 네이버페이
-    pay_fallback_cards: [무신사 현대카드, 넥슨 현대카드]
+    pay_fallback_cards: [넥슨 현대카드]
+    naverpay_cards: [넥슨 현대카드]   # 네이버페이로 내는 건 할인 줄이어도 넥슨 현대카드 고정 — 없으면 결제하지 않음(사용자 2026-10-22)
     kakao_basic_discount_won: 1000
     # 원가 = 실제 결제 승인액(사용자 2026-10-16): 카드 청구할인 계수(롯데 ×0.98 등)를 곱하지 않고, 사용 L.POINT 도 더하지 않는다
     paid_is_cost: true
