@@ -11,6 +11,7 @@
 """
 
 import re
+import unicodedata
 from datetime import datetime
 from typing import Literal, Self
 
@@ -238,8 +239,11 @@ class WaveSourceOption(BaseModel):
 
 
 def _opt_key(text: str) -> str:
-    """옵션 이름 비교용 — 공백·구두점을 지우고 소문자로."""
-    return re.sub(r'[\s\-_/·,:()\[\]]+', '', text or '').lower()
+    """옵션 이름 비교용 — 전각→반각(NFKC) 뒤 공백·구두점을 지우고 소문자로.
+
+    실주문 2026-10-22 패션플러스: 등록 옵션 '단일색상 JQ06s30／245' 의 전각 빗금이 마켓 옵션에서 빠져 못 맞췄다.
+    """
+    return re.sub(r'[\s\-_/·,:()\[\]]+', '', unicodedata.normalize('NFKC', text or '')).lower()
 
 
 def registered_source_option(

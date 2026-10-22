@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import time
+import unicodedata
 from collections.abc import Callable
 from urllib.parse import urlparse
 
@@ -874,6 +875,29 @@ def kr_size(text: str | None) -> str | None:
     return m.group(1) if m else None
 
 
+# 옵션 머리말('옵션:'·'옵션1 :') — 마켓 주문 옵션에 붙어 오는 것(삼바웨이브 WaveOrder.option 과 같은 규칙)
+_STRICT_PREFIX_RE = re.compile(r'(?:^|(?<=/))\s*옵션\d*\s*[:：]\s*')
+
+
+def strict_option_key(text: str | None) -> str:
+    """정확 일치 비교용 옵션 글자 — 전각→반각(NFKC), '옵션:' 머리말·품절 표시를 떼고 공백·구두점을 지운 소문자.
+
+    표기만 다른 것(공백·괄호·빗금·전각 '／')은 같게, 글자·숫자가 하나라도 다르면('C7'↔'C8', 'W7'↔'W8') 다르게 본다.
+    """
+    t = unicodedata.normalize('NFKC', text or '')
+    t = _SOLD_OUT_RE.sub('', _STRICT_PREFIX_RE.sub('', t))
+    return re.sub(r'[\s\-_/·,:;.()\[\]{}]+', '', t).lower()
+
+
+def strict_matching_options(options: list[str], wanted: str | None) -> list[str]:
+    """품절 아닌 선택지 중 주문 옵션과 정확히 같은 것(strict_option_key 일치)만. 주문 옵션이 없으면 전부."""
+    live = [o for o in options if not _sold_out(o)]
+    if not wanted:
+        return live
+    key = strict_option_key(wanted)
+    return [o for o in live if key and strict_option_key(o) == key]
+
+
 def matching_options(options: list[str], wanted: str | None) -> list[str]:
     """주문 옵션과 맞는 후보들. 주문 옵션이 없으면 전부 후보다.
 
@@ -1410,18 +1434,26 @@ def snapshot_purchase_limit(out: dict[str, object]) -> str | None:
 CONFIRMED_SOLD_OUT = '확정 품절'
 
 
-def sold_out_option_matches(options: list[str], wanted: str | None) -> list[str]:
-    """선택지 중 '품절' 표시가 붙은 주문 옵션 항목(원문). 목록에 아예 없는 옵션은 품절 확증이 아니라 빈 목록이다."""
+def sold_out_option_matches(
+    options: list[str], wanted: str | None, strict: bool = False
+) -> list[str]:
+    """선택지 중 '품절' 표시가 붙은 주문 옵션 항목(원문). 목록에 아예 없는 옵션은 품절 확증이 아니라 빈 목록이다.
+
+    strict 면 정확히 같은 옵션(strict_option_key)만 본다 — 비슷한 옵션의 품절을 주문 옵션 품절로 확정하지 않는다.
+    """
     if not wanted:
         return []
     marked = {o: _SOLD_OUT_RE.sub('', o).strip() for o in options if _sold_out(o)}
+    if strict:
+        key = strict_option_key(wanted)
+        return [o for o, bare in marked.items() if key and strict_option_key(bare) == key]
     hits = set(matching_options(list(marked.values()), wanted))
     return [o for o, bare in marked.items() if bare in hits]
 
 
-def sold_out_option_listed(options: list[str], wanted: str | None) -> bool:
+def sold_out_option_listed(options: list[str], wanted: str | None, strict: bool = False) -> bool:
     """주문 옵션이 선택지에 '품절' 표시로 떠 있는가 — 스크립트가 목록을 제대로 읽었고 그 옵션만 품절이라는 확증."""
-    return bool(sold_out_option_matches(options, wanted))
+    return bool(sold_out_option_matches(options, wanted, strict))
 
 
 def margin_pct_rounded(raw: float) -> float:
@@ -3331,7 +3363,9 @@ class BuyerAgent(AgentBase):
         options = [str(o) for o in (snap.get('options') or [])]
         if not self._match_options(options, a.order.option):
             self.note('계정 견적', mask_text(f'{account}: 불가(주문 옵션 품절)'))
-            marked = sold_out_option_matches(options, a.order.option)
+            marked = sold_out_option_matches(
+                options, a.order.option, source_of(self.spec.name).strict_option
+            )
             if marked:
                 # 주문 옵션의 품절 항목 자체를 남긴다 — 앞 6개만 자르면 그 항목이 잘려 '품절 표시가 없다'로 보였다
                 # (실기 2026-09-27 그랜드스테이지 260: ['240',…,'270'] 뒤 7번째가 '260 품절')
@@ -3375,6 +3409,10 @@ class BuyerAgent(AgentBase):
         """주문서에 담긴 옵션이 주문 옵션과 같은가. 주문 옵션에 사이즈 숫자가 있으면 그 숫자가 꼭 겹쳐야 한다."""
         if not wanted:
             return True
+        if source_of(self.spec.name).strict_option:
+            # 주문서에 담긴 옵션이 주문 옵션과 정확히 같아야 한다(부분 포함·사이즈 숫자 겹침으로 통과시키지 않는다)
+            key = strict_option_key(selected)
+            return bool(key) and key == strict_option_key(wanted)
         # 하네스가 매칭해 스크립트에 넘긴 선택지 글자(옵션 재선택)가 주문서에 그대로 담겼으면 같은 옵션이다
         picked = getattr(self, '_reselected', {}).get(wanted)
         if picked and ''.join(picked.split()).lower() in ''.join(selected.split()).lower():
@@ -3395,6 +3433,9 @@ class BuyerAgent(AgentBase):
         AI 에게는 사이즈 숫자가 겹치는 후보만 준다(numeric_overlap_options). 답은 후보 중 하나로 맞춰지지
         않으면 버린다. 같은 (주문 옵션, 후보) 는 작업 안에서 한 번만 묻는다(계정 4개 비교).
         """
+        if source_of(self.spec.name).strict_option:
+            # 정확 일치만 — 비슷한 글자·AI 매칭으로 짐작하지 않는다(맞는 게 없으면 사람에게)
+            return strict_matching_options(options, wanted)
         rule = matching_options(options, wanted)
         if rule or not wanted:
             return rule
@@ -4153,12 +4194,13 @@ class BuyerAgent(AgentBase):
         # 맞는 후보가 없으면 품절, 하나면 그대로, 여럿이면 그 안에서만 모델이 고른다
         candidates = self._match_options(options, a.order.option)
         if not candidates:
-            if sold_out_option_listed(options, a.order.option):
+            strict = source_of(self.spec.name).strict_option
+            if sold_out_option_listed(options, a.order.option, strict):
                 raise AgentFailure(
                     'fail',
                     mask_text(
                         f'{CONFIRMED_SOLD_OUT}: 주문 옵션 [{a.order.option}] 품절 표시 '
-                        f'{sold_out_option_matches(options, a.order.option)}'
+                        f'{sold_out_option_matches(options, a.order.option, strict)}'
                     ),
                     FailReason.OUT_OF_STOCK,
                 )
