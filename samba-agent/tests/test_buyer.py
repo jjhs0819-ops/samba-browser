@@ -2302,37 +2302,62 @@ def test_롯데온_결제수단은_즉시할인_적용_최저_없으면_네이�
     from samba_agent.agents.buyer import cheapest_quotes, pick_discounted_or_fallback
 
     base = 100000
-    payable = {'site', 'naver', 'kakao', 'musinsapay'}
+    payable = {'site', 'naver', 'musinsapay'}
     raw = [
         {'method': '간편결제', 'card': None, 'cost': 100000},  # 할인 없음(회색 타일과 같다)
         {'method': '네이버페이', 'card': None, 'cost': 100000},
         {'method': '카카오페이', 'card': None, 'cost': 99000, 'discount': '카카오페이 머니 기본'},  # 1,000원 기본 할인
-        {'method': '신용카드', 'card': '현대카드', 'cost': 95000},  # 직접 결제 — 허용 수단 아님(걸러진다)
     ]
-    quotes = cheapest_quotes(raw, None, payable, paid_is_cost=True)
-    picked, why = pick_discounted_or_fallback(quotes, base, '네이버페이', ['무신사 현대카드', '넥슨 현대카드'], 1000)
+    quotes = cheapest_quotes(raw, None, None, paid_is_cost=True)
+    picked, why, wait = pick_discounted_or_fallback(
+        quotes, base, '네이버페이', ['무신사 현대카드', '넥슨 현대카드'], 1000, payable
+    )
     assert picked is not None and picked['method'] == '네이버페이' and picked['card'] == '무신사 현대카드'
-    assert picked['cost'] == 100000 and '즉시할인 없음' in why
+    assert picked['cost'] == 100000 and '즉시할인 없음' in why and not wait
     # 결제 단계가 네이버페이 창 안에서 이 순서로 카드를 고른다
     assert picked['card_candidates'] == ['무신사 현대카드', '넥슨 현대카드']
 
-    # 롯데카드 10% 즉시할인(L.PAY 간편결제)이 붙으면 그 줄
+    # 롯데카드 10% 즉시할인(L.PAY 간편결제 — PC 결제 비밀번호)이 붙으면 그 줄로 결제
     raw2 = [*raw, {'method': '간편결제', 'card': '롯데카드', 'cost': 90000, 'discount': '롯데카드 10% 즉시할인'}]
-    picked2, why2 = pick_discounted_or_fallback(
-        cheapest_quotes(raw2, None, payable, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000
+    picked2, why2, wait2 = pick_discounted_or_fallback(
+        cheapest_quotes(raw2, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
     )
     assert picked2 is not None and (picked2['method'], picked2['card'], picked2['cost']) == ('간편결제', '롯데카드', 90000)
-    assert '즉시할인 적용' in why2
-    # 카카오페이 머니 할인이 기본 1,000원을 넘으면(7% 등) 후보다
-    raw3 = [*raw[:2], {'method': '카카오페이', 'card': None, 'cost': 93000}]
-    picked3, _ = pick_discounted_or_fallback(
-        cheapest_quotes(raw3, None, payable, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000
-    )
-    assert picked3 is not None and picked3['method'] == '카카오페이'
+    assert '즉시할인 적용' in why2 and not wait2
     # 네이버페이가 허용 수단에 없으면(키마스터 naver 없음) 다른 수단으로 대신 사지 않는다
-    none, reason = pick_discounted_or_fallback(
-        cheapest_quotes(raw, None, {'site'}, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000
+    none, reason, wait3 = pick_discounted_or_fallback(
+        cheapest_quotes(raw, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, {'site'}
     )
-    assert none is None and '네이버페이' in reason
+    assert none is None and '네이버페이' in reason and not wait3
     # 기본 총액을 못 읽으면 고르지 않는다
-    assert pick_discounted_or_fallback(quotes, 0, '네이버페이', [], 1000)[0] is None
+    assert pick_discounted_or_fallback(quotes, 0, '네이버페이', [], 1000, payable)[0] is None
+
+
+def test_롯데온_폰결제_할인이_가장_크면_결제_대기():
+    """사용자 2026-10-22: 토스페이·카카오페이 등으로 받는 (롯데카드) 할인이 가장 크면 폰이 필요하다 — 결제하지 않고 대기.
+    같은 금액의 PC 수단(L.PAY 롯데카드)이 있으면 그걸로 결제한다."""
+    from samba_agent.agents.buyer import cheapest_quotes, pick_discounted_or_fallback
+
+    base = 100000
+    payable = {'site', 'naver', 'musinsapay'}
+    raw = [
+        {'method': '간편결제', 'card': '롯데카드', 'cost': 95000, 'discount': '롯데카드 5% 즉시할인'},
+        {'method': '네이버페이', 'card': None, 'cost': 100000},
+        {'method': '토스페이', 'card': '롯데카드', 'cost': 90000, 'discount': '토스페이 롯데카드 10%'},
+    ]
+    picked, why, wait = pick_discounted_or_fallback(
+        cheapest_quotes(raw, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
+    )
+    assert picked is None and wait and '폰' in why and '토스페이' in why
+    # 카카오페이 머니 7%(기본 1,000원 초과)도 폰 승인 — 대기
+    raw2 = [raw[1], {'method': '카카오페이', 'card': None, 'cost': 93000}]
+    picked2, _, wait2 = pick_discounted_or_fallback(
+        cheapest_quotes(raw2, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
+    )
+    assert picked2 is None and wait2
+    # 같은 금액이면 PC 수단(L.PAY 롯데카드)으로 결제
+    raw3 = [{**raw[0], 'cost': 90000}, raw[1], raw[2]]
+    picked3, _, wait3 = pick_discounted_or_fallback(
+        cheapest_quotes(raw3, None, None, paid_is_cost=True), base, '네이버페이', ['무신사 현대카드'], 1000, payable
+    )
+    assert picked3 is not None and picked3['method'] == '간편결제' and not wait3

@@ -308,6 +308,8 @@ def payable_methods(
 
 # 폰 앱 승인이 필요한 결제 제공자 — 같은 원가면 PC 에서 끝나는 수단보다 뒤로 둔다(사용자 2026-10-07)
 PHONE_APPROVAL_PROVIDERS = frozenset({'toss', 'kakao'})
+# 결제는 못 해도 할인 비교를 위해 견적만 받는 폰 결제 제공자(롯데온 '폰 결제 대기' 판정, 사용자 2026-10-22)
+PHONE_COMPARE_PROVIDERS = frozenset({'toss', 'kakao', 'payco', 'samsung'})
 
 
 def cheapest_quotes(
@@ -408,18 +410,35 @@ def pick_discounted_or_fallback(
     fallback_method: str,
     fallback_cards: list[str],
     kakao_basic_won: int = 0,
-) -> tuple[dict[str, object] | None, str]:
-    """롯데온 결제수단 규칙(사용자 2026-10-16) — (고른 줄, 근거). 못 고르면 (None, 사유).
+    payable: set[str] | None = None,
+) -> tuple[dict[str, object] | None, str, bool]:
+    """롯데온 결제수단 규칙 — (고른 줄, 근거, 폰 결제 대기 여부). 못 고르면 (None, 사유, …).
 
-    ① 주문서 기본 총액(base_cost)보다 **실제로 내려간** 줄(즉시할인이 적용된 수단)만 후보다 — 회색(비활성) 타일처럼
+    사용자 2026-10-16 · 10-22(무인 자동결제):
+    ① 주문서 기본 총액(base_cost)보다 **실제로 내려간** 줄(즉시할인이 적용된 수단)만 할인 후보다 — 회색(비활성) 타일처럼
        눌러도 금액이 안 내려가는 할인은 인정하지 않는다. 카카오페이 줄은 할인액이 kakao_basic_won(기본 1,000원) 이하면
        '기본 할인'이라 후보에서 뺀다.
-    ② 후보가 있으면 가장 싼 줄(quotes 는 이미 싼 순, 동률이면 PC 결제 우선).
-    ③ 후보가 없으면 fallback_method(네이버페이) 줄로 결제하고 카드는 fallback_cards[0](무신사 현대카드)로 고른다.
-       그 수단이 견적(허용 수단)에 없으면 None — 호출부가 사람에게 넘긴다(다른 수단으로 대신 결제하지 않는다).
+    ② 할인 후보 중 가장 싼 줄(quotes 는 이미 싼 순, 동률이면 PC 결제 우선)이 로봇이 낼 수 있는 수단(payable — 키마스터에
+       결제 비밀번호가 있는 L.PAY 간편결제 롯데카드·네이버페이 등)이면 그 줄로 결제한다. 같은 금액의 PC 수단이 있으면 그것.
+    ③ 가장 큰 할인이 폰 승인 수단(토스페이·카카오페이 등의 롯데카드, 신용카드 앱카드)뿐이면 결제하지 않는다 —
+       (None, 사유, True): 사장님 폰이 필요하니 결제 대기.
+    ④ 할인 후보가 없으면 fallback_method(네이버페이) 줄로 결제하고 카드는 fallback_cards[0](무신사 현대카드)로 고른다.
+       그 수단이 낼 수 있는 견적에 없으면 None — 호출부가 사람에게 넘긴다(다른 수단으로 대신 결제하지 않는다).
+
+    quotes 는 결제 가능 여부로 거르기 전 견적(cheapest_quotes(payable=None))이다. payable 이 None 이면 전부 낼 수 있다고 본다.
     """
     if base_cost <= 0:
-        return None, '주문서 기본 총액(base_cost)을 읽지 못해 할인 적용 여부를 가릴 수 없다'
+        return None, '주문서 기본 총액(base_cost)을 읽지 못해 할인 적용 여부를 가릴 수 없다', False
+
+    def robot_can_pay(q: dict[str, object]) -> bool:
+        if payable is None:
+            return True
+        provider = quote_provider(str(q.get('method') or ''), q.get('card'))  # type: ignore[arg-type]
+        return provider is not None and provider in payable
+
+    def label(q: dict[str, object]) -> str:
+        return f'{q["method"]}/{q["card"]}' if q.get('card') else str(q['method'])
+
     discounted: list[dict[str, object]] = []
     for q in quotes:
         paid = _as_float(q.get('paid'))
@@ -430,14 +449,24 @@ def pick_discounted_or_fallback(
             continue  # 카카오페이 머니 기본 할인 — 쓰지 않는다
         discounted.append(q)
     if discounted:
-        best = discounted[0]
-        label = f'{best["method"]}/{best["card"]}' if best.get('card') else str(best['method'])
-        return best, f'즉시할인 적용 수단 중 최저 {label}(기본 {base_cost:,.0f} → {_as_float(best["paid"]):,.0f})'
-    fallback = next((q for q in quotes if fallback_method in str(q.get('method') or '')), None)
+        top = discounted[0]
+        top_cost = _as_float(top.get('cost'))
+        best = next(
+            (q for q in discounted if robot_can_pay(q) and _as_float(q.get('cost')) <= top_cost), None
+        )
+        if best is None:
+            return None, (
+                f'가장 큰 즉시할인이 폰 승인 수단 {label(top)}(기본 {base_cost:,.0f} → {_as_float(top["paid"]):,.0f})이라 '
+                '로봇이 결제할 수 없다 — 사장님 폰 결제 대기'
+            ), True
+        return best, f'즉시할인 적용 수단 중 최저 {label(best)}(기본 {base_cost:,.0f} → {_as_float(best["paid"]):,.0f})', False
+    fallback = next(
+        (q for q in quotes if fallback_method in str(q.get('method') or '') and robot_can_pay(q)), None
+    )
     if fallback is None:
         return None, (
             f'즉시할인이 붙는 수단이 없는데 기본 수단 {fallback_method} 이 견적(허용 수단)에 없다 — 결제하지 않는다'
-        )
+        ), False
     card = fallback_cards[0] if fallback_cards else None
     # card_candidates: 결제 단계가 네이버페이 결제창 안에서 이 순서로 등록 카드를 고른다(payer._select_naverpay_card)
     chosen = {
@@ -446,7 +475,7 @@ def pick_discounted_or_fallback(
         'cost': _as_float(fallback['paid']),
         'card_candidates': list(fallback_cards),
     }
-    return chosen, f'즉시할인 없음 → {fallback_method}' + (f'/{card}' if card else '') + ' (사용자 규칙)'
+    return chosen, f'즉시할인 없음 → {fallback_method}' + (f'/{card}' if card else '') + ' (사용자 규칙)', False
 
 
 # 포이즌 외 마켓의 까대기 건 배송비(삼바웨이브 기록, 원). 사무실 경유 재발송비 — poizon-sourcing 스킬 규칙
@@ -3028,6 +3057,17 @@ class BuyerAgent(AgentBase):
         if src.pay_rule and 'musinsapay' in payable and self._apply_pay_rule(a, account, snap):
             return
         self.step(f'{self.spec.name}: 결제수단 견적({account})')
+        if src.pay_fallback_method:
+            # 롯데온(사용자 2026-10-22): 토스페이·카카오페이 등 폰 승인 수단의 즉시할인도 견적해 비교한다 — 그쪽 할인이 가장
+            # 크면 로봇이 결제하지 않고 '폰 결제 대기'로 남긴다(pick_discounted_or_fallback). 견적만 읽고 그 수단으로 결제하지 않는다
+            methods = [
+                *methods,
+                *(
+                    m
+                    for m in offered
+                    if m not in methods and method_providers(m, src.money_in_pay, src.direct_card) & PHONE_COMPARE_PROVIDERS
+                ),
+            ]
         quote_args: dict[str, object] = {'profile': account, 'methods': methods}
         if src.direct_card:
             # 카드 직접 결제 소싱처(H몰): 그 카드사 줄만 견적한다(다른 카드사는 허용 수단이 아니다)
@@ -3096,18 +3136,29 @@ class BuyerAgent(AgentBase):
         best = quotes[0]
         if src.pay_fallback_method:
             # 롯데온(사용자 2026-10-16): 즉시할인이 실제로 붙은 수단 중 최저, 없으면 네이버페이 + 지정 카드. 원가 = 실결제액
-            picked, why = pick_discounted_or_fallback(
-                quotes,
+            # 10-22: 폰 승인 수단(토스·카카오 등)의 할인도 비교해야 '폰 결제 대기'를 가릴 수 있다 — 결제 가능 여부로 거르기 전 견적
+            all_quotes = cheapest_quotes(
+                raw_quotes,
+                a.options.get('card'),
+                None,
+                src.easy_pay_card,
+                src.charge_pay,
+                src.direct_card,
+                src.paid_is_cost,
+            )
+            picked, why, phone_wait = pick_discounted_or_fallback(
+                all_quotes,
                 _as_float(out.get('base_cost')),
                 src.pay_fallback_method,
                 list(src.pay_fallback_cards),
                 src.kakao_basic_discount_won,
+                payable,
             )
             if picked is None:
                 raise AgentFailure(
                     'needs_human',
-                    f'{account}: {why} — 견적 {_quote_rows_brief(list(quotes))}',
-                    FailReason.CARD_MISSING,
+                    f'{account}: {why} — 견적 {_quote_rows_brief(list(all_quotes))}',
+                    FailReason.PAY_RULE_STOP if phone_wait else FailReason.CARD_MISSING,
                 )
             best = picked
             self.note('결제 규칙', why)
