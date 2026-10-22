@@ -13,6 +13,7 @@
 import logging
 import time
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,16 @@ log = logging.getLogger(__name__)
 SKU_LIMIT = 40
 # run_forever 가 멈춤 신호를 확인하는 간격(초). 주기가 길어도 종료는 빠르게 한다
 TICK_S = 0.5
+# 배치 요약에서 '사람이 결제' 로 세는 사유(결제 규칙·머니 부족·마진·품절) — 나머지 needs_human/failed 는 '확인'
+HUMAN_REASONS = frozenset(
+    {str(FailReason.PAY_RULE_STOP), str(FailReason.MONEY_INSUFFICIENT), str(FailReason.MARGIN), str(FailReason.OUT_OF_STOCK)}
+)
+
+
+def next_hour_delay(now: datetime) -> float:
+    """다음 정각까지 남은 초(정각이면 3600). 매시간 배치의 대기 시간."""
+    top = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    return (top - now).total_seconds()
 
 
 @dataclass(frozen=True)
@@ -102,6 +113,9 @@ class Intake:
         self._poison_only = poison_only
         # 포이즌 제한의 예외 — 이 소싱처는 판매처와 무관하게 모두 이행(사용자 2026-09-24: 무신사)
         self._all_sellers = frozenset(x.upper() for x in all_sellers_sources)
+        # 직전 바퀴에 접수한 작업 키 — 다음 바퀴 시작 때 결과를 세어 요약 1줄을 올린다(2026-10-22)
+        self._last_batch: list[str] = []
+        self._last_batch_label = ''
         # 이행 불가 주문 처리(가격X·재고X 표시 + 취소요청) — (주문 키(행 id), 실패 사유)
         self._on_unfulfillable = on_unfulfillable
         # 범위 밖 소싱처 미등록 주문 중 이미 연결을 시도한 주문(주기마다 되풀이하지 않는다)
@@ -128,8 +142,13 @@ class Intake:
             log.warning('자동 수집 실패 — 다음 주기에 다시 해본다: %s', e)
             return IntakeReport()
 
+        summary = self.summarize_batch()
+        if summary:
+            self._post_new(summary)
         seen = enqueued = skipped_live = unsupported = 0
         handled: set[str] = set()
+        self._last_batch = []
+        self._last_batch_label = datetime.now().strftime('%H:%M')
         for wave_order in sorted(orders, key=_paid_key):
             seen += 1
             order = wave_order.to_order_ref()
@@ -161,6 +180,7 @@ class Intake:
                 if wave_order.source_inferred and not self._link_inferred(wave_order, job.id, ts):
                     continue
                 enqueued += 1
+                self._last_batch.append(job.key)
                 continue
             # 맡을 구매 에이전트가 없다 — 큐에 흔적만 남기고 바로 사람에게 넘긴다
             unsupported += 1
@@ -219,16 +239,47 @@ class Intake:
         self._post_line(ts, f'소싱처 미등록 → {label} {how}(주문 {out.get("linked_orders", 1)}건)')
         return True
 
-    def run_forever(self, stop: Callable[[], bool], interval_s: float) -> None:
-        """주기 실행. 멈춤 신호는 대기 중에도 `TICK_S` 마다 확인한다."""
+    def summarize_batch(self) -> str | None:
+        """직전 바퀴에 접수한 작업들의 결과 한 줄 — '14:00 배치 — 결제 N · 사람 N · 확인 N(· 진행 N)'. 없으면 None.
+
+        done=결제, needs_human 중 HUMAN_REASONS=사람, 그 외 needs_human/failed=확인, queued/running=진행. 한 번 세면 비운다.
+        """
+        keys, label = self._last_batch, self._last_batch_label
+        self._last_batch = []
+        if not keys:
+            return None
+        paid = human = check = running = 0
+        for key in keys:
+            job = self._queue.get(key)
+            if job is None:
+                continue
+            if job.state == 'done':
+                paid += 1
+            elif job.state in ('queued', 'running'):
+                running += 1
+            elif job.state == 'needs_human' and str(job.error or '') in HUMAN_REASONS:
+                human += 1
+            elif job.state in ('needs_human', 'failed'):
+                check += 1
+        if not (paid or human or check or running):
+            return None
+        text = f'{label} 배치 — 결제 {paid} · 사람 {human} · 확인 {check}'
+        return text + (f' · 진행 {running}' if running else '')
+
+    def run_forever(self, stop: Callable[[], bool], interval_s: float, align_hour: bool = False) -> None:
+        """주기 실행. 멈춤 신호는 대기 중에도 `TICK_S` 마다 확인한다.
+
+        align_hour 면 한 바퀴 뒤 다음 정각까지 자고 정각마다 돈다(매시간 자동결제 배치, 2026-10-22).
+        """
         while not stop():
             try:
                 self.run_once()
             except Exception:  # 한 바퀴가 깨져도 고리는 계속 돈다
                 log.exception('자동 수집 한 바퀴가 실패했다 — 다음 주기로 넘어간다')
+            wait_s = next_hour_delay(datetime.now()) if align_hour else interval_s
             waited = 0.0
-            while waited < interval_s and not stop():
-                nap = min(TICK_S, interval_s - waited)
+            while waited < wait_s and not stop():
+                nap = min(TICK_S, wait_s - waited)
                 time.sleep(nap)
                 waited += nap
 

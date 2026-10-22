@@ -410,3 +410,48 @@ def test_접수한_작업_옵션에_소싱처를_남긴다(setup):
     intake, _wave = make([wave_order('A1', source='MUSINSA')])
     intake.run_once()
     assert q.get('A1').options.get('source') == 'MUSINSA'
+
+
+# ---- 정각 정렬 · 배치 요약(2026-10-22 매시간 자동결제) ----
+
+
+def test_next_hour_delay_는_다음_정각까지_초():
+    from datetime import datetime
+
+    from samba_agent.queue.intake import next_hour_delay
+
+    assert next_hour_delay(datetime(2026, 10, 22, 13, 59, 30)) == 30.0
+    assert next_hour_delay(datetime(2026, 10, 22, 13, 0, 0)) == 3600.0
+    assert next_hour_delay(datetime(2026, 10, 22, 13, 20, 15, 500000)) == pytest.approx(2384.5)
+
+
+def test_배치_요약은_직전_접수분의_결과를_센다(setup):
+    q, slack, make = setup
+    intake, _wave = make([wave_order('A1'), wave_order('A2'), wave_order('A3'), wave_order('A4')])
+    intake.run_once()
+    # 워커가 돌았다고 치고 — 결제 1 · 사람 1 · 확인 1 · 진행 1
+    for key, state, err in (('A1', 'done', None), ('A2', 'needs_human', 'pay_rule_stop'), ('A3', 'needs_human', 'unknown')):
+        job = q.get(key)
+        q.claim() if job.state == 'queued' else None
+        q.finish(job.id, state, error=err)
+    text = intake.summarize_batch()
+    assert text is not None and '결제 1' in text and '사람 1' in text and '확인 1' in text and '진행 1' in text
+    assert intake.summarize_batch() is None  # 두 번 세지 않는다
+
+
+def test_접수_0건이면_요약_없음(setup):
+    _q, _slack, make = setup
+    intake, _wave = make([])
+    intake.run_once()
+    assert intake.summarize_batch() is None
+
+
+def test_다음_바퀴_시작에_요약을_슬랙에_올린다(setup):
+    q, slack, make = setup
+    intake, _wave = make([wave_order('A1')])
+    intake.run_once()
+    job = q.get('A1')
+    q.claim()
+    q.finish(job.id, 'done')
+    intake.run_once()
+    assert any('결제 1' in t for t in slack.tops)

@@ -1131,3 +1131,26 @@ def test_프로모션_종료_재접수는_force_money_옵션을_단다(tmp_path)
     job = q.get('A1')
     assert job.state == 'queued' and job.options.get('force_money') == '1'
     assert job.options.get('source') == 'MUSINSA'
+
+
+def _needs_human_worker(tmp_path, reason: FailReason, text: str, alerts: list[str]):
+    reg = Registry.load(DEFAULT_ROOT)
+    q = JobQueue(tmp_path / 'jobs.sqlite')
+    acts = agents([])
+    acts['buyer.musinsa'] = lambda _a: AgentResult(status='needs_human', reason=text, fail_reason=reason)
+    graph = build_supervisor(reg, acts, checkpointer=MemorySaver(), gate=False)
+    w = Worker(WorkerDeps(queue=q, graph=graph, version='vtest', report=lambda j, l: None, parse_order=order_of, dry_run=False, alert=alerts.append))
+    q.enqueue('A1', 'U1', {}, 'ts1')
+    w.tick()
+
+
+def test_머니_부족이면_알림을_보낸다(tmp_path):
+    alerts: list[str] = []
+    _needs_human_worker(tmp_path, FailReason.MONEY_INSUFFICIENT, '무신사머니 잔액 50,000원 < 결제액 76,300원', alerts)
+    assert len(alerts) == 1 and 'A1' in alerts[0] and '무신사머니 부족' in alerts[0] and '50,000' in alerts[0]
+
+
+def test_pay_rule_stop_은_알림을_보내지_않는다(tmp_path):
+    alerts: list[str] = []
+    _needs_human_worker(tmp_path, FailReason.PAY_RULE_STOP, '토스페이 할인이 최대', alerts)
+    assert alerts == []

@@ -31,6 +31,12 @@ SHIP_RETRY_KEY = '_ship_retry'
 # 승인 뒤 원가가 올라 멈춘 건(cost_changed)을 새 원가로 다시 준비한 횟수 — 상한을 넘으면 사람에게(사용자 2026-10-12)
 REAPPROVE_KEY = '_reapprove'
 REAPPROVE_MAX = 3
+# 사람이 바로 봐야 하는 실패 — 슬랙 최상위 알림(2026-10-22 무인 결제). 사유 → 알림 제목
+ALERT_REASONS: dict[str, str] = {
+    str(FailReason.MONEY_INSUFFICIENT): '무신사머니 부족 — 충전 필요',
+    str(FailReason.VERIFY_MISMATCH): '결제 여부 확인 필요(재결제 금지)',
+    str(FailReason.PAY_INTERRUPTED): '결제 여부 확인 필요(재결제 금지)',
+}
 
 _log = logging.getLogger(__name__)
 
@@ -99,6 +105,8 @@ class WorkerDeps:
     auto_approve: bool = False
     # 자동 승인할 소싱처 id(대문자). '*' 가 있으면 전부(SAMBA_AUTO_APPROVE 목록, 2026-10-22)
     auto_approve_sources: frozenset[str] = frozenset()
+    # 사람이 바로 봐야 하는 실패(ALERT_REASONS)를 슬랙 최상위 메시지로 올린다. 없으면 보고(report)만
+    alert: Callable[[str], None] | None = None
     # 브릿지가 지금 일을 받을 수 있는가(앱 채팅이 도는 동안은 409 busy). 거짓이면 큐를 집지 않고
     # 다음 주기를 기다린다 — 실기: 사용자가 앱에서 채팅을 돌리는 동안 5건이 전부 bridge_down 으로 사람에게 넘어갔다
     ready: Callable[[], bool] | None = None
@@ -496,6 +504,12 @@ class Worker:
             job,
             f'{job.order_no} {outcome}' + (f' — 사유 {fail}' if fail else ' — 완료'),
         )
+        title = ALERT_REASONS.get(str(fail or '')) if outcome == 'needs_human' else None
+        if title and self.d.alert is not None:
+            try:
+                self.d.alert(f'🚨 {job.order_no} {title}: {mask_text(_failed_reason(out))[:200]}')
+            except Exception:  # noqa: BLE001 — 알림 실패가 큐를 막으면 안 된다
+                _log.exception('알림 전송 실패 %s', job.order_no)
         if outcome == 'done' and not self.d.dry_run and self.d.after_done is not None:
             try:
                 line = self.d.after_done(job, out)
