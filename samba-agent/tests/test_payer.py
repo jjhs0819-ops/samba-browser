@@ -1991,3 +1991,23 @@ def test_같은_탭에_넥슨_카드가_없으면_결제하지_않는다(reg):
 def test_카드_후보가_없으면_같은_탭_선택은_아무것도_안_한다(reg):
     a = assignment(reg, dry_run=False, card='무신사머니', handoff={'cost': 10000})
     _payer_agent(reg)._select_naverpay_card_in_tab(a)  # 도구 호출 없음(respx 없이 통과)
+
+
+@respx.mock
+def test_같은_탭_네이버페이는_카드를_먼저_고르고_동의하고_결제하기를_누른다(reg):
+    """실기 2026-10-23: 진입 스크립트가 '동의하고 결제하기'를 먼저 눌러 비밀번호 화면에서 카드를 찾다 card_missing 반복."""
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 49000, 'pay_card_candidates': ['넥슨 현대카드']})
+    before = 'INTERACTIVE ELEMENTS:\n[3] radio "신한카드 9999" value="on"\n[4] radio "넥슨 현대카드 1234"\n[9] button "동의하고 결제하기"'
+    after = 'INTERACTIVE ELEMENTS:\n[3] radio "신한카드 9999"\n[4] radio "넥슨 현대카드 1234" value="on"\n[9] button "동의하고 결제하기"'
+    respx.post(f'{URL}/tool/get_page').mock(side_effect=[page(before), page(after)])
+    respx.post(f'{URL}/tool/find_elements').mock(
+        side_effect=[page('[4] radio "넥슨 현대카드 1234"'), page('[9] button "동의하고 결제하기"')]
+    )
+    click = respx.post(f'{URL}/tool/click').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    agent_ = _payer_agent(reg)
+    agent_._naverpay_agree_after_card(a)
+    ids = [json.loads(c.request.content)['args']['id'] for c in click.calls]
+    assert ids == [4, 9]
+    assert agent_._naverpay_card_done == a.order.order_no
