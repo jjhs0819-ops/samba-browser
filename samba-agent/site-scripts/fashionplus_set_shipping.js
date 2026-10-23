@@ -2,7 +2,7 @@
 // 패션플러스 주문서 배송지 입력 — '배송지 변경' 창(iframe)의 '새 주소 입력'에 이름·주소(우편번호 찾기 팝업)·상세주소를 넣고 되읽는다.
 // 전화 칸은 비워 두고 phone_field_id 로 알린다(하네스가 fill_secret 으로 채운다 — 한 칸, 숫자만). '등록하기'는 누르지 않는다(확정은 fashionplus_confirm_shipping)
 // 탭: args.tab > 이 레인의 패션플러스 주문서 탭 하나 · args: name, address, address_detail, postal_code, profile, tab
-// 반환 {ok,name,address,address_detail,zip,phone_field_id,name_field_id,zip_field_id,road_field_id,phone_formats,order_tab,note}
+// 반환 {ok,name,address,address_detail,zip,phone_field_id,name_field_id,zip_field_id,road_field_id,detail_field_id,phone_formats,order_tab,note}
 const OF = /fashionplus\.co\.kr\/order\/\d+(?:[?#]|$)/
 // 배송지 창(iframe)이 넘어가는 중에 읽으면 프레임 호출이 시간 초과로 던진다 — 잠깐 쉬고 다시 읽는다(2026-10-01)
 const tree = async o => { for (let i = 0; i < 4; i++) { try { return String((await page.get(o)).tree || '') } catch (e) { await sleep(1500) } } return '' }
@@ -10,6 +10,7 @@ const lines = async q => (await tree(q ? { selector: q } : {})).split('PAGE TEXT
 const idOfLine = l => parseInt(String(l).slice(1))
 const valOf = l => ((l || '').match(/value="([^"]*)"/) || [])[1] || ''
 const fail = (note, x) => ({ ok: false, note, ...(x || {}) })
+const sq = s => String(s || '').replace(/\s+/g, '')
 const name = String(args.name || '').trim(), addr = String(args.address || '').trim()
 const det0 = String(args.address_detail || '').trim(), zipWant = String(args.postal_code || '').replace(/\D/g, '')
 // 검색어는 도로명+건물번호까지만 — '…35가길 6, 401호 (천호동 55-2, 그린캐슬)'을 통째로 넣으면 결과가 없다(B05369). 나머지는 상세주소
@@ -46,7 +47,8 @@ const [nameL, phoneL, zipL] = form.slice(k - 3, k)
 const [roadL, detL] = form.slice(k + 1, k + 3)
 if (![nameL, phoneL, zipL, roadL, detL].every(l => /textbox/.test(l || ''))) return fail('주소 입력 칸 모양이 다르다', { order_tab: tab })
 await page.type(idOfLine(nameL), name, false)
-if (detail) await page.type(idOfLine(detL), detail, false)
+// 상세주소는 우편번호 팝업에서 주소를 고른 뒤에 넣는다 — 주소 선택 콜백이 상세주소 칸을 비우고 포커스를 옮기는 사이트가 흔하다.
+// 먼저 넣으면 '등록하기'가 상세주소 누락으로 막혀 창이 안 닫힌다(실기 2026-10-22~23 확정 5건 모두 창이 33초간 안 닫힘)
 
 // 우편번호 찾기 팝업(카카오 우편번호) — 한 번에 2~3개가 뜰 수 있다. 도로명 주소로 찾아 주소 글자가 맞는 결과를 고른다.
 // 팝업 조작이 예외로 끝나도(앱 버그: 하위 프레임 요소 id 못 풂) 새로 뜬 팝업을 모두 닫고 ok:false 로 멈춘다(등록하기 없음)
@@ -93,10 +95,16 @@ for (let i = 0; i < 12 && !road; i++) {
   road = valOf(f.find(l => l.startsWith('[' + idOfLine(roadL) + ']')))
   zip = valOf(f.find(l => l.startsWith('[' + idOfLine(zipL) + ']')))
 }
+if (!road) return fail('주소가 폼에 안 들어감', { order_tab: tab, name: valOf((await big()).find(l => l.startsWith('[' + idOfLine(nameL) + ']'))) })
+const valById = async id => valOf((await big()).find(l => l.startsWith('[' + id + ']')))
+if (detail) {
+  await page.type(idOfLine(detL), detail, false)
+  for (let i = 0; i < 2 && sq(await valById(idOfLine(detL))) !== sq(detail); i++) { await sleep(400); await page.type(idOfLine(detL), detail, false) }
+}
 const f = await big()
 const got = id => valOf(f.find(l => l.startsWith('[' + id + ']')))
 const nm = got(idOfLine(nameL)), dt = got(idOfLine(detL))
-if (!road) return fail('주소가 폼에 안 들어감', { order_tab: tab, name: nm })
+if (detail && sq(dt) !== sq(detail)) return fail('상세주소가 폼에 안 들어감', { order_tab: tab, name: nm })
 return {
   ok: true,
   name: nm,
@@ -108,6 +116,7 @@ return {
   name_field_id: idOfLine(nameL),
   zip_field_id: idOfLine(zipL),
   road_field_id: idOfLine(roadL),
+  detail_field_id: idOfLine(detL),
   phone_formats: ['digits'],
   order_tab: tab,
   note: got(idOfLine(phoneL)) ? 'phone field not empty' : null

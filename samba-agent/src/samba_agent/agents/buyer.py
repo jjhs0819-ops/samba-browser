@@ -4291,6 +4291,17 @@ class BuyerAgent(AgentBase):
                 and _as_float(snap.get('cost')) > 0
             ):
                 self._apply_payment_quotes(a, account, snap)
+        if snap.get('cost') is None and not snap.get('methods') and not snap.get('order_tab'):
+            # 스냅샷이 주문서를 못 열었다(옵션은 맞게 읽음) — 배송지 단계로 넘어가면 'no order tab' 으로 엉뚱한 단계에서
+            # 멈춰 원인이 가려진다(실기 2026-10-23 11:00 패션플러스 2건). 스냅샷 사유를 그대로 남기고 여기서 멈춘다
+            raise AgentFailure(
+                'needs_human',
+                mask_text(
+                    f'주문서를 못 열었다(상품 확인 {account}): '
+                    f'{str(snap.get("note") or snap.get("error") or "사유 없음")[:100]}'
+                ),
+                FailReason.UNKNOWN,
+            )
         # 배송지 — 개인정보(이름·주소)라 Assignment/state/payload 에는 절대 담지 않는다.
         # 실행 시점에만 받아 입력 도구 호출에 바로 쓰고 로컬 변수 밖으로 내보내지 않는다.
         self._set_shipping(a, snap, account)
@@ -4840,6 +4851,7 @@ class BuyerAgent(AgentBase):
                 ('phone_field_id', 'phone_id'),
                 ('zip_field_id', 'zip_id'),
                 ('road_field_id', 'road_id'),
+                ('detail_field_id', 'detail_id'),
             )
             if isinstance(applied.get(src), int)
         }
@@ -4900,7 +4912,19 @@ class BuyerAgent(AgentBase):
             {
                 k: v
                 for k, v in args.items()
-                if k in ('name', 'address', 'profile', 'tab', 'name_id', 'phone_id', 'zip_id', 'road_id')
+                if k
+                in (
+                    'name',
+                    'address',
+                    'address_detail',
+                    'profile',
+                    'tab',
+                    'name_id',
+                    'phone_id',
+                    'zip_id',
+                    'road_id',
+                    'detail_id',
+                )
             },
             goal='배송지 폼을 저장·적용해 주문서에 반영하고, 주문서에서 되읽은 이름·주소를 ok:true 와 함께 돌려준다.',
             check=lambda o: (
