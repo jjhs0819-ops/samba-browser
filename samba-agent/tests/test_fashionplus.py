@@ -173,6 +173,7 @@ def test_배송지_확정은_입력_스크립트가_채운_칸_번호로_되읽�
         'name_field_id': 1000002,
         'zip_field_id': 1000006,
         'road_field_id': 1000009,
+        'detail_field_id': 1000010,
     }
     seen: list[dict[str, object]] = []
 
@@ -195,3 +196,33 @@ def test_배송지_확정은_입력_스크립트가_채운_칸_번호로_되읽�
         1000009,
     )
     assert 'phone' not in confirm
+    # 상세주소 칸 번호도 넘긴다 — 확정 스크립트가 비어 있으면 다시 채운다(실기 2026-10-23 창이 안 닫힘)
+    assert confirm['detail_id'] == 1000010
+
+
+def test_스냅샷이_주문서를_못_열면_배송지로_넘어가지_않고_스냅샷_사유로_멈춘다(
+    buyer, monkeypatch
+) -> None:
+    """실기 2026-10-23 11:00 패션플러스 2건: 옵션은 맞게 읽었는데 주문서를 못 열었고, 그대로 배송지로 넘어가
+    '배송지 입력 검증에 실패했다: no order tab' 으로 엉뚱한 단계에서 멈췄다."""
+    monkeypatch.setattr(
+        BuyerAgent,
+        '_match_options',
+        lambda self, options, wanted: [o for o in options if o == wanted],
+    )
+    called: list[str] = []
+    monkeypatch.setattr(
+        BuyerAgent, '_set_shipping', lambda self, a, snap, acc: called.append('ship')
+    )
+    snap: dict[str, object] = {
+        'options': ['BLACK 240', 'BLACK 250'],
+        'selected': None,
+        'cost': None,
+        'methods': [],
+        'note': 'buy: 구매할 상품을 선택해주세요',
+    }
+    with pytest.raises(AgentFailure) as e:
+        buyer._buy_here(_assignment(buyer), ['buyer01'], 'buyer01', snap)
+    assert called == []
+    assert e.value.reason.startswith('주문서를 못 열었다')
+    assert '구매할 상품을 선택해주세요' in e.value.reason
