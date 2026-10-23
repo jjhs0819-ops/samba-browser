@@ -94,6 +94,8 @@ export const KNOWN_LOGIN_URLS: Record<string, string> = {
   'ohou.se': 'https://ohou.se/users/sign_in',
   'nike.com': 'https://www.nike.com/kr/login',
   'fashionplus.co.kr': 'https://www.fashionplus.co.kr/auth/login',
+  // 더현대Hi — 로그인 페이지 /login(삼바 확장앱 자동로그인 실측 2026-09-01: 아이디 loginId·비밀번호 password, Next.js 라 칸이 늦게 뜬다)
+  'thehyundai.com': 'https://hi.thehyundai.com/login',
   // GS SHOP 은 WAF 가 봇 요청을 일괄 405 로 막아 응답으로 확인하지 못했다.
   // 틀려도 login 도구가 페이지 내 로그인 링크 클릭으로 되짚으므로 후보로만 둔다
   'gsshop.com': 'https://with.gsshop.com/login/loginForm.gs',
