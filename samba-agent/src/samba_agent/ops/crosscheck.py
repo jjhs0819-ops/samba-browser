@@ -468,6 +468,7 @@ class CrossChecker:
 _SITE_OF_BUYER = {
     'musinsa': 'MUSINSA', 'cm29': '29CM', 'lotteon': 'LOTTEON', 'abc': 'ABCmart', 'ssg': 'SSG',
     'fashionplus': 'FashionPlus', 'shoemaker': 'SHOEMAKER', 'hmall': 'TheHyundai', 'gsshop': 'GSShop',
+    'thehyundai': 'TheHyundai',
 }  # fmt: skip
 
 

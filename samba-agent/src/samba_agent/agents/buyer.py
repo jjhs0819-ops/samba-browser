@@ -656,7 +656,11 @@ def route_cost(snap: dict[str, object]) -> float:
 
 def product_no_of(url: str | None) -> str:
     """상품 주소의 상품번호(무신사 /products/123, 29CM /products/123, a-rt prdtNo=, 슈마커 ProductCode=,
-    SSG itemId=, 패션플러스 /goods/detail/123, H몰 slitmCd=). 없으면 ''."""
+    SSG itemId=, 패션플러스 /goods/detail/123, H몰 slitmCd=, 더현대Hi /product/<영숫자 10자>). 없으면 ''."""
+    # 더현대Hi 상품번호(slitmCd)는 영숫자다(40B0696270) — 숫자만 잡는 아래 규칙으로는 빠진다
+    hd = re.search(r'thehyundai\.com/product/([0-9A-Za-z]{10})(?![0-9A-Za-z])', url or '')
+    if hd:
+        return hd.group(1).upper()
     m = re.search(
         r'(?:/products/|[?&]prdtNo=|[?&]ProductCode=|/catalog/|[?&]itemId=|/goods/detail/|[?&]slitmCd=)(\d+)',
         url or '',
@@ -1332,9 +1336,9 @@ def pay_card_quote_problem(out: dict[str, object]) -> str | None:
 
 
 # 주문서·결제 탭(과 그 팝업)만 닫는다. 다른 레인 탭(lane 표시)은 건드리지 않는다. SSG 주문서는 pay.ssg.com/order/ordPage.ssg, 패션플러스는 /order/<번호>,
-# H몰은 hmall.com/mo/oda/order
+# H몰은 hmall.com/mo/oda/order, 더현대Hi 는 thehyundai.com 의 order 주소(마이페이지 주문내역 제외 — 주문서 주소 실측 필요)
 _CLOSE_ORDER_TABS_JS = (
-    "for (const t of await tabs.list()) { if (!t.lane && /order\\/order-form|order\\/checkout|order\\/orderform|pay\\.ssg\\.com\\/order|fashionplus\\.co\\.kr\\/order\\/\\d+|hmall\\.com\\/mo\\/oda\\/order/.test(t.url || '')) "
+    "for (const t of await tabs.list()) { if (!t.lane && /order\\/order-form|order\\/checkout|order\\/orderform|pay\\.ssg\\.com\\/order|fashionplus\\.co\\.kr\\/order\\/\\d+|hmall\\.com\\/mo\\/oda\\/order|thehyundai\\.com\\/(?!mypage)[^?#]*order/.test(t.url || '')) "
     '{ try { await tabs.close(t.id) } catch (e) {} } } return "ok"'
 )
 # 레인 보기에서는 제 레인이 연 탭만 보인다 — 전부 닫으면 그 레인 탭만 닫힌다

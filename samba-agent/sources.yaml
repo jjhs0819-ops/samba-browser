@@ -222,12 +222,29 @@ sources:
     home: https://shopping.naver.com/
     login_host: shopping.naver.com
     status: hold
+  # 더현대Hi(hi.thehyundai.com) — 2026-10-23 본 인스턴스 매시간 자동결제 합류(롯데온·ABC·패션플러스와 같은 흐름).
+  # 삼바웨이브 source_site 는 'THEHYUNDAI'(대소문자 무시로 이 행에 맞는다). 상품 주소 hi.thehyundai.com/product/<slitmCd 10자>
   - id: TheHyundai
     key: thehyundai
     label: 더현대닷컴
-    home: https://www.thehyundai.com/
+    # 홈은 가벼운 마이페이지 — 로그인 전이면 '로그인하시면 상세정보를 확인할 수 있어요' 가 보인다
+    home: https://hi.thehyundai.com/mypage
     login_host: thehyundai.com
-    status: hold
+    product_id: '/product/([0-9A-Za-z]{10})'
+    status: active
+    # 전부 고객 직배. 배송 연락처는 고객 번호를 절대 쓰지 않고 사장님 CS 번호(업무폰) — customer_phone false =
+    # 앱이 키마스터 신원정보 phone 을 fill_secret 으로 채운다(사용자 2026-10-23)
+    order_type: direct
+    customer_phone: false
+    # 새 배송지는 폼에 넣고 전화(업무폰)까지 채운 뒤 thehyundai_confirm_shipping 이 저장·주문서 되읽기
+    shipping_confirm: true
+    # 주소록의 옛 항목(고객 번호가 남아 있을 수 있다)을 고르지 않고 매번 새로 넣는다 — ABC 와 같은 이유
+    reuse_saved_shipping: false
+    # 결제수단은 무조건 현대백화점카드 간편결제(사용자 2026-10-23). 결제 비밀번호 = 카드 비밀번호 앞 2자리 —
+    # 키마스터 thehyundai.com 계정의 결제 비밀번호 항목(제공자 site)에 두고 앱이 넣는다. 다른 수단으로 대신 사지 않는다
+    pay_provider: site
+    paid_is_cost: true   # 원가 = 실제 결제 금액(현대 ×0.973 같은 카드 계수를 곱하지 않는다)
+    buy_accounts: [buy-1]   # 키마스터 thehyundai.com 계정 라벨 — 배포 전 금고에 등록
   - id: REXMONDE
     key: rexmonde
     label: 렉스몽드

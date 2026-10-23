@@ -189,6 +189,19 @@
     ]
   },
   {
+    "name": "checkout_enter_thehyundai",
+    "host": "thehyundai.com",
+    "description": "더현대Hi 주문서에서 현대백화점카드 간편결제를 고르고 필수 동의 뒤 결제하기로 결제 비밀번호 창을 연다. dryRun 이면 결제하기 직전에서 멈추고, 실결제는 expect·amount·tab 이 없으면 누르지 않는다.",
+    "params": [
+      "card — 현대백화점카드 간편결제",
+      "profile",
+      "dryRun",
+      "expect{name,option,selected,product_no}",
+      "amount — 상한",
+      "tab — 주문서 탭 id"
+    ]
+  },
+  {
     "name": "checkout_enter_wconcept",
     "host": "wconcept.co.kr",
     "description": "열려 있는 W컨셉 주문서에서 결제수단을 고른다. card가 일반결제 카드사명이면 일반결제>신용카드 탭에서 드롭다운으로 해당 카드사를 선택하고, 카카오페이/토스페이/페이코/삼성페이/네이버페이/SSG페이/스마일페이/W페이 등 간편결제명이면 해당 라디오를 선택한다. 결제하기 버튼은 누르지 않고(실제 결제 금지) 선택 상태만 확정해 반환한다.",
@@ -1147,6 +1160,52 @@
       "address",
       "address_detail",
       "name",
+      "tab"
+    ]
+  },
+  {
+    "name": "thehyundai_confirm_shipping",
+    "host": "thehyundai.com",
+    "description": "더현대Hi 새 배송지 폼(set_shipping 뒤 전화까지 채움)을 저장·적용해 주문서에 반영하고 주문서의 받는 분·주소를 되읽는다(기본 배송지 설정 안 함).",
+    "params": [
+      "name",
+      "address",
+      "profile",
+      "tab",
+      "name_id",
+      "phone_id"
+    ]
+  },
+  {
+    "name": "thehyundai_order_detail",
+    "host": "thehyundai.com",
+    "description": "더현대Hi 마이페이지 주문내역에서 소싱 주문번호의 상세를 열어 결제금액·H.Point 사용·결제수단·상태를 읽는다(변경 없음).",
+    "params": [
+      "source_order_no",
+      "profile"
+    ]
+  },
+  {
+    "name": "thehyundai_product_snapshot",
+    "host": "thehyundai.com",
+    "description": "더현대Hi 상품의 옵션·품절(상품 API itemSellGbcd)을 읽고 주문 옵션을 골라 구매하기로 주문서까지 간 뒤 원가·담긴 옵션·현대백화점카드 간편결제 여부를 돌려준다(결제 없음).",
+    "params": [
+      "sku — slitmCd 또는 상품 주소",
+      "size — 주문 옵션",
+      "qty",
+      "profile"
+    ]
+  },
+  {
+    "name": "thehyundai_set_shipping",
+    "host": "thehyundai.com",
+    "description": "더현대Hi 주문서 배송지 변경에서 신규 배송지 폼에 이름·주소(주소 검색)·상세주소를 넣고 전화 칸 번호를 돌려준다(저장은 confirm_shipping).",
+    "params": [
+      "name",
+      "address",
+      "address_detail",
+      "postal_code",
+      "profile",
       "tab"
     ]
   },
