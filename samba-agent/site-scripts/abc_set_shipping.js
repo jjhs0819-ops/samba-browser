@@ -15,6 +15,16 @@ if (!profile && !oTab) return fail('no profile/tab — 주문서 탭을 고를 �
 // 주소 포함 비교 — 건물번호 뒤에 숫자가 이어지면 다른 주소('사무실길 58' ≠ '사무실길 580')
 const addrHas = (h, w) => { const t = String(w || '').trim().split(/\s+/).filter(Boolean).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); return !!t.length && new RegExp(t.join('\\s*') + '(?![-\\d])').test(String(h || '')) }
 
+// 주문 주소는 '미사강변동로95,'·'(민락동, …)'·'백범로 677번길 9' 처럼 지저분하고, 카카오 결과는 '경기 하남시 …' 로 줄여 보인다
+// (실기 2026-10-24: 정확 일치만 찾아 '같은 주소 없음'). 검색어는 다듬고, 결과·되읽기는 도로명+건물번호 열쇠와 시군구로 대조한다
+const clean = s => String(s || '').replace(/\([^)]*\)/g, ' ').replace(/,/g, ' ').replace(/(로|길)\s+(\d+번?길)/g, '$1$2').replace(/([가-힣](?:로|길))(\d+)(?!\d*번?길)/g, '$1 $2').replace(/\s+/g, ' ').trim()
+const q = clean(addr)
+const km = q.match(/([가-힣A-Za-z0-9.]+(?:로|길))\s*(\d+(?:-\d+)?)/) || q.match(/([가-힣]+(?:동|리|가))\s+(\d+(?:-\d+)?)/)
+const rk = km ? norm(km[1] + km[2]) : ''
+const gu = ((q.split(km ? km[1] : '\u0000')[0] || '').match(/[가-힣]+(?:시|군|구)(?=\s)/g) || []).pop() || ''
+const guOk = t => !gu || norm(t).includes(gu) || (gu === '서구' && norm(t).includes('서해구'))
+const sameRoad = t => (rk ? norm(t).includes(rk) && guOk(t) : addrHas(t, addr))
+
 const hit = []
 for (const t of ((await tabs.list()) || []).filter(t => isOrderUrl(t.url) && (!oTab || t.id === oTab))) {
   await tabs.switch(t.id)
@@ -55,24 +65,24 @@ await tabs.switch(pop.id)
 let box = null
 for (let i = 0; i < 20 && !box; i++) { box = lines(await page.get({ interactive: true })).find(l => /name=region_name/.test(l)); if (!box) await sleep(250) }
 if (!box) { try { await tabs.close(pop.id) } catch (e) {} return fail('우편번호 검색칸 없음') }
-await page.type(parseInt(box.slice(1)), addr, true)
+await page.type(parseInt(box.slice(1)), q, true)
 // 결과 중 도로명 주소 버튼(입력 주소와 같은 것)
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 let res = null
 for (let i = 0; i < 20 && !res; i++) {
   await sleep(250)
   const ls = lines(await page.get({ interactive: true }))
-  res = ls.find(l => new RegExp(`\\] button "${esc(addr)}"`).test(l))
+  res = ls.find(l => new RegExp(`\\] button "${esc(addr)}"`).test(l)) || ls.find(l => /\] button "/.test(l) && rk && sameRoad(l))
   if (!res && i === 8) { const s = ls.find(l => /\] button "검색"/.test(l)); if (s) try { await page.click(parseInt(s.slice(1))) } catch (e) {} }
 }
 if (!res) { try { await tabs.close(pop.id) } catch (e) {} return fail('우편번호 검색 결과에 같은 주소 없음') }
 try { await page.click(parseInt(res.slice(1))) } catch (e) {}
 // 팝업이 닫히고 주문서 주소 칸이 채워질 때까지
-for (let i = 0; i < 25 && !addrHas(f.addr.v, addr); i++) { await sleep(250); f = await fields() }
-if (!addrHas(f.addr.v, addr)) { try { await tabs.close(pop.id) } catch (e) {} return fail('주소가 주문서에 안 들어감') }
+for (let i = 0; i < 25 && !sameRoad(f.addr.v); i++) { await sleep(250); f = await fields() }
+if (!sameRoad(f.addr.v)) { try { await tabs.close(pop.id) } catch (e) {} return fail('주소가 주문서에 안 들어감') }
 
 // 3) 상세주소 — 전화 칸은 비워 둔다
 if (det && f.det.id) await page.type(f.det.id, det)
 f = await fields()
-const ok = norm(f.name.v) === norm(name) && addrHas(f.addr.v, addr) && (!det || norm(f.det.v) === norm(det))
+const ok = norm(f.name.v) === norm(name) && sameRoad(f.addr.v) && (!det || norm(f.det.v) === norm(det))
 return { ok, name: f.name.v, address: f.addr.v, address_detail: f.det.v, postal_code: f.zip.v, phone_field_id: f.phone.id, note: ok ? null : '되읽은 배송지가 입력과 다름' }
