@@ -748,6 +748,24 @@ def naverpay_card_selected(page: str, card: str, others: list[str] = ()) -> bool
     return None
 
 
+def _dump_naverpay_page(agent: object, order_no: str, page: str) -> None:
+    """[임시 진단 2026-10-23] 카드 후보를 못 찾은 네이버페이 결제창 글자와 탭 목록을 파일로 남긴다(결제 동작 무관)."""
+    try:
+        import os
+        from pathlib import Path
+
+        try:
+            tabs = agent.tool('list_tabs')  # type: ignore[attr-defined]
+        except Exception as e:  # noqa: BLE001
+            tabs = f'list_tabs 실패: {e}'
+        d = Path(os.environ.get('SAMBA_STATE_DIR') or '.')
+        (d / f'naverpay_card_missing_{order_no}.txt').write_text(
+            f'TABS {tabs}\n==== PAGE\n{page}', encoding='utf-8'
+        )
+    except Exception:  # noqa: BLE001 — 진단 실패가 결제 흐름을 바꾸면 안 된다
+        pass
+
+
 def _element_id(found: str) -> int | None:
     """find_elements 응답에서 첫 요소 번호를 뽑는다. 없으면 None."""
     m = ELEMENT_ID_RE.search(found)
@@ -1522,6 +1540,7 @@ class PayerAgent(AgentBase):
                 break
             self.tool('wait', ms=NAVERPAY_CARD_WAIT_MS)
         if chosen is None:
+            _dump_naverpay_page(self, a.order.order_no, page)
             raise AgentFailure(
                 'needs_human',
                 f'네이버페이 결제창에 결제 카드 후보({" → ".join(candidates)})가 하나도 없다 — 결제하지 않는다. '
@@ -2100,6 +2119,10 @@ class PayerAgent(AgentBase):
         # 무신사 현대카드 청구할인이 승인 때보다 줄었으면 결제하지 않는다
         if a.handoff.get('pay_card_name'):
             payload['pay_card'] = str(a.handoff.get('pay_card_name'))
+        # 네이버페이 창 안 카드 후보 — 같은 탭으로 넘어가는 소싱처(롯데온)는 진입 스크립트가 '동의하고 결제하기' 전에 고른다
+        np_cards = a.handoff.get('pay_card_candidates')
+        if isinstance(np_cards, list) and any(str(c).strip() for c in np_cards):
+            payload['naverpay_cards'] = [str(c) for c in np_cards if str(c).strip()]
         if a.handoff.get('pay_tile'):
             payload['tile'] = str(a.handoff.get('pay_tile'))
         billed = a.handoff.get('billed_discount')
@@ -2123,7 +2146,14 @@ class PayerAgent(AgentBase):
             if isinstance(parsed_enter, dict)
             else {'ok': False, 'note': raw_enter[:120]}
         )
+        naver_page = entered.pop('naver_page', None)
+        if naver_page:
+            _dump_naverpay_page(self, a.order.order_no, str(naver_page))
         self.note('결제창', mask_text(json.dumps(entered, ensure_ascii=False)[:400]))
+        if isinstance(entered.get('naver_card'), dict):
+            # 진입 스크립트가 네이버페이 창에서 이미 카드를 골랐다 — 비밀번호 화면에서 다시 찾지 않는다
+            self.note('네이버페이 카드', mask_text(json.dumps(entered['naver_card'], ensure_ascii=False)[:200]))
+            self._naverpay_card_done = a.order.order_no
         if not entered.get('ok'):
             # 결제하기를 못 눌렀다 — 비밀번호 단계로 가지 않는다(실기: 수단을 못 찾고도 키패드를 찾다 거절)
             raise AgentFailure(

@@ -95,8 +95,33 @@ const payId = await page.idOf('결제하기');
 if (payId<0) return {ok:false, error:'결제하기 button not found', method};
 await page.click(payId);
 await sleep(3000);
+let naverCard=null;
 if (/네이버페이/.test(method)) {
-  for (let i = 0; i < 8; i++) { const ag = await page.idOf('동의하고 결제하기'); if (ag >= 0) { await page.click(ag); await sleep(3000); break; } await sleep(1000); }
+  // 네이버페이 창 안 결제 카드는 '동의하고 결제하기' 전에 골라야 한다 — 누르면 바로 비밀번호 화면이라 카드 목록이 없다
+  // (실기 2026-10-23: 비밀번호 화면에서 카드를 찾다 card_missing 반복). 후보가 화면에 없으면 결제하지 않는다
+  const cards=(Array.isArray(args.naverpay_cards)?args.naverpay_cards:[]).map(String).filter(Boolean);
+  const nk=s=>String(s||'').replace(/\s+|카드/g,'').toLowerCase().replace(/nexon/g,'넥슨');
+  for (let i = 0; i < 8; i++) {
+    const ag = await page.idOf('동의하고 결제하기');
+    if (ag < 0) { await sleep(1000); continue; }
+    if (cards.length) {
+      let T=String((await page.get({})).tree||'');
+      const lines=T.split('\n').filter(l=>/^\[\d+\]/.test(l));
+      for (const c of cards) { const k=nk(c); const ln=lines.find(l=>nk(l).includes(k)); if (ln) { naverCard={card:c,line:ln.slice(0,120)}; break; } }
+      if (!naverCard) return {ok:false, error:'naverpay card not found: '+cards.join(','), method, naver_page:T.slice(0,8000)};
+      if (!/value="on"|checked|selected|aria-pressed="true"|aria-current="true"/i.test(naverCard.line)) {
+        await page.click(parseInt(naverCard.line.slice(1))); await sleep(1500);
+        T=String((await page.get({})).tree||'');
+        const after=T.split('\n').find(l=>/^\[\d+\]/.test(l)&&nk(l).includes(nk(naverCard.card)));
+        naverCard.after=(after||'').slice(0,120);
+      }
+      const ag2 = await page.idOf('동의하고 결제하기');
+      if (ag2 < 0) return {ok:false, error:'naverpay pay button lost after card click', method, naver_page:T.slice(0,8000)};
+      if (args.dryRun) return {ok:true, dryRun:true, method, receipt, naver_card:naverCard};
+      await page.click(ag2); await sleep(3000); break;
+    }
+    await page.click(ag); await sleep(3000); break;
+  }
 }
 try{const T=String((await page.get({})).tree||'');if(/^URL: [^\n]*orderSheet/.test(T)){const m=T.match(/사업자등록번호[^\n]{0,25}입력해 ?주세요/);if(m)after='주문서에서 막힘: '+m[0];
 else if(/네이버페이/.test(method)){const P=T.split('PAGE TEXT')[1]||'';const g=(P.match(/[^\n.]{0,30}(?:해 ?주세요|하세요|불가|없습니다|초과)[^\n.]{0,10}/)||[''])[0];after='결제하기 뒤에도 주문서(네이버페이 창 안 열림)'+(g?': '+g.trim():'');
@@ -104,4 +129,4 @@ else if(/네이버페이/.test(method)){const P=T.split('PAGE TEXT')[1]||'';cons
 if(after)return{ok:false,error:after,method,receipt};
 const tbs = await tabs.list();
 const popup = tbs.find(t=>t.kind==='popup');
-return { ok:true, method, receipt, popup_url: popup? popup.url : null, keypad_in_tab: /네이버페이/.test(method) };
+return { ok:true, method, receipt, popup_url: popup? popup.url : null, keypad_in_tab: /네이버페이/.test(method), naver_card: naverCard };
