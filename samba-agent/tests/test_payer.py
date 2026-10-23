@@ -2011,3 +2011,46 @@ def test_같은_탭_네이버페이는_카드를_먼저_고르고_동의하고_�
     ids = [json.loads(c.request.content)['args']['id'] for c in click.calls]
     assert ids == [4, 9]
     assert agent_._naverpay_card_done == a.order.order_no
+
+
+_NP_SLIDE = (
+    'INTERACTIVE ELEMENTS:\n[6] button "결제수단 전체보기"\n[12] button "이전 결제수단"\n[14] button "다음 결제수단"\n'
+    '[25] button "동의하고 결제하기"\nPAGE TEXT:\n결제금액 52000 원 결제 수단 {cur} 선택됨 결제수단 전체보기 '
+    '하나 2325 달달 하나 체크카드(그린, 후불교통) 선택 현대 2503 넥슨현대UNLIMITED 선택 현대 3104 무신사 현대카드 선택 '
+    '동의하고 결제하기'
+)
+
+
+@respx.mock
+def test_네이버페이_슬라이드_결제창은_다음을_눌러_넥슨카드까지_넘긴다(reg):
+    """실기 2026-10-23 m.pay.naver.com: 카드가 요소 줄이 아니라 슬라이드 — 기본 카드가 하나 체크카드였다."""
+    from samba_agent.agents.payer import naverpay_carousel_current
+
+    first = _NP_SLIDE.format(cur='달달 하나 체크카드(그린, 후불교통)')
+    assert naverpay_carousel_current(first) == '달달 하나 체크카드(그린, 후불교통)'
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 49000, 'pay_card_candidates': ['넥슨 현대카드']})
+    respx.post(f'{URL}/tool/get_page').mock(
+        side_effect=[page(first), page(_NP_SLIDE.format(cur='머니 충전결제')), page(_NP_SLIDE.format(cur='넥슨현대UNLIMITED'))]
+    )
+    click = respx.post(f'{URL}/tool/click').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    agent_ = _payer_agent(reg)
+    agent_._select_naverpay_card(a)
+    assert [json.loads(c.request.content)['args']['id'] for c in click.calls] == [14, 14]
+    assert agent_._naverpay_card_done == a.order.order_no
+
+
+@respx.mock
+def test_네이버페이_슬라이드에서_카드까지_못_가면_결제하지_않는다(reg):
+    from samba_agent.agents.base import AgentFailure
+
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 49000, 'pay_card_candidates': ['넥슨 현대카드']})
+    stuck = _NP_SLIDE.format(cur='달달 하나 체크카드(그린, 후불교통)')
+    respx.post(f'{URL}/tool/get_page').mock(return_value=page(stuck))
+    respx.post(f'{URL}/tool/click').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    with pytest.raises(AgentFailure) as e:
+        _payer_agent(reg)._select_naverpay_card(a)
+    assert e.value.fail_reason is FailReason.CARD_MISSING

@@ -748,6 +748,19 @@ def naverpay_card_selected(page: str, card: str, others: list[str] = ()) -> bool
     return None
 
 
+# 네이버페이 결제창(m.pay.naver.com instantPay) 카드는 좌우 넘김 슬라이드다 — 카드가 요소 줄로 안 잡히고, 글자에
+# '결제 수단 <지금 카드> 선택됨' 으로만 보인다. '다음 결제수단' 을 눌러 넘긴다(실기 2026-10-23: 기본 카드가 하나 체크카드).
+NAVERPAY_CAROUSEL_CURRENT_RE = re.compile(r'결제 ?수단\s+(.{1,80}?)\s+선택됨')
+NAVERPAY_CAROUSEL_MAX_STEPS = 30
+
+
+def naverpay_carousel_current(page: str) -> str | None:
+    """슬라이드 결제창에서 지금 골라진 카드 글자. 슬라이드 화면이 아니면 None."""
+    text = page.split('PAGE TEXT:', 1)[-1]
+    m = NAVERPAY_CAROUSEL_CURRENT_RE.search(text)
+    return m.group(1).strip() if m else None
+
+
 def _dump_naverpay_page(agent: object, order_no: str, page: str) -> None:
     """[임시 진단 2026-10-23] 카드 후보를 못 찾은 네이버페이 결제창 글자와 탭 목록을 파일로 남긴다(결제 동작 무관)."""
     try:
@@ -1566,6 +1579,9 @@ class PayerAgent(AgentBase):
                 FailReason.CARD_MISSING,
             )
         self.step(f'payer: 네이버페이 카드 선택({chosen})')
+        if not naverpay_card_lines(page, chosen) and naverpay_carousel_current(page) is not None:
+            self._select_naverpay_carousel(a, chosen, page)
+            return
         before = naverpay_card_selected(page, chosen, candidates)
         if before is not True:
             target = _element_id(self.tool('find_elements', query=chosen))
@@ -1588,6 +1604,30 @@ class PayerAgent(AgentBase):
         else:
             self.note('네이버페이 카드', f'{chosen} 선택 확인')
         self._naverpay_card_done = a.order.order_no
+
+    def _select_naverpay_carousel(self, a: Assignment, chosen: str, page: str) -> None:
+        """슬라이드 결제창에서 '다음 결제수단' 을 눌러 그 카드가 '선택됨' 이 될 때까지 넘긴다. 못 가면 결제하지 않는다."""
+        key = _card_key(chosen)
+        seen: list[str] = []
+        for _ in range(NAVERPAY_CAROUSEL_MAX_STEPS):
+            current = naverpay_carousel_current(page) or ''
+            if key and key in _card_key(current):
+                self.note('네이버페이 카드', f'{chosen} 선택 확인(슬라이드: {current[:40]})')
+                self._naverpay_card_done = a.order.order_no
+                return
+            seen.append(current)
+            nxt = _element_id_of(page, 'button "다음 결제수단"')
+            if nxt is None:
+                break
+            self.tool('click', id=nxt, label='다음 결제수단')
+            self.tool('wait', ms=NAVERPAY_CARD_WAIT_MS)
+            page = self.tool('get_page')
+        _dump_naverpay_page(self, a.order.order_no, page)
+        raise AgentFailure(
+            'needs_human',
+            f'네이버페이 결제창 슬라이드에서 {chosen} 까지 넘기지 못했다(지나간 카드 {len(seen)}장) — 결제하지 않는다',
+            FailReason.CARD_MISSING,
+        )
 
     def _stop_if_promo_ended(self, a: Assignment) -> None:
         """지금 결제창에 '즉시할인 프로모션이 종료' 안내가 떠 있으면 취소를 누르고 결제하지 않는다.
