@@ -4939,7 +4939,11 @@ class BuyerAgent(AgentBase):
             account = str(args.get('profile') or '')
             note = str(confirmed.get('note') or '')
             if (
-                '저장 뒤 목록에 없음' in note or '주문서에 받는 분' in note
+                '저장 뒤 목록에 없음' in note
+                or '주문서에 받는 분' in note
+                # 패션플러스: 등록하기로 주소록엔 저장됐는데 창이 그대로라 주문서에 안 들어간 경우 — 목록에서 고르면 된다
+                # (실기 2026-10-24 289396·296C2F: 주소록에 저장돼 있었고, 재시도는 기존 배송지 선택으로 통과했다 — 418)
+                or '등록하기 뒤 창이 안 닫힘' in note
             ) and self._select_existing_shipping(dict(shipping), account):
                 self.note('배송지 확정', '저장 뒤 목록 확인을 놓쳐 기존 배송지 선택으로 반영')
                 return

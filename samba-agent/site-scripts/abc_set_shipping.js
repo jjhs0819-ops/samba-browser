@@ -7,7 +7,12 @@ const valOf = l => ((l || '').match(/value="([^"]*)"/) || [])[1] || ''
 const norm = s => String(s || '').replace(/\s+/g, '')
 const isOrderUrl = u => /^https:\/\/(abcmart|grandstage)\.a-rt\.com\/order(?:[?#]|$)/.test(u || '')
 const profile = String(args.profile || '').trim().toLowerCase().split('@')[0]
-const name = String(args.name || '').trim(), addr = String(args.address || '').trim(), det = String(args.address_detail || '').trim()
+const name = String(args.name || '').trim()
+let addr = String(args.address || '').trim(), det = String(args.address_detail || '').trim()
+// 주소에 건물번호가 없고 상세주소가 번호로 시작하면('…잠원로' + '202-11, 1동 901호') 번호를 주소로 옮긴다
+// (실기 2026-10-24: 도로명만으로는 열쇠를 못 만들어 '같은 주소 없음')
+const lead = det.match(/^(\d+(?:-\d+)?)(?!\d)[,\s]*(.*)$/)
+if (lead && /(로|길)[,\s]*$/.test(addr)) { addr = addr.replace(/[,\s]+$/, '') + ' ' + lead[1]; det = lead[2].trim() }
 const fail = note => ({ ok: false, name: null, address: null, address_detail: null, phone_field_id: null, note })
 if (!name || !addr) return fail('name·address 인자 없음')
 const oTab = String(args.tab || args.order_tab || '')
@@ -17,7 +22,7 @@ const addrHas = (h, w) => { const t = String(w || '').trim().split(/\s+/).filter
 
 // 주문 주소는 '미사강변동로95,'·'(민락동, …)'·'백범로 677번길 9' 처럼 지저분하고, 카카오 결과는 '경기 하남시 …' 로 줄여 보인다
 // (실기 2026-10-24: 정확 일치만 찾아 '같은 주소 없음'). 검색어는 다듬고, 결과·되읽기는 도로명+건물번호 열쇠와 시군구로 대조한다
-const clean = s => String(s || '').replace(/\([^)]*\)/g, ' ').replace(/,/g, ' ').replace(/(로|길)\s+(\d+번?길)/g, '$1$2').replace(/([가-힣](?:로|길))(\d+)(?!\d*번?길)/g, '$1 $2').replace(/\s+/g, ' ').trim()
+const clean = s => String(s || '').replace(/\([^)]*\)/g, ' ').replace(/,/g, ' ').replace(/(로|길)\s+(\d+번?길)/g, '$1$2').replace(/([가-힣](?:로|길))(\d+)(?!\d*[가-힣]{0,2}길)/g, '$1 $2').replace(/\s+/g, ' ').trim()
 const q = clean(addr)
 const km = q.match(/([가-힣A-Za-z0-9.]+(?:로|길))\s*(\d+(?:-\d+)?)/) || q.match(/([가-힣]+(?:동|리|가))\s+(\d+(?:-\d+)?)/)
 const rk = km ? norm(km[1] + km[2]) : ''

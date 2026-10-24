@@ -18,7 +18,8 @@ const det0 = String(args.address_detail || '').trim(), zipWant = String(args.pos
 const joined = !!(det0 && !det0.startsWith(addr) && /^\d/.test(det0) && !/\d\s*$/.test(addr))
 const full0 = det0 && det0.startsWith(addr) ? det0 : joined ? addr + ' ' + det0 : addr
 const cut = full0.match(/^(.*?(?:로|길)\s+\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/) || full0.match(/^(.*?(?:로|길)\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/)
-const query = cut ? cut[1] : addr
+// 도로명과 건물번호가 붙은 주소('…야리로90,')는 카카오 결과('야리로 90')와 글자가 안 맞는다 — 띄운다(실기 2026-10-24)
+const query = (cut ? cut[1] : addr).replace(/([가-힣](?:로|길))(\d+)(?!\d*[가-힣]{0,2}길)/g, '$1 $2').replace(/[,\s]+$/, '')
 const detail = det0 && !det0.startsWith(addr) && !joined ? det0 : (cut ? cut[2] : '').trim()
 if (!name || !addr) return fail('name/address missing')
 const cand = (await tabs.list()).filter(t => OF.test(t.url || '') && (!args.tab || t.id === args.tab))
@@ -78,7 +79,7 @@ try {
         await sleep(400)
         // 결과 묶음 줄(clickable '검색 결과 보기 …')을 누르면 폼에 안 들어간다 — 도로명·지번 버튼을 눌러야 한다(B05369)
         const rs = (await lines()).filter(l => /^\[\d+\] button "/.test(l) && !/지도|영문|검색|취소/.test(l))
-        hit = rs.find(l => toks.length && toks.every(w => l.includes(w)) && (!zipWant || l.includes(zipWant))) || rs.find(l => toks.length && toks.every(w => l.includes(w)))
+        hit = rs.find(l => toks.length && toks.every(w => sq(l).includes(sq(w))) && (!zipWant || l.includes(zipWant))) || rs.find(l => toks.length && toks.every(w => sq(l).includes(sq(w))))
       }
       if (!hit) why = '주소 검색 결과 없음'
       else { await page.click(idOfLine(hit)); for (let i = 0; i < 10 && (await popIds()).includes(pid); i++) await sleep(300) }
