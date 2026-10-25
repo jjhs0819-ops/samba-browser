@@ -63,7 +63,8 @@ for (let i = 0; i < 25; i++) {
   if (ov) { msg = msg || ov[1]; try { msg = dialogOf(await page.click(parseInt(ov[2]))) || msg } catch (e) {} continue }
   const ls = linesOf(tr)
   const okBtn = ls.find(l => /button "확인"$/.test(l) && !okBefore.has(idOf(l)))
-  if (okBtn) { msg = msg || '확인 안내'; try { msg = dialogOf(await page.click(idOf(okBtn))) || msg } catch (e) {} continue }
+  // 창 안 안내 레이어 문구를 사유로 남긴다 — '확인 안내'만으로는 거부 사유를 몰랐다(실기 2026-10-25 296757 두 번 실패)
+  if (okBtn) { msg = msg || ((textOf(tr).match(/[^.!?]{0,50}(?:요|다|오)[.!]?(?=\s*확인)/) || [])[0] || '확인 안내').trim(); try { msg = dialogOf(await page.click(idOf(okBtn))) || msg } catch (e) {} continue }
   back = sheetOf(textOf(tr))
   if (same(back)) break
   formOpen = ls.some(l => /button "등록하기"/.test(l))
