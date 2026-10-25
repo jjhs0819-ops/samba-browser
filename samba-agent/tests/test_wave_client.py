@@ -257,6 +257,21 @@ def test_소싱_계정_id_를_소싱처와_아이디로_찾는다():
 
 
 @respx.mock
+def test_기본_로그인_계정_id_는_하나일_때만():
+    route = respx.get(f'{API}/sourcing-accounts')
+    route.mock(return_value=httpx.Response(200, json=[
+        {'id': 'sa_1', 'source_site': 'MUSINSA', 'username': 'jjhs0819', 'is_default': True},
+        {'id': 'sa_2', 'source_site': 'MUSINSA', 'username': 'other', 'is_default': False},
+    ]))
+    assert client().default_sourcing_account_id('MUSINSA') == 'sa_1'
+    route.mock(return_value=httpx.Response(200, json=[
+        {'id': 'sa_1', 'source_site': 'MUSINSA', 'is_default': True},
+        {'id': 'sa_2', 'source_site': 'MUSINSA', 'is_default': True},
+    ]))
+    assert client().default_sourcing_account_id('MUSINSA') is None
+
+
+@respx.mock
 def test_되읽기는_소싱주문번호로_행을_고른다():
     """한 상품주문번호에 행이 여럿(20260927C5313B 240·260) — 방금 적은 행을 되읽는다."""
     route = respx.get(f'{API}/orders/A1').mock(

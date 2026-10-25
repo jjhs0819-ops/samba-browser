@@ -558,6 +558,35 @@ def test_주문_계정과_같은_계정으로_사도_id_가_비어_있으면_조
     assert json.loads(put.calls[0].request.content)['sourcing_account_id'] == 'sa-edel'
 
 
+@respx.mock
+def test_키마스터_라벨이_삼바_아이디와_달라도_기본_로그인_계정으로_채운다(reg):
+    # 실기 2026-10-25: 키마스터 buy-1 ≠ 삼바 아이디 jjhs0819 — 롯데ON 채널 무신사 결제 16건 주문계정 빈칸
+    put = respx.put(f'{WAVE_API}/orders/A1/sourcing').mock(
+        return_value=httpx.Response(200, json={'ok': True, 'order': WAVE_ORDER})
+    )
+    respx.get(f'{WAVE_API}/orders/A1').mock(return_value=httpx.Response(200, json=WAVE_ORDER))
+    respx.get(f'{WAVE_API}/sourcing-accounts').mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {'id': 'sa-main', 'source_site': 'MUSINSA', 'username': 'jjhs0819', 'is_default': True},
+                {'id': 'sa-sub', 'source_site': 'MUSINSA', 'username': 'other', 'is_default': False},
+            ],
+        )
+    )
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    a = assignment(reg, dry_run=False)
+    a = a.model_copy(
+        update={
+            'order': ORDER.model_copy(update={'account': None, 'account_id': None, 'source': 'MUSINSA'}),
+            'handoff': {**a.handoff, 'account': 'buy-1'},
+        }
+    )
+    out = recorder_with_wave(reg)(a)
+    assert out.status == 'ok'
+    assert json.loads(put.calls[0].request.content)['sourcing_account_id'] == 'sa-main'
+
+
 def test_상세에_카드사가_없으면_구매때_고른_카드사로_청구할인을_곱한다():
     from samba_agent.agents.source_detail import actual_cost, with_pay_card
 

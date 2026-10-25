@@ -245,6 +245,14 @@ class RecorderAgent(AgentBase):
             if found:
                 self.note('주문계정', f'실제 구매 계정 {bought} 로 기록')
                 return found
+            if not a.order.account_id and (
+                fallback := self._wave.default_sourcing_account_id(
+                    _source_site(str(a.handoff.get('buy_source') or a.order.source))
+                )
+            ):
+                # 키마스터 라벨(buy-1)과 삼바 아이디가 달라 대조 실패 — 주문 값도 비어 있으면 기본 로그인 계정으로
+                self.note('주문계정', f'실제 구매 계정 {bought} 를 아이디로 못 찾아 기본 로그인 계정으로 기록')
+                return fallback
             self.note(
                 '주문계정', f'실제 구매 계정 {bought} 의 삼바 id 를 찾지 못해 주문 값으로 둔다'
             )

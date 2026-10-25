@@ -375,6 +375,17 @@ class WaveClient:
         ids = [str(i.get('id')) for i in items or [] if isinstance(i, dict) and i.get('id')]
         return ids[0] if len(ids) == 1 else None
 
+    def default_sourcing_account_id(self, source_site: str) -> str | None:
+        """그 소싱처의 '기본 로그인' 계정 id(하나일 때만). 키마스터 라벨(buy-1)과 삼바 아이디(jjhs0819)가 달라
+        아이디 대조가 실패할 때 쓴다(실기 2026-10-25: 롯데ON 채널 무신사 결제 16건 주문계정 빈칸)."""
+        try:
+            body = self._request('GET', '/sourcing-accounts', params={'source_site': source_site})
+        except WaveError:
+            return None
+        items = body.get('items') if isinstance(body, dict) else body
+        ids = [str(i.get('id')) for i in items or [] if isinstance(i, dict) and i.get('id') and i.get('is_default')]
+        return ids[0] if len(ids) == 1 else None
+
     def get_order(
         self,
         order_no: str,
