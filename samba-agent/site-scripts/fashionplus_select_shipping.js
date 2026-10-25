@@ -18,6 +18,9 @@ await tabs.switch(tab)
 const big = async () => (await lines()).filter(l => /^\[\d{6,}\]/.test(l))
 const closeModal = async () => { const c = (await big()).find(l => /button "모달 닫기"/.test(l)); if (c) { try { await page.click(parseInt(c.slice(1))) } catch (e) {} await sleep(400) } }
 let fr = await big()
+// 창이 이미 열려 있으면(확정 실패 뒤 폴백) 목록이 등록 전 그대로다 — 닫고 다시 열어 새 목록을 읽는다
+// (실기 2026-10-25 296757: 방금 등록한 배송지가 주소록엔 있는데 '목록에 없음')
+if (fr.some(l => /link "(배송지 선택|새 주소 입력)"/.test(l))) { await closeModal(); await sleep(600); fr = await big() }
 if (!fr.some(l => /link "배송지 선택"/.test(l))) {
   // 창이 넘어가는 중이면 조회·클릭이 '프레임 호출 시간 초과'로 던진다 — 삼키고 다시 본다(2026-10-01)
   let ch = -1
