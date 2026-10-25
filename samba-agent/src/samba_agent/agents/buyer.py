@@ -1121,7 +1121,7 @@ def single_digit_code_options(options: list[str], wanted: str | None) -> list[st
 
 
 _CAP_FRACTION_RE = re.compile(r'(?<![\d/])([5-8])\s+([1357])\s*/\s*(2|4|8)(?![\d/])')
-_NO_MATCH_REASON_RE = re.compile(r'(일치|해당)하는 (후보|옵션|선택지)[이가은는도]? ?없')
+_NO_MATCH_REASON_RE = re.compile(r'((일치|해당)하는|동일한|같은) (후보|옵션|선택지)[이가은는도]? ?(후보에 ?)?없')
 _CAP_OPTION_RE = re.compile(r'^(\d{3})(?=\(|\s|$)')
 
 
@@ -3481,6 +3481,10 @@ class BuyerAgent(AgentBase):
                 ),
             )
             return by_code
+        if sold_out_option_listed(options, wanted):
+            # 주문 옵션이 품절로 떠 있다 — AI 에게 다른 옵션을 고르게 하지 않는다
+            # (실기 2026-10-14 무신사 2971_1: 'XXL (품절)' 인데 AI 가 XL 을 골라 결제했다)
+            return []
         pool = numeric_overlap_options(options, wanted)
         if not pool:
             return []
@@ -3505,6 +3509,9 @@ class BuyerAgent(AgentBase):
         choice = resolve_choice(str(getattr(picked, 'choice', '')), pool)
         # 이유는 '일치하는 후보가 없다'인데 답 칸에 후보를 적어 내는 경우가 있다 — 그 답은 버린다(실기 2026-10-03)
         if choice and _NO_MATCH_REASON_RE.search(str(getattr(picked, 'reason', ''))):
+            choice = None
+        # 글자 사이즈가 다르면 표기 차이가 아니다 — AI 답을 버린다(XXL 주문에 XL, 실기 2026-10-14)
+        if choice and size_letters(wanted) and size_letters(choice) and size_letters(wanted) != size_letters(choice):
             choice = None
         result = [choice] if choice else []
         self.note(

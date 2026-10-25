@@ -316,6 +316,25 @@ def test_match_options_uses_ai_only_within_numeric_pool(buyer) -> None:
     )
 
 
+def test_match_options_never_swaps_letter_size(buyer) -> None:
+    """실기 2026-10-14 무신사 2971_1: 'XXL (품절)' 인데 AI 가 XL 을 골라 결제했다 — 품절 옵션·다른 글자 사이즈는 고르지 않는다."""
+    from samba_agent.agents.base import Decision
+
+    asked: list[str] = []
+
+    def decide(prompt, model):
+        asked.append(prompt)
+        return Decision(choice='XL', reason='XXL은 2XL과 같은 표기이며, 동일한 옵션은 후보에 없습니다.')
+
+    buyer._decide = decide
+    # 주문 옵션이 품절로 떠 있으면 AI 에 묻지도 않는다
+    assert buyer._match_options(['S', 'M', 'L', 'XL', 'XXL (품절)'], 'XXL') == []
+    assert asked == []
+    # 품절 표시가 없어도 AI 가 다른 글자 사이즈를 고르면 버린다
+    buyer._decide = lambda p, m: Decision(choice='XL', reason='가까움')
+    assert buyer._match_options(['검정 S', '검정 XL'], '블랙 XXL') == []
+
+
 def test_missing_script_is_created_by_ai(buyer) -> None:
     respx.post(f'{URL}/tool/run_script').mock(
         return_value=page('refused: no saved script named "cm29_set_shipping"')
