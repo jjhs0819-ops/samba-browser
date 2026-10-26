@@ -27,7 +27,10 @@ const q = clean(addr)
 const km = q.match(/([가-힣A-Za-z0-9.]+(?:로|길))\s*(\d+(?:-\d+)?)/) || q.match(/([가-힣]+(?:동|리|가))\s+(\d+(?:-\d+)?)/)
 const rk = km ? norm(km[1] + km[2]) : ''
 const gu = ((q.split(km ? km[1] : '\u0000')[0] || '').match(/[가-힣]+(?:시|군|구)(?=\s)/g) || []).pop() || ''
-const guOk = t => !gu || norm(t).includes(gu) || (gu === '서구' && norm(t).includes('서해구'))
+// 인천 개편(2026-07): 서구 → 서해구·검단구, 중구 → 영종구·제물포구, 동구 → 제물포구 — 주문은 옛 이름, 검색 결과는 새 이름
+// (실기 10-25: '인천 서구 이음5로 39' 가 검색에선 검단구라 '같은 주소 없음')
+const NEWGU = { 서구: ['서해구', '검단구'], 중구: ['영종구', '제물포구'], 동구: ['제물포구'] }
+const guOk = t => !gu || [gu, ...(/인천/.test(q) ? NEWGU[gu] || [] : [])].some(g => norm(t).includes(g))
 const sameRoad = t => (rk ? norm(t).includes(rk) && guOk(t) : addrHas(t, addr))
 
 const hit = []

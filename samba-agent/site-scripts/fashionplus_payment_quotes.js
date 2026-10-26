@@ -9,7 +9,7 @@ const lines = async q => (await page.get(q ? { selector: q } : {})).tree.split('
 const text = async () => ((await page.get({})).tree.split('PAGE TEXT:')[1] || '').replace(/\s+/g, ' ')
 const out = note => ({ quotes: [], base_cost: null, note })
 const exp = args.expect && typeof args.expect === 'object' ? args.expect : {}
-const pnoOf = async () => [...new Set(((await page.get({})).tree.match(/옵션 .+? 수량 \d+개" href=\/goods\/detail\/(\d+)/g) || []).map(m => m.match(/(\d+)$/)[1]))]
+const pnoOf = async () => [...new Set(((await page.get({})).tree.match(/옵션 [^"]+" href=\/goods\/detail\/(\d+)/g) || []).map(m => m.match(/(\d+)$/)[1]))]
 let cand = (await tabs.list()).filter(t => OF.test(t.url || '') && (!args.tab || t.id === args.tab))
 if (!cand.length) return out('no order tab')
 if (cand.length > 1) {

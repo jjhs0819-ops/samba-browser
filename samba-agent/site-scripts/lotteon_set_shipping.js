@@ -11,7 +11,8 @@ const R={name:null,phone:null,address:null,saved:false,gift:false};
 if(!name||!addr)return{...R,error:'name/address missing'};
 // 검색어는 도로명+건물번호까지, 나머지는 상세주소(주소에 번호가 없고 상세가 번호로 시작하면 합친다)
 const joined=!!(det0&&!det0.startsWith(addr)&&/^\d/.test(det0)&&/(로|길)\s*$/.test(addr));
-const full=det0&&det0.startsWith(addr)?det0:(joined?addr+' '+det0:addr);
+// 붙여 쓴 'OO로181번길42-25' 는 '로181' 에서 끊겨 다른 건물을 검색했다(실기 10-25) — 길 뒤 번호를 띄운다
+const full=(det0&&det0.startsWith(addr)?det0:(joined?addr+' '+det0:addr)).replace(/(\d+번?[가-힣]?길)(\d)/g,'$1 $2');
 const cut=full.match(/^(.*?(?:로|길)\s+\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/)||full.match(/^(.*?(?:로|길)\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/);
 const jb=cut?null:full.match(/^(.*?[가-힣](?:동|리|가)\s+\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/);
 const query=cut?cut[1]:(jb?jb[1]:addr);
@@ -64,10 +65,14 @@ if(!si)return{...R,error:'address-search-input-nf'};
 // 결과는 도로명(또는 지번 동·리)과 시·군·구가 같은 줄만 후보다 — 숫자만 맞는 다른 도시 주소를 골라 엉뚱한 곳으로 보냈다(실기 2026-10-02 나주→경주)
 const NS=s=>String(s).replace(/\s+/g,'');const roadKey=((full.match(/[가-힣A-Za-z0-9.]+(?:로|길)(?=\s*\d)/)||full.match(/[가-힣]+(?:동|리|가)(?=\s+\d)/)||[''])[0]);
 const guKeys=(full.match(/[가-힣]{1,6}(?:시|군|구)(?=\s)/g)||[]).filter(k=>!/(특별자치|광역|특별)시$/.test(k)&&!/^(서울|부산|대구|인천|광주|대전|울산|세종)시$/.test(k));
-const okLine=t=>{const n=NS(t);if(roadKey&&!n.includes(NS(roadKey)))return false;if(guKeys.length&&!guKeys.some(k=>n.includes(k)))return false;return true;};
+// 인천 개편(2026-07) — 주문은 옛 구 이름, 검색 결과는 새 이름일 수 있다
+const GA=/인천/.test(full)?{서구:['서해구','검단구'],중구:['영종구','제물포구'],동구:['제물포구']}:{};
+const okLine=t=>{const n=NS(t);if(roadKey&&!n.includes(NS(roadKey)))return false;if(guKeys.length&&!guKeys.some(k=>[k,...(GA[k]||[])].some(g=>n.includes(g))))return false;return true;};
 async function search(q){
   await page.type(si.id,q,true);
   for(let i=0;i<8;i++){await sleep(600);
+    // 앞 검색이 '결과 없음'이면 Enter 로는 다시 검색되지 않는다 — 검색 버튼을 누른다(실기 10-26)
+    if(i===3){const sb=L(await E('검색'),e=>e.role==='button'&&e.text==='검색');if(sb)await page.click(sb.id);}
     const ls=(await E('[',null)).filter(e=>e.role==='link'&&/^\[\d{5}\]/.test(e.text));
     if(ls.length){let b=null,sc=-1;for(const l of ls.filter(l=>okLine(l.text))){const s=nums(l.text).filter(x=>want.includes(x)).length;if(s>sc){sc=s;b=l;}}return{hit:b,count:ls.length};}
   }

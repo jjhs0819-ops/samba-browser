@@ -1453,6 +1453,10 @@ def test_배송지_비교는_사이트_표기_차이를_허용한다():
     assert not shipping_matches(
         old, {'name': '홍길동', 'address': '인천 서해구 원창동 488 로지스허브 9층911호'}
     )
+    # 서구의 검단 쪽은 검단구로 갈렸다(실기 2026-10-25 ABC: 주문 '인천광역시 서구 이음5로 39')
+    geomdan = {'name': '홍길동', 'address': '인천광역시 서구 이음5로 39 (우미린)', 'address_detail': '3003-1701'}
+    assert shipping_matches(geomdan, {'name': '홍길동', 'address': '인천 검단구 이음5로 39'})
+    assert not shipping_matches(geomdan, {'name': '홍길동', 'address': '인천 검단구 이음5로 93'})
     comma = {
         'name': '김*영',
         'address': '서울 강동구 천중로35가길 6, 401호 (천호동 55-2, 그린캐슬)',

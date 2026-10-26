@@ -28,7 +28,10 @@ if (!dry && !args.tab) return fail('no tab')
 async function formInfo() {
   const tr = (await page.get({})).tree
   const tx = (tr.split('PAGE TEXT:')[1] || '').replace(/\s+/g, ' ')
-  const items = [...tr.matchAll(/link "(.*?) 옵션 (.+?) 수량 (\d+)개" href=\/goods\/detail\/(\d+)/g)].map(m => ({ name: m[1], option: m[2].trim(), qty: num(m[3]), code: m[4] }))
+  // 링크 80자 잘림 → 옵션은 본문에서
+  const items = [...tr.matchAll(/link "(.*?) 옵션 ([^"]+?)(?: 수량 (\d+)개)?" href=\/goods\/detail\/(\d+)/g)].map(m => ({ name: m[1], option: m[2].trim(), qty: num(m[3]), code: m[4], cut: !m[3] }))
+  const tq = tx.match(/ 옵션 (.+?) 수량 (\d+)개/)
+  if (items.length === 1 && items[0].cut && tq && tq[1].startsWith(items[0].option)) Object.assign(items[0], { option: tq[1].trim(), qty: num(tq[2]) })
   return { tx, items, total: num((tx.match(/총 결제 예상금액 \(\d+건\) ([\d,]+)/) || [])[1]), item: items.map(i => `${i.name} 옵션 ${i.option} (${i.code})`).join(' / ') }
 }
 function mismatch(f) {
