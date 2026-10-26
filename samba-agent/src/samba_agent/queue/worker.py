@@ -27,6 +27,9 @@ THREAD_PREFIX = 'job:'
 KAKAO_FALLBACK_MARK = '카카오페이 폰 비밀번호를 기다렸지만'
 # 배송지를 저장했는데 목록에 바로 안 보여 멈춘 결제 전 실패(구매 문구) — 한 번 다시 돌린다
 SHIP_RETRY_MARK = '저장 뒤 목록에 없음'
+# 패션플러스: '배송지 주소가 등록되었습니다' 안내는 떴는데 주문서 창 목록이 안 바뀌어 멈춤 — 다시 돌리면 기존 항목으로 고른다
+# (실기 2026-10-25 296757 · 10-26 2B9616·2D24FC·C54780 모두 두 번째에 통과)
+SHIP_RETRY_MARKS = (SHIP_RETRY_MARK, '배송지 주소가 등록되었습니다')
 SHIP_RETRY_KEY = '_ship_retry'
 # 승인 뒤 원가가 올라 멈춘 건(cost_changed)을 새 원가로 다시 준비한 횟수 — 상한을 넘으면 사람에게(사용자 2026-10-12)
 REAPPROVE_KEY = '_reapprove'
@@ -542,7 +545,7 @@ class Worker:
             return self.d.queue.get_by_id(job.id)  # type: ignore[return-value]
         if outcome == 'needs_human' and not self.d.dry_run and not job.options.get(SHIP_RETRY_KEY):
             reason = _failed_reason(out)
-            if SHIP_RETRY_MARK in reason:
+            if any(m in reason for m in SHIP_RETRY_MARKS):
                 # 롯데온 선물: 새 배송지를 저장했는데 목록에 바로 안 보여 멈춘 경우 — 다시 돌리면 저장된 배송지를
                 # 기존 항목으로 골라 통과한다(실기 2026-09-30~10-01, 3건 모두 두 번째에 이행). 한 번만 다시 산다
                 self.d.queue.finish(job.id, 'failed', error=str(fail) if fail else None)

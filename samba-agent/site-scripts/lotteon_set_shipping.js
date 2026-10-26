@@ -48,6 +48,9 @@ if(rr.length){
     await page.click(ch.id);for(let i=0;i<8&&!add;i++){await sleep(800);add=await fa();}
   }
   if(!add)return{...R,error:'add-address-button-nf'};
+  // 주소록을 늘리지 않는다(사용자 2026-10-26) — 삭제 버튼이 있는 첫 항목(작업용)을 '수정'으로 덮어쓴다. 없을 때만 새로 추가
+  const d=(await E(null,'[role=dialog]'));const k=d.findIndex((e,i)=>e.role==='button'&&e.text==='수정'&&d[i+1]&&d[i+1].role==='button'&&d[i+1].text==='삭제');
+  if(k>=0){add=d[k];R.edited=true;}
 }
 await page.click(add.id);await sleep(1500);
 const nameQ=R.gift?'받는 분':'받는 분을 입력';
@@ -56,6 +59,8 @@ if(!n)return{...R,error:'name-input-nf'};
 await page.type(n.id,name,false);
 let p=L(await E('휴대폰'),e=>e.role==='textbox');
 R.phone_field_id=p?p.id:null;
+// 수정 폼엔 앞 주문의 전화·배송메시지가 남아 있다 — 비운다(전화는 하네스가 채운다)
+if(R.edited){if(p)await page.type(p.id,'',false);const mm=L(await E('직접 입력하기'),e=>e.role==='textbox');if(mm)await page.type(mm.id,'',false);}
 let z=L(await E('우편번호 찾기'),e=>e.role==='button');
 if(!z)return{...R,error:'zip-button-nf'};
 await page.click(z.id);await sleep(1200);
