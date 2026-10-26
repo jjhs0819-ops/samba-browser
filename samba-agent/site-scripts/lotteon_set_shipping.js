@@ -16,7 +16,8 @@ const full=(det0&&det0.startsWith(addr)?det0:(joined?addr+' '+det0:addr)).replac
 const cut=full.match(/^(.*?(?:로|길)\s+\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/)||full.match(/^(.*?(?:로|길)\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/);
 const jb=cut?null:full.match(/^(.*?[가-힣](?:동|리|가)\s+\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/);
 const query=cut?cut[1]:(jb?jb[1]:addr);
-const rest=(jb?jb[2]:'').trim();
+// 건물번호 뒤 나머지('… 9 가동')도 상세주소 앞에 붙인다(괄호 속은 뺀다, 실기 10-26 Lazada '가동' 누락)
+const rest=(jb?jb[2]:(cut?cut[2].replace(/\([^)]*\)/g,' ').replace(/[,\s]+/g,' '):'')).trim();
 const detail=(det0&&!det0.startsWith(addr)&&!joined)?((rest&&!det0.includes(rest)?rest+' ':'')+det0):(cut?cut[2]:rest).trim();
 // 선물 주문서?
 // 주문서가 다 그려진 뒤에 선물·직배를 가린다 — 일찍 보면 선물 주문서를 직배로 잘못 본다

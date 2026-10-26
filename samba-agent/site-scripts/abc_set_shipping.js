@@ -32,6 +32,9 @@ const gu = ((q.split(km ? km[1] : '\u0000')[0] || '').match(/[가-힣]+(?:시|�
 const NEWGU = { 서구: ['서해구', '검단구'], 중구: ['영종구', '제물포구'], 동구: ['제물포구'] }
 const guOk = t => !gu || [gu, ...(/인천/.test(q) ? NEWGU[gu] || [] : [])].some(g => norm(t).includes(g))
 const sameRoad = t => (rk ? norm(t).includes(rk) && guOk(t) : addrHas(t, addr))
+// 건물번호 뒤 나머지('… 9 가동')는 검색 결과에 안 붙는다 — 상세주소 앞에 붙인다(실기 10-26 Lazada 배대지 '가동' 누락)
+const rest0 = km ? q.slice(q.indexOf(km[0]) + km[0].length).replace(/^[-\d]+/, '').trim() : ''
+if (rest0 && !norm(det).includes(norm(rest0))) det = (rest0 + ' ' + det).trim()
 
 const hit = []
 for (const t of ((await tabs.list()) || []).filter(t => isOrderUrl(t.url) && (!oTab || t.id === oTab))) {
