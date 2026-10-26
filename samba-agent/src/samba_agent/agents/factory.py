@@ -96,6 +96,8 @@ def _shipping_provider(wave: WaveClient | None) -> ShippingFn | None:
         out: dict[str, object] = dict(detail.shipping.to_script_args())
         if detail.shipping.phone:
             out['phone'] = detail.shipping.phone
+        if detail.shipping.memo:
+            out['memo'] = detail.shipping.memo
         return out
 
     return fetch

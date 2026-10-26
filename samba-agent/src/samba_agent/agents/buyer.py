@@ -4642,11 +4642,39 @@ class BuyerAgent(AgentBase):
         # 직배·선물도 같은 배송지가 이미 목록에 있으면 고른다 — 재시도마다 같은 주소가 새로 저장되던 것을 막는다
         # (실기 2026-09-27: 29CM·무신사 주소록에 같은 고객 주소가 4개 쌓임)
         # 단 reuse_saved_shipping=False(ABC)면 고르지 않는다 — 주소록 항목의 옛 고객 번호 대신 업무폰을 넣는다
-        if source_of(self.spec.name).reuse_saved_shipping and self._select_existing_shipping(
-            dict(shipping), account
+        if not (
+            source_of(self.spec.name).reuse_saved_shipping
+            and self._select_existing_shipping(dict(shipping), account)
         ):
+            self._apply_shipping(a, shipping, account)
+        self._set_delivery_memo(shipping)
+
+    def _set_delivery_memo(self, shipping: dict[str, object]) -> None:
+        """고객 메모(Lazada 배대지 '[해외묶음번호-…]')를 주문서 배송메모에 그대로 넣고 되읽는다(`<key>_set_memo`).
+
+        사용자 2026-10-26: 해외묶음번호는 무조건 빠짐없이 적는다 — 빠지면 배대지에서 묶음 배송이 안 된다.
+        넣지 못하면(스크립트 없음·되읽기 불일치) 결제하지 않고 사람에게 넘긴다.
+        """
+        memo = str(shipping.get('memo') or '').strip()
+        if not memo:
             return
-        self._apply_shipping(a, shipping, account)
+        key = source_of(self.spec.name).key
+        args: dict[str, object] = {'memo': memo}
+        if getattr(self, '_ship_tab', ''):
+            args['tab'] = self._ship_tab
+        try:
+            out = self.json_tool('run_script', name=f'{key}_set_memo', args=json.dumps(args, ensure_ascii=False))
+        except AgentFailure as e:
+            raise AgentFailure(
+                'needs_human', f'배송메모(해외묶음번호) 입력 실패: {e.reason[:80]}', FailReason.UNKNOWN
+            ) from e
+        if not out.get('ok') or str(out.get('memo') or '') != memo:
+            raise AgentFailure(
+                'needs_human',
+                f'배송메모(해외묶음번호) 입력 실패: {str(out.get("note") or "되읽기 불일치")[:80]}',
+                FailReason.UNKNOWN,
+            )
+        self.note('배송메모', f'고객 메모 {memo} 를 주문서 배송메모에 넣고 되읽어 확인')
 
     def _ssg_gift(self, a: Assignment, snap: dict[str, object], account: str) -> None:
         """SSG 선물하기(사용자 2026-09-29 "까대기 제외하고 선물하기", 수동 성공 2건 이식).

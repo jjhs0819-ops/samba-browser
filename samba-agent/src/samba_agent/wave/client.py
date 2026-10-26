@@ -84,6 +84,8 @@ class WaveShipping(BaseModel):
     address: str = ''
     address_detail: str = ''
     postal_code: str = ''
+    # 소싱처 배송메모에 그대로 적어야 하는 고객 메모(Lazada 배대지 '[해외묶음번호-…]'). 스크립트 인자에는 안 넣는다(<key>_set_memo 가 따로 넣는다)
+    memo: str = ''
 
     def to_script_args(self) -> dict[str, str]:
         """앱 저장 스크립트(<key>_set_shipping)가 받는 모양. 빈 값은 빼지 않는다(덮어쓰기 목적).

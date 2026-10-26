@@ -75,6 +75,15 @@
     "params": []
   },
   {
+    "name": "abc_set_memo",
+    "host": "abcmart.a-rt.com",
+    "description": "주문서 배송메모에 고객 메모(해외묶음번호)를 그대로 넣고 되읽는다",
+    "params": [
+      "memo",
+      "tab"
+    ]
+  },
+  {
     "name": "abc_set_shipping",
     "host": "abcmart.a-rt.com",
     "description": "ABC마트 주문서 배송지를 새로 입력한다(이름·전화·주소). 되읽은 값과 ok 를 돌려준다.",
@@ -396,6 +405,15 @@
     ]
   },
   {
+    "name": "fashionplus_set_memo",
+    "host": "fashionplus.co.kr",
+    "description": "주문서 배송메모에 고객 메모(해외묶음번호)를 그대로 넣고 되읽는다",
+    "params": [
+      "memo",
+      "tab"
+    ]
+  },
+  {
     "name": "fashionplus_set_shipping",
     "host": "fashionplus.co.kr",
     "description": "열려 있는 패션플러스 주문서(/order/...)에서 배송지 변경→새 주소 입력 iframe을 열어 이름/우편번호(다음 팝업 자동 검색)/도로명주소/상세주소를 입력하고 되읽는다. phone은 비워두고(하네스가 fill_secret으로 채움), 등록하기는 누르지 않는다.",
@@ -710,6 +728,15 @@
     ]
   },
   {
+    "name": "lotteon_set_memo",
+    "host": "lotteon.com",
+    "description": "주문서 배송메모에 고객 메모(해외묶음번호)를 그대로 넣고 되읽는다",
+    "params": [
+      "memo",
+      "tab"
+    ]
+  },
+  {
     "name": "lotteon_set_shipping",
     "host": "lotteon.com",
     "description": "열려 있는 롯데온 주문서(결제 페이지)에서 배송지 '변경'→'새 배송지 추가'로 이름/전화/주소를 입력하고(주소는 우편번호 찾기 팝업에서 검색→결과 선택→상세주소 입력), 필수 동의 체크 후 저장을 시도해 화면에서 되읽은 값을 반환한다. 결제는 하지 않음. {name,phone,address,saved} 반환 - saved:false면 검증오류(가짜 번호 등)로 실제 저장은 안 된 것.",
@@ -836,6 +863,15 @@
       "name — 수취인 이름(정확)",
       "address — 주소(조각 하나라도 포함되면 매칭)",
       "profile — 선택, 탭 프로필"
+    ]
+  },
+  {
+    "name": "musinsa_set_memo",
+    "host": "",
+    "description": "주문서 배송메모에 고객 메모(해외묶음번호)를 그대로 넣고 되읽는다",
+    "params": [
+      "memo",
+      "tab"
     ]
   },
   {

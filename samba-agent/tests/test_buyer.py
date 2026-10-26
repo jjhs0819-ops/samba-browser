@@ -2454,3 +2454,36 @@ def test_건물번호가_상세에_있는_주문은_도로명열쇠와_구로_�
     # 진단 문구에는 원문이 없다
     shape = _shipping_mismatch_shape(want, {**got, 'address': '서울 성동구 왕십리로 1'})
     assert '도로명열쇠 다름' in shape and '답십리' not in shape and '홍길동' not in shape
+
+
+def test_해외묶음번호_메모는_넣고_되읽어야_통과한다():
+    """사용자 2026-10-26: Lazada 배대지 주문의 '[해외묶음번호-…]'는 소싱처 배송메모에 무조건 빠짐없이."""
+    from samba_agent.agents import buyer as buyer_mod
+    from samba_agent.agents.base import AgentFailure
+
+    agent = buyer_mod.BuyerAgent.__new__(buyer_mod.BuyerAgent)
+    agent.spec = type('S', (), {'name': 'buyer.fashionplus'})()
+    agent.note = lambda *_: None
+    agent._ship_tab = 'tab-1'
+    calls: list[dict[str, object]] = []
+
+    def ok(_tool, **kw):
+        calls.append(kw)
+        return {'ok': True, 'memo': '[해외묶음번호-9828201]'}
+
+    agent.json_tool = ok
+    agent._set_delivery_memo({'name': '4507842646', 'memo': '[해외묶음번호-9828201]'})
+    assert calls and calls[0]['name'] == 'fashionplus_set_memo'
+    assert '"tab": "tab-1"' in str(calls[0]['args'])
+    # 메모가 없으면 스크립트를 부르지 않는다
+    calls.clear()
+    agent._set_delivery_memo({'name': '홍길동'})
+    assert not calls
+    # 되읽은 메모가 다르면 결제하지 않고 사람에게
+    agent.json_tool = lambda *_, **__: {'ok': False, 'memo': '', 'note': '되읽은 메모가 다르다'}
+    try:
+        agent._set_delivery_memo({'memo': '[해외묶음번호-9828201]'})
+    except AgentFailure as e:
+        assert e.status == 'needs_human' and '해외묶음번호' in e.reason
+    else:
+        raise AssertionError('needs_human 이어야 한다')
