@@ -36,11 +36,13 @@ const read = async () => {
     reward: num((t.match(/총 예상 적립금 \+ ([\d,]+)/) || [])[1])
   }
 }
-// 라벨 바로 앞 체크박스 줄
+// 라벨 바로 앞 체크박스 — 줄 순서가 아니라 요소 번호(라벨-1)로 찾는다. 쿠폰 창을 닫은 뒤엔 트리 줄 순서가 바뀌어
+// 체크박스가 라벨과 떨어져 나온다(실기 2026-10-26 적립금 7,550원: 'points checkbox not found')
+const near = (ls, lab, d) => { const l = ls.find(x => x.includes(`clickable "${lab}"`)); return l ? ls.find(x => x.startsWith(`[${parseInt(l.slice(1)) + d}] `)) || '' : '' }
 const boxBefore = async lab => {
   const ls = await lines()
-  const i = ls.findIndex(l => l.includes(`clickable "${lab}"`))
-  return i > 0 && /checkbox/.test(ls[i - 1]) ? { id: parseInt(ls[i - 1].slice(1)), on: /value="on"/.test(ls[i - 1]), label: parseInt(ls[i].slice(1)) } : null
+  const l = ls.find(x => x.includes(`clickable "${lab}"`)), c = near(ls, lab, -1)
+  return l && /checkbox/.test(c) ? { id: parseInt(c.slice(1)), on: /value="on"/.test(c), label: parseInt(l.slice(1)) } : null
 }
 let r = await read()
 const notes = []
@@ -72,7 +74,7 @@ if (r.balance > 0) {
   if (!pb) return fail('points checkbox not found', { order_tab: tab, points_balance: r.balance })
   if (!pb.on) { await page.click(pb.label); await sleep(1000) }
   const ls = await lines()
-  const box = ls[ls.findIndex(l => l.includes('clickable "적립금 모두사용"')) + 1] || ''
+  const box = near(ls, '적립금 모두사용', 1)
   const ap = parseInt((ls.find(l => /button "적용"$/.test(l)) || '[-1]').slice(1))
   r = await read()
   if (r.used === 0 && ap >= 0) { await page.click(ap); await sleep(1000); r = await read() }
