@@ -16,7 +16,8 @@ const det0 = String(args.address_detail || '').trim(), zipWant = String(args.pos
 // 검색어는 도로명+건물번호까지만 — '…35가길 6, 401호 (천호동 55-2, 그린캐슬)'을 통째로 넣으면 결과가 없다(B05369). 나머지는 상세주소
 // 주소에 건물번호가 없고 상세주소가 번호로 시작하면 합친다('국채보상로34길' + '12, 109동 1705호' → C6B9E4 검색 결과 없음)
 const joined = !!(det0 && !det0.startsWith(addr) && /^\d/.test(det0) && !/\d\s*$/.test(addr))
-const full0 = det0 && det0.startsWith(addr) ? det0 : joined ? addr + ' ' + det0 : addr
+// 붙여 쓴 '…로8길41' 은 '로8' 에서 끊겨 다른 건물을 검색했다(실기 10-26 2D24FC) — 길 뒤 번호를 띄운다
+const full0 = (det0 && det0.startsWith(addr) ? det0 : joined ? addr + ' ' + det0 : addr).replace(/(\d+번?[가-힣]?길)(\d)/g, '$1 $2')
 const cut = full0.match(/^(.*?(?:로|길)\s+\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/) || full0.match(/^(.*?(?:로|길)\d+(?:-\d+)?)(?![\d-])[,\s]*(.*)$/)
 // 도로명과 건물번호가 붙은 주소('…야리로90,')는 카카오 결과('야리로 90')와 글자가 안 맞는다 — 띄운다(실기 2026-10-24)
 const query = (cut ? cut[1] : addr).replace(/([가-힣](?:로|길))(\d+)(?!\d*[가-힣]{0,2}길)/g, '$1 $2').replace(/[,\s]+$/, '')

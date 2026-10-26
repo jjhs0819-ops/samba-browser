@@ -1787,6 +1787,10 @@ SHIPPING_ARG_FIELDS = ('name', 'address', 'address_detail', 'postal_code')
 PHONE_SECRET_ITEM = 'identity'
 # 기존 배송지 선택이 프레임 시간 초과로 실패했을 때 다시 고르기 전 기다리는 시간(ms)
 SELECT_SHIPPING_RETRY_MS = 3000
+# 새 배송지 등록 전에 주소록을 비우는 소싱처(`<key>_address_prune` 스크립트) — 주소록이 늘지 않게(사용자 2026-10-26)
+ADDRESS_PRUNE_SOURCES = frozenset({'fashionplus'})
+# 정리 스크립트는 한 번에 몇 개만 지운다(실행 시간 제한) — 남으면 다시 부른다
+ADDRESS_PRUNE_ROUNDS = 4
 PHONE_SECRET_FIELD = 'identity.phone'
 # 앱 fill_secret 이 아는 전화 형식(src/main/agent/tools.ts FILL_FORMATS)
 PHONE_FILL_FORMATS = ('phone-first', 'phone-mid', 'phone-last', 'phone-rest', 'digits')
@@ -4812,6 +4816,32 @@ class BuyerAgent(AgentBase):
         self.note('배송지', '목록의 기존 배송지를 골라 주문서에 반영')
         return True
 
+    def _prune_address_book(self, account: str) -> None:
+        """새 배송지를 등록하기 전에 주소록을 기본 하나만 남기고 비운다(`<key>_address_prune`, 있는 소싱처만).
+
+        주문마다 등록하면 주소록이 끝없이 늘어난다 — 무신사는 240개쯤에서 저장이 막혀 자동결제가 멈췄다(2026-10-26).
+        사용자 규칙: 주소록을 늘리지 말 것. 정리 실패는 결제를 막지 않는다(사유만 남기고 등록으로 간다).
+        """
+        key = source_of(self.spec.name).key
+        if key not in ADDRESS_PRUNE_SOURCES:
+            return
+        args: dict[str, object] = {'profile': account} if account else {}
+        if getattr(self, '_ship_tab', ''):
+            args['tab'] = self._ship_tab
+        deleted = 0
+        for _ in range(ADDRESS_PRUNE_ROUNDS):
+            try:
+                out = self.json_tool(
+                    'run_script', name=f'{key}_address_prune', args=json.dumps(args, ensure_ascii=False)
+                )
+            except AgentFailure as e:
+                self.note('주소록 정리', f'건너뜀({e.reason[:60]})')
+                return
+            deleted += int(_as_float(out.get('deleted')))
+            if out.get('note') or not out.get('left'):
+                break
+        self.note('주소록 정리', f'기본 배송지 외 {deleted}개 삭제' + (f' — {out.get("note")}' if out.get('note') else ''))
+
     def _apply_shipping(self, a: Assignment, shipping: dict[str, object], account: str) -> None:
         """이름·주소를 배송지 스크립트로 넣고 되읽어 대조한다. 원문은 이 함수 밖으로 나가지 않는다."""
         # 이름·주소만 넘긴다 — phone 키는 출처가 어디든 버린다
@@ -4825,6 +4855,7 @@ class BuyerAgent(AgentBase):
         if getattr(self, '_ship_tab', ''):
             args['tab'] = self._ship_tab
 
+        self._prune_address_book(account)
         applied = self._run_set_shipping(shipping, args)
         # 주소 검색 팝업이 첫 시도에 안 뜨는 사이트가 있다(실측 2026-09-29 SSG: 첫 시도 '우편번호 팝업 안 뜸',
         # 팝업을 닫고 다시 부르면 뜬다) — 팝업을 닫고 두 번까지 다시 넣는다
