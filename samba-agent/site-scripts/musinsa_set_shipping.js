@@ -26,6 +26,14 @@ if(!pp){
 if(!pp){out.note='배송지 팝업 못 찾음';return out;}
 await tabs.switch(pp.id);await W('배송지',8000);
 let g=await G();
+// 주소록에 배송지를 계속 추가하면 240개쯤에서 저장이 막힌다(실기 2026-10-26 '일시적인 문제'). 기본 배송지는 그대로 두고,
+// 작업용 배송지 하나(삭제 버튼이 있는 첫 항목)를 '수정'으로 덮어써 계속 쓴다. 없을 때만 새로 추가한다(사용자 2026-10-26)
+let edit=false;
+if(!/name=address1/.test(g.tree)){
+  const ls=g.tree.split('\n').filter(l=>/^\[\d+\] /.test(l));
+  const ei=ls.findIndex((l,i)=>/ button "수정"$/.test(l)&&/ button "삭제"$/.test(ls[i+1]||''));
+  if(ei>=0){edit=true;C(parseInt(ls[ei].slice(1)));g=await P(/name=address1/,8000);}
+}
 if(!/name=address1/.test(g.tree)){
   let m=g.tree.match(/^\[(\d+)\] (?:link|button) "[^"]*배송지 추가[^"]*"/m);
   if(!m){out.note='배송지 추가하기 링크 없음';return out;}
@@ -43,9 +51,11 @@ const bad=/(취소|검색|영문보기|더보기|지도|확인|안내)/;
 // job 233: 하네스 실행에서만 '주소 입력 실패'(수동 재현 3/3 성공) — 결과 창이 늦게 뜨는 경우를 위해 검색어 목록을 한 번 더 돌고,
 // 단계별 결과(주소 원문 없이 숫자만)를 note 에 남긴다
 const dbg=[];
+// 수정 폼은 앞 주문 주소가 들어 있다 — 검색으로 주소칸이 바뀌어야 채운 것이다
+const A1=t=>(t.match(/name=address1 value="([^"]*)"/)||[])[1]||'';const old0=edit?A1(g.tree):'';const done=t=>!!A1(t)&&A1(t)!==old0;
 for(const q of [...qs,...qs]){
   g=await G();
-  if(/name=address1 value="[^"]+"/.test(g.tree))break;
+  if(done(g.tree))break;
   let kM=g.tree.match(/\[(\d+)\] textbox "[^"]*" name=region_name/);
   if(!kM){
     let sM=g.tree.match(/^\[(\d+)\] button "[^"]*주소[^"]*(찾기|검색)[^"]*"/m);
@@ -65,13 +75,14 @@ for(const q of [...qs,...qs]){
     const sc=lt.filter(t=>at.indexOf(t)>=0).length+(/(로|길)\s?\d/.test(nrm(lb))?1:0);
     if(sc>=2&&(!best||sc>best.sc))best={id,sc};
   }
-  if(best){await C(best.id);await P(/name=address1 value="[^"]+"/,8000);}
+  if(best){await C(best.id);for(let w=0;w<20&&!done((await G()).tree);w++)await sleep(400);}
   g=await G();
-  const hit=/name=address1 value="[^"]+"/.test(g.tree);
+  const hit=done(g.tree);
   dbg.push('q'+dbg.length+(best?':점수'+best.sc:/결과가 없/.test(g.tree)?':결과없음':':후보없음')+(hit?':OK':''));
   if(hit)break;
 }
 g=await G();
+if(edit&&!done(g.tree)){out.note='작업용 배송지 수정: 주소 검색 실패('+dbg.join(',')+')';return out;}
 // 우편번호 칸이 비어 있으면 args 값으로 채움
 const zM=g.tree.match(/\[(\d+)\] textbox name=(?:zipcode1|zipcode|postcode)[^\n]*value="([^"]*)"/);
 if(zM&&!zM[2]&&args.postal_code){await page.type(parseInt(zM[1]),''+args.postal_code,false);g=await G();}
