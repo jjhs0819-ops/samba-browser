@@ -89,7 +89,7 @@ if (!OF.test(ou)) return { ...skip('주문서로 못 감: ' + ou.slice(0,80)),er
 const tr=(await page.get({})).tree
 const t=(tr.split('PAGE TEXT:')[1]||'').replace(/\s+/g,' ')
 // 링크 글자는 80자에서 잘린다(10-25) — 잘렸으면 옵션·수량은 본문 줄에서
-const items=[...tr.matchAll(/link "(.*?) 옵션 ([^"]+?)(?: 수량 (\d+)개)?" href=\/goods\/detail\/(\d+)/g)],it=items[0],tq=t.match(/ 옵션 (.+?) 수량 (\d+)개/)
+const items=[...tr.matchAll(/link "(.*?) 옵션 ([^"]+?)(?: 수량(?: (\d+)개?)?)?" href=\/goods\/detail\/(\d+)/g)],it=items[0],tq=t.match(/ 옵션 (.+?) 수량 (\d+)개/)
 if (it&&!it[3]&&tq&&tq[1].startsWith(it[2])) { it[2]=tq[1]; it[3]=tq[2] }
 const selected=it ? it[2].trim() : null
 const order_item=it ? `${it[1]} 옵션 ${it[2]} 수량 ${it[3]} (${it[4]})` : null
