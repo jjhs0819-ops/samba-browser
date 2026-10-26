@@ -55,15 +55,21 @@ if(popup){
     if(!sv){out.note='저장하기 없음';return out;}
     await C(parseInt(sv[1]));await sleep(1200);
   }
+  let gone=false;
   for(let i=0;i<10;i++){
     list=await tabs.list();popup=list.find(t=>t.kind==='popup');
+    // 작업용 배송지를 '수정'으로 저장하면 창이 그냥 닫히고 주문서엔 반영되지 않는다(실기 10-26) — 목록을 다시 열어 고른다
+    if(!popup&&!gone){gone=true;await tabs.switch(orderTab.id);await sleep(500);const b=(await G()).tree.match(/^\[(\d+)\] button "배송지 변경"/m);
+      if(b){await C(parseInt(b[1]));for(let k=0;k<16&&!(await tabs.list()).find(t=>t.kind==='popup');k++)await sleep(500);await sleep(1500);continue;}}
     if(!popup)break;
     await tabs.switch(popup.id);g=await G();
     if(/name=address2/.test(g.tree)){
       if(i===9){const t=g.tree.slice(g.tree.indexOf('PAGE TEXT:'));const e=t.match(/(입력해주세요|올바르지|확인해주세요)[^\n]{0,30}/);out.note='저장 안 됨: '+(e?e[0]:'폼 유지');return out;}
       await sleep(900);continue;
     }
-    const rows=g.tree.split('\n').filter(l=>/^\[\d+\] (clickable|radio|button)/.test(l)&&l.includes(args.name)&&!/수정|삭제/.test(l));
+    let rows=g.tree.split('\n').filter(l=>/^\[\d+\] (clickable|radio|button)/.test(l)&&l.includes(args.name)&&!/수정|삭제/.test(l));
+    // 방금 쓴 작업용 배송지는 이름 대신 '최근 사용' 표시로 보인다 — 삭제 가능한 항목이 하나뿐이면 그 항목(되읽기에서 이름·주소를 다시 본다)
+    if(!rows[0]){const ls=g.tree.split('\n').filter(l=>/^\[\d+\] /.test(l));const ix=ls.map((l,i)=>/ button "수정"$/.test(l)&&/ button "삭제"$/.test(ls[i+1]||'')?i:-1).filter(i=>i>0);if(ix.length===1&&/clickable/.test(ls[ix[0]-1]))rows=[ls[ix[0]-1]];}
     if(rows[0]){await C(parseInt(rows[0].match(/^\[(\d+)\]/)[1]));await sleep(600);g=await G();}
     const ch=g.tree.match(/\[(\d+)\] (?:button|link|clickable) "(?:변경하기|선택하기|선택|적용)"/);
     if(ch){await C(parseInt(ch[1]));await sleep(1500);}

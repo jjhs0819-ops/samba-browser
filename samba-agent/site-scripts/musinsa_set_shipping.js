@@ -30,6 +30,8 @@ let g=await G();
 // 작업용 배송지 하나(삭제 버튼이 있는 첫 항목)를 '수정'으로 덮어써 계속 쓴다. 없을 때만 새로 추가한다(사용자 2026-10-26)
 let edit=false;
 if(!/name=address1/.test(g.tree)){
+  // 목록 항목은 '배송지 정보' 제목보다 늦게 그려진다 — 항목(수정 버튼)이 보일 때까지 잠깐 기다린다(실기 10-26: 기다리지 않아 매번 추가)
+  g=await P(/ button "수정"$|name=address1/m,4000);
   const ls=g.tree.split('\n').filter(l=>/^\[\d+\] /.test(l));
   const ei=ls.findIndex((l,i)=>/ button "수정"$/.test(l)&&/ button "삭제"$/.test(ls[i+1]||''));
   if(ei>=0){edit=true;C(parseInt(ls[ei].slice(1)));g=await P(/name=address1/,8000);}
