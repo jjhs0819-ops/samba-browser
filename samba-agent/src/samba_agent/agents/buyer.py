@@ -1791,6 +1791,9 @@ SELECT_SHIPPING_RETRY_MS = 3000
 ADDRESS_PRUNE_SOURCES = frozenset({'fashionplus'})
 # 정리 스크립트는 한 번에 몇 개만 지운다(실행 시간 제한) — 남으면 다시 부른다
 ADDRESS_PRUNE_ROUNDS = 4
+# 새 배송지 등록 동안 적립금 사용을 풀어 두는 소싱처(`<key>_points_release`) — 등록 뒤 order_prep 으로 다시 적용한다.
+# 패플은 적립금을 쓴 주문서에서 새 배송지 등록이 막혔다(실기 2026-10-27 5건, 안내 '적립금 7,550 원을 사용 합니다.')
+POINTS_RELEASE_SOURCES = frozenset({'fashionplus'})
 PHONE_SECRET_FIELD = 'identity.phone'
 # 앱 fill_secret 이 아는 전화 형식(src/main/agent/tools.ts FILL_FORMATS)
 PHONE_FILL_FORMATS = ('phone-first', 'phone-mid', 'phone-last', 'phone-rest', 'digits')
@@ -4870,6 +4873,61 @@ class BuyerAgent(AgentBase):
                 break
         self.note('주소록 정리', f'기본 배송지 외 {deleted}개 삭제' + (f' — {out.get("note")}' if out.get('note') else ''))
 
+    def _release_points(self, account: str) -> dict[str, float] | None:
+        """새 배송지를 넣기 전에 주문서 적립금 사용을 푼다(`<key>_points_release`, 있는 소싱처만).
+
+        푼 사용액·그때 결제액을 돌려준다 — 배송지 확정 뒤 _reapply_points 가 같은 값으로 되돌렸는지 본다.
+        쓰던 적립금이 없거나 해제에 실패하면 None(예전처럼 그대로 등록한다).
+        """
+        key = source_of(self.spec.name).key
+        if key not in POINTS_RELEASE_SOURCES:
+            return None
+        args: dict[str, object] = {'profile': account} if account else {}
+        if getattr(self, '_ship_tab', ''):
+            args['tab'] = self._ship_tab
+        try:
+            out = self.json_tool(
+                'run_script', name=f'{key}_points_release', args=json.dumps(args, ensure_ascii=False)
+            )
+        except AgentFailure as e:
+            self.note('적립금', f'해제 건너뜀({e.reason[:60]})')
+            return None
+        used = _as_float(out.get('used_before'))
+        if not used:
+            return None
+        if not out.get('ok'):
+            self.note('적립금', f'해제 실패 — 그대로 등록({str(out.get("note") or "")[:60]})')
+            return None
+        self.note('적립금', f'새 배송지 등록 전 적립금 {used:,.0f}원 사용 해제')
+        return {'used': used, 'total': _as_float(out.get('total_before'))}
+
+    def _reapply_points(self, account: str, released: dict[str, float]) -> None:
+        """배송지 확정 뒤 order_prep 으로 적립금을 다시 쓰고, 해제 전 사용액·결제액과 같은지 본다.
+
+        다르면(도서산간 배송비가 붙었거나 적립금이 안 들어감) 견적과 원가가 어긋나므로 결제하지 않고 사람에게 넘긴다.
+        """
+        source = source_of(self.spec.name)
+        args: dict[str, object] = {'profile': account} if account else {}
+        if getattr(self, '_ship_tab', ''):
+            args['tab'] = self._ship_tab
+        try:
+            out = self.json_tool(
+                'run_script', name=source.order_prep_script, args=json.dumps(args, ensure_ascii=False)
+            )
+        except AgentFailure as e:
+            raise AgentFailure(
+                'needs_human', f'배송지 반영 뒤 적립금 재적용 실패: {e.reason[:80]}', FailReason.UNKNOWN
+            ) from e
+        used, total = _as_float(out.get('points_used')), _as_float(out.get('total'))
+        if not out.get('ok') or used != released['used'] or total != released['total']:
+            raise AgentFailure(
+                'needs_human',
+                f'배송지 반영 뒤 적립금·결제액이 견적과 다르다(적립금 {used:,.0f}/{released["used"]:,.0f}원 · '
+                f'결제액 {total:,.0f}/{released["total"]:,.0f}원) — 결제하지 않음',
+                FailReason.UNKNOWN,
+            )
+        self.note('적립금', f'배송지 반영 뒤 적립금 {used:,.0f}원 다시 사용 — 결제액 {total:,.0f}원 그대로')
+
     def _apply_shipping(self, a: Assignment, shipping: dict[str, object], account: str) -> None:
         """이름·주소를 배송지 스크립트로 넣고 되읽어 대조한다. 원문은 이 함수 밖으로 나가지 않는다."""
         # 이름·주소만 넘긴다 — phone 키는 출처가 어디든 버린다
@@ -4884,6 +4942,7 @@ class BuyerAgent(AgentBase):
             args['tab'] = self._ship_tab
 
         self._prune_address_book(account)
+        released = self._release_points(account)
         applied = self._run_set_shipping(shipping, args)
         # 주소 검색 팝업이 첫 시도에 안 뜨는 사이트가 있다(실측 2026-09-29 SSG: 첫 시도 '우편번호 팝업 안 뜸',
         # 팝업을 닫고 다시 부르면 뜬다) — 팝업을 닫고 두 번까지 다시 넣는다
@@ -4922,6 +4981,8 @@ class BuyerAgent(AgentBase):
             if isinstance(applied.get(src), int)
         }
         self._confirm_shipping(shipping, {**args, **field_ids})
+        if released:
+            self._reapply_points(account, released)
         # 결제 직전 주문서 대조용 열쇠(도로명+번호) — 전체 주소는 남기지 않는다
         self._ship_key = road_key(shipping.get('address'))
         # 마스킹 규칙이 이름을 가리려면 라벨이 앞에 있어야 한다(ops.masking) — 라벨을 붙여서 가린다

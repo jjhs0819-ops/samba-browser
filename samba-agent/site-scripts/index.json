@@ -342,6 +342,15 @@
     ]
   },
   {
+    "name": "fashionplus_points_release",
+    "host": "fashionplus.co.kr",
+    "description": "패션플러스 적립금 사용 해제 — 새 배송지 등록 직전(등록 뒤 하네스가 order_prep 으로 다시 적용)",
+    "params": [
+      "profile",
+      "tab"
+    ]
+  },
+  {
     "name": "fashionplus_confirm_shipping",
     "host": "fashionplus.co.kr",
     "description": "패션플러스 새 주소 입력 폼(set_shipping 뒤 전화까지 채움)의 등록하기로 주문서에 반영하고 주문서 배송지를 되읽는다(기본 배송지 설정 안 함).",
