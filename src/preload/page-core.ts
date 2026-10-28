@@ -1404,6 +1404,9 @@ export function keypadUnlabeled(): KeypadCellDto[] | null {
   for (const el of Array.from(document.querySelectorAll<HTMLElement>(KEYPAD_UNLABELED_SELECTOR))) {
     if (singleDigitOf(el) !== null) continue
     if ((el.textContent ?? '').trim() !== '') continue
+    // nProtect 칸: 숫자 칸만 data-action 이 'data' 로 시작한다. 지움·모두지움·재배열('action:…')은 빼야
+    // 재배열 아이콘이 0 으로 읽혀 0 이 두 칸이 되지 않는다(실기 2026-10-28 더현대 결제창)
+    if (el.matches('img.kpd-data') && !(el.getAttribute('data-action') ?? '').startsWith('data')) continue
     // <a><button></button></a> 처럼 겹친 경우 안쪽 하나만 센다
     if (el.querySelector(KEYPAD_UNLABELED_SELECTOR) !== null) continue
     if (!isVisible(el, visible)) continue
