@@ -398,6 +398,8 @@ function opToCode(op: AgentOp): string {
       return `__samba.rectOf(${op.id})`
     case 'valueLength':
       return `__samba.valueLength(${op.id})`
+    case 'nppfsFilled':
+      return `__samba.nppfsFilled()`
     case 'hasFocus':
       return `__samba.hasFocus(${op.id})`
     case 'focusEl':
@@ -766,6 +768,11 @@ export const pageBridge = {
     return call(wc, opToCode({ op: 'idOfRowCell', id, index }), z.number()).catch(() => -1)
   },
   /** 입력칸 값의 글자 수(값 자체는 돌려주지 않는다). 못 읽으면 -1 */
+  /** nProtect 가상키패드에 들어간 자리수(메인 프레임). 못 세면 null */
+  nppfsFilled: (tab: Tab): Promise<number | null> =>
+    call(tab.view.webContents, opToCode({ op: 'nppfsFilled' }), z.number().nullable()).catch(
+      () => null
+    ),
   valueLength: async (tab: Tab, id: number): Promise<number> => {
     const wc = tab.view.webContents
     if (wc.isDestroyed()) return -1

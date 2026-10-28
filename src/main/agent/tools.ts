@@ -1197,7 +1197,12 @@ ${raw}`
         return point ? pageBridge.clickAt(tab, point.x, point.y) : false
       },
       // OCR 배치는 입력칸이 없는 화면(점 6개)이라 자리수를 셀 수 없다 — 검증 없이 한 번씩만 누른다
-      filled: fromOcr ? async () => null : () => pageBridge.keypadFilled(tab, frameIndex),
+      // nProtect 가상키패드(더현대)는 암호문 칸 길이로 자리수를 센다 — 누름마다 확인한다
+      filled: VIRTUAL_KEYPAD_HOSTS.some((h) => currentHost(tab).endsWith(h))
+        ? () => pageBridge.nppfsFilled(tab)
+        : fromOcr
+          ? async () => null
+          : () => pageBridge.keypadFilled(tab, frameIndex),
       onStep: ctx.onStep,
       ...(dryRunDigits === undefined
         ? {}

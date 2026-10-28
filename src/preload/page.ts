@@ -32,6 +32,7 @@ import {
   performScroll,
   rectOf,
   valueLength,
+  nppfsFilled,
   hasFocus,
   focusEl,
   idOfExactText,
@@ -129,6 +130,7 @@ if (!isExtensionDocument) {
     rectOf: (id: number) => rectOf(id),
     // 입력칸 값의 글자 수만(값은 안 돌려준다) — 진짜 키 입력이 들어갔는지 확인용
     valueLength: (id: number) => valueLength(id),
+    nppfsFilled: () => nppfsFilled(),
     hasFocus: (id: number) => hasFocus(id),
     focusEl: (id: number, reveal?: boolean) => focusEl(id, reveal),
     idOfExactText: (text: string, nth: number) => idOfExactText(text, nth),

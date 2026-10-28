@@ -709,6 +709,21 @@ export function rectOf(id: number): ClickPoint | null {
  * 입력칸 값의 글자 수. 메인 프로세스가 진짜 키 입력(typeLogin)으로 넣은 값이 들어갔는지 확인할 때 쓴다 —
  * 값 자체는 돌려주지 않는다(비밀 칸). 요소가 없거나 입력칸이 아니면 -1
  */
+// nProtect 가상키패드 암호문 칸은 한 자리에 이만큼씩 길어진다(더현대 결제창 페이지도 같은 값으로 센다)
+const NPPFS_CIPHER_PER_DIGIT = 96
+
+/**
+ * nProtect 가상키패드에 들어간 자리수. 키패드 칸(data-keypad-useyn-input=…KU…)에 짝인 암호문 칸(…KH…)의
+ * 길이로 센다 — 값(암호문)은 돌려주지 않는다. 키패드가 없으면 null
+ */
+export function nppfsFilled(): number | null {
+  const field = document.querySelector<HTMLInputElement>('input[data-keypad-useyn-input*="KU"]')
+  const ku = field?.getAttribute('data-keypad-useyn-input')
+  if (!ku) return null
+  const cipher = document.querySelector<HTMLInputElement>(`input[name="${CSS.escape(ku.replace('KU', 'KH'))}"]`)
+  return cipher ? Math.round(cipher.value.length / NPPFS_CIPHER_PER_DIGIT) : null
+}
+
 export function valueLength(id: number): number {
   const el = get(id)
   if (!el) return -1
