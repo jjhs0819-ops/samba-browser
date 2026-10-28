@@ -11,6 +11,7 @@
 
 import html
 import logging
+import re
 from typing import Literal
 
 import httpx
@@ -19,6 +20,41 @@ log = logging.getLogger(__name__)
 
 TELEGRAM_API = 'https://api.telegram.org'
 DEFAULT_TIMEOUT_S = 10.0
+
+# httpx 는 INFO 로 'HTTP Request: POST https://api.telegram.org/bot<토큰>/sendMessage …' 를 찍는다(__main__ 이 INFO 로 켠다).
+# 로거 레벨은 올리지 않고(다른 코드가 httpx INFO 줄을 본다) 토큰 조각만 가린다
+_TOKEN_IN_URL = re.compile(r'/bot[^/\s"\']+/')
+_REDACTED = '/bot***/'
+_REDACT_LOGGERS = ('httpx', 'httpcore')
+
+
+class _TokenRedactFilter(logging.Filter):
+    """로그 레코드의 메시지·인자에서 `/bot<토큰>/` 을 `/bot***/` 로 바꾼다. 레코드는 버리지 않는다."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str) and '/bot' in record.msg:
+            record.msg = _TOKEN_IN_URL.sub(_REDACTED, record.msg)
+        if record.args:
+            if isinstance(record.args, tuple):
+                record.args = tuple(self._clean(a) for a in record.args)
+            elif isinstance(record.args, dict):
+                record.args = {k: self._clean(v) for k, v in record.args.items()}
+        return True
+
+    @staticmethod
+    def _clean(value: object) -> object:
+        # httpx 는 URL 객체를 인자로 넘긴다 — 문자열로 바꿔 가린다(가릴 게 없으면 원래 값 유지)
+        text = str(value)
+        return _TOKEN_IN_URL.sub(_REDACTED, text) if '/bot' in text else value
+
+
+def install_token_redaction() -> None:
+    """httpx·httpcore 로거에 토큰 가림 필터를 한 번만 단다(프로세스당 멱등)."""
+    for name in _REDACT_LOGGERS:
+        logger = logging.getLogger(name)
+        if not any(isinstance(f, _TokenRedactFilter) for f in logger.filters):
+            logger.addFilter(_TokenRedactFilter())
+
 
 Level = Literal['ok', 'warn', 'bad']
 _EMOJI: dict[str, str] = {'ok': '🟢', 'warn': '🟡', 'bad': '🔴'}
@@ -44,6 +80,7 @@ class TelegramNotifier:
         timeout_s: float = DEFAULT_TIMEOUT_S,
         client: httpx.Client | None = None,
     ) -> None:
+        install_token_redaction()
         self._url = f'{TELEGRAM_API}/bot{token}/sendMessage'
         self._chat_id = chat_id
         self._timeout_s = timeout_s

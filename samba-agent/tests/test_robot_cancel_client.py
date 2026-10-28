@@ -1,5 +1,6 @@
 # 소싱처 자동취소 — 삼바 로봇 취소 하네스 API 클라이언트 · 텔레그램 카드 · 설정 스위치
 import json
+import logging
 
 import httpx
 import pytest
@@ -218,6 +219,30 @@ def test_카드는_ok_false_응답이면_False_다():
         return httpx.Response(200, json={'ok': False, 'description': 'chat not found'})
 
     assert _telegram(handler).card('ok', '제목', '결론', '할일') is False
+
+
+def test_토큰은_httpx_INFO_로그에_나오지_않는다(caplog):
+    """__main__ 이 INFO 로 켜면 httpx 가 요청 URL 을 찍는다 — /bot<토큰>/ 은 /bot***/ 로 가려야 한다."""
+    logging.getLogger('httpx').propagate = True
+    with caplog.at_level(logging.INFO):
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={'ok': True})
+
+        assert _telegram(handler).card('ok', '제목', '결론', '할일') is True
+    httpx_lines = [r.getMessage() for r in caplog.records if r.name.startswith('httpx')]
+    assert httpx_lines, '필터가 httpx INFO 줄 자체를 없애면 안 된다'
+    assert all('bot-token-fake' not in r.getMessage() for r in caplog.records)
+    assert any('/bot***/sendMessage' in line for line in httpx_lines)
+
+
+def test_토큰_가림_필터는_한_번만_붙는다():
+    TelegramNotifier('bot-token-fake', 'chat-1')
+    TelegramNotifier('bot-token-fake', 'chat-2')
+    filters = [
+        f for f in logging.getLogger('httpx').filters if type(f).__name__ == '_TokenRedactFilter'
+    ]
+    assert len(filters) == 1
 
 
 def test_토큰은_repr_에_나오지_않는다():
