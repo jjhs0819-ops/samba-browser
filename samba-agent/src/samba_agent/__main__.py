@@ -56,7 +56,9 @@ from samba_agent.ops.source_audit import (
     parse_detail,
     run_js_json,
 )
+from samba_agent.ops.source_cancel import SourceCanceller
 from samba_agent.ops.ssg_gift_accept import make_after_done
+from samba_agent.ops.telegram import TelegramNotifier
 from samba_agent.ops.tracing import configure_tracing
 from samba_agent.queue.db import Job, JobQueue
 from samba_agent.queue.intake import Intake
@@ -70,6 +72,7 @@ from samba_agent.repair import (
     app_supports_pay_guard,
 )
 from samba_agent.settings import Settings, load_settings
+from samba_agent.sources import default_sources
 from samba_agent.supervisor.graph import build_supervisor
 from samba_agent.version import harness_version
 from samba_agent.wave.client import WaveClient, WaveError
@@ -638,6 +641,66 @@ def main() -> None:
         )
         threading.Thread(
             target=checker.run_forever, args=(stop.is_set,), daemon=True, name='crosscheck'
+        ).start()
+
+    # 소싱처 자동취소 — 삼바가 내준 취소 행을 소싱처 주문 화면에서 누르고 결과를 회신한다(5분 주기).
+    # 삼바웨이브·SAMBA_AUTO_CANCEL·텔레그램 토큰/채팅 가운데 하나라도 없으면 띄우지 않는다(토큰은 로그에 안 적는다)
+    cancel_sites = settings.auto_cancel_sites()
+    if (
+        wave is None
+        or not cancel_sites
+        or not (settings.telegram_bot_token and settings.telegram_chat_id)
+    ):
+        log.warning(
+            '소싱처 자동취소를 띄우지 않는다 — 삼바웨이브 설정·SAMBA_AUTO_CANCEL·텔레그램 토큰/채팅 ID 중 빠진 것이 있다'
+        )
+    else:
+        cbridge = bridge.scoped(['run_script', 'run_js']).with_lane('cancel')
+
+        def _cancel_script(name: str, args: dict[str, object]) -> dict[str, object] | None:
+            """`<key>_order_cancel` 을 부르고 출력 JSON 을 돌려준다. 스크립트가 없거나 깨지면 None(→ failed)."""
+            try:
+                raw = cbridge.call(
+                    'run_script', name=name, args=json.dumps(args, ensure_ascii=False)
+                ).result
+                start = raw.rfind('{"source_order_no"')
+                out = json.loads(raw[start:]) if start >= 0 else None
+            except (BridgeError, ValueError):
+                return None
+            finally:
+                # 실행이 끝나면 이 레인의 탭을 닫는다(crosscheck 와 같다)
+                try:
+                    cbridge.call('run_js', code=_CLOSE_LANE_TABS_JS, safety='no_pay')
+                except BridgeError:
+                    pass
+            return out if isinstance(out, dict) else None
+
+        enabled_lower = None if cancel_sites == 'all' else {s.lower() for s in cancel_sites}
+
+        def _cancel_profiles(site: str) -> list[str]:
+            # 키마스터 목록 조회(list_accounts)는 그 사이트 탭을 먼저 열어야 해 싸지 않다 —
+            # sources.yaml 의 buy_accounts 를 라벨 목록으로 쓴다(라벨은 우리 사이트에서 로그인 아이디와 같다)
+            src = default_sources().by_id(site)
+            return list(src.buy_accounts) if src is not None else []
+
+        canceller = SourceCanceller(
+            wave,
+            _cancel_script,
+            TelegramNotifier(
+                settings.telegram_bot_token.get_secret_value(), settings.telegram_chat_id
+            ),
+            # 삼바 sites 필터는 대소문자를 가리지 않는다 — 여기 두 번째 확인도 같게
+            enabled=lambda site: enabled_lower is None or site.lower() in enabled_lower,
+            # 주문 작업이 도는 동안에는 브라우저를 건드리지 않는다
+            idle=lambda: not any(j.state in ('queued', 'running') for j in queue.live()),
+            profiles=_cancel_profiles,
+            sites=None if cancel_sites == 'all' else set(cancel_sites),
+        )
+        threading.Thread(
+            target=canceller.run_forever,
+            args=(stop.is_set, float(settings.auto_cancel_interval_s)),
+            daemon=True,
+            name='source-cancel',
         ).start()
 
     if relay is not None:
