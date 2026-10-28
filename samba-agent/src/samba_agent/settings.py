@@ -15,6 +15,19 @@ DEFAULT_SITE_SCRIPTS_FILE = (
 )
 
 
+def parse_site_switch(raw: str | None) -> frozenset[str] | Literal['all']:
+    """소싱처 스위치 값 파싱 — SAMBA_AUTO_APPROVE·SAMBA_AUTO_CANCEL 공용.
+
+    'true'(1·yes·on) → 'all', 'false'(0·no·off)·빈값 → 빈 집합, 그 외는 쉼표 목록(공백·빈 항목 제거, 대소문자 유지).
+    """
+    text = (raw or '').strip()
+    if text.lower() in ('', 'false', '0', 'no', 'off'):
+        return frozenset()
+    if text.lower() in ('true', '1', 'yes', 'on'):
+        return 'all'
+    return frozenset(x.strip() for x in text.split(',') if x.strip())
+
+
 class Settings(BaseSettings):
     """하네스 설정. 이름은 환경변수 이름과 1:1 이다."""
 
@@ -55,6 +68,14 @@ class Settings(BaseSettings):
     # 결제 승인 요청을 사람 대신 즉시 승인할 소싱처 — 'true'(전부) / 'false' / 쉼표 목록(예: MUSINSA,LOTTEON).
     # 2026-10-22 매시간 자동결제 전환: 소싱처별로 켠다(롯데온은 별도 세션이 같은 스위치로 켠다)
     auto_approve: str = Field(default='false', alias='SAMBA_AUTO_APPROVE')
+    # 소싱처 자동취소(2026-10-28) — 'true'(전부) / 'false' / 쉼표 목록. 파싱 규칙은 SAMBA_AUTO_APPROVE 와 같다.
+    # 값은 삼바 `source_site` 그대로 쓴다(예: MUSINSA,ABCmart) — 대소문자를 바꾸지 않는다
+    auto_cancel: str = Field(default='false', alias='SAMBA_AUTO_CANCEL')
+    # 자동취소 고리 주기(초)
+    auto_cancel_interval_s: int = Field(default=300, ge=10, alias='SAMBA_AUTO_CANCEL_INTERVAL_S')
+    # 자동취소 결과 텔레그램 카드(1건 1통). 둘 다 있어야 보낸다
+    telegram_bot_token: SecretStr | None = Field(default=None, alias='SAMBA_TELEGRAM_BOT_TOKEN')
+    telegram_chat_id: str | None = Field(default=None, alias='SAMBA_TELEGRAM_CHAT_ID')
     # False 면 이행 불가(품절·마진 미달) 주문에 가격X/재고X 표시·취소요청을 삼바에 쓰지 않는다 — 1단계(승인 모드)는
     # 카드에 보여만 주고 사람이 정한다(설계서 §8 마진 행, 사용자 2026-10-11). 2단계에서 켠다
     flag_orders: bool = Field(default=True, alias='SAMBA_FLAG_ORDERS')
@@ -121,12 +142,15 @@ class Settings(BaseSettings):
     @property
     def auto_approve_sources(self) -> frozenset[str]:
         """자동 승인할 소싱처(대문자). 'true' 는 {'*'}(전부), 'false'·빈값은 빈 집합."""
-        raw = (self.auto_approve or '').strip()
-        if raw.lower() in ('', 'false', '0', 'no', 'off'):
-            return frozenset()
-        if raw.lower() in ('true', '1', 'yes', 'on'):
+        parsed = parse_site_switch(self.auto_approve)
+        if parsed == 'all':
             return frozenset({'*'})
-        return frozenset(x.strip().upper() for x in raw.split(',') if x.strip())
+        return frozenset(x.upper() for x in parsed)
+
+    def auto_cancel_sites(self) -> set[str] | Literal['all']:
+        """자동취소를 켠 소싱처. 'true' 는 'all', 'false'·빈값은 빈 집합, 목록은 `source_site` 그대로."""
+        parsed = parse_site_switch(self.auto_cancel)
+        return 'all' if parsed == 'all' else set(parsed)
 
 
 def load_settings(env_file: str | Path | None = '.env') -> Settings:

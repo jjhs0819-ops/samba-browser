@@ -309,6 +309,28 @@ def wave_fields(order: WaveOrder) -> dict[str, object]:
     return out
 
 
+class RobotCancelItem(BaseModel):
+    """`GET /robot-cancels` 항목 1건 — 로봇이 소싱처에서 취소(또는 상태만 확인)할 주문.
+
+    비밀번호는 실리지 않는다(계정은 로그인 아이디만). ``mode``: cancel(누른다) / check(상태만 읽는다).
+    ``bundle_count`` 가 2 이상이면 로봇은 누르지 않고 `bundle` 로 회신한다.
+    """
+
+    model_config = ConfigDict(extra='ignore')
+
+    id: str
+    order_id: str | None = None
+    order_number: str
+    source_site: str
+    sourcing_order_number: str
+    account_username: str | None = None
+    mode: Literal['cancel', 'check'] = 'cancel'
+    bundle_count: int = 1
+    shipping_status: str | None = None
+    tracking_number: str | None = None
+    attempts: int = 0
+
+
 class WaveClient:
     """내부 API 3개(목록·상세·소싱 기입)만 부르는 얇은 클라이언트."""
 
@@ -556,6 +578,34 @@ class WaveClient:
             'POST', f'/orders/{key}/precheck-market-cancel', timeout_s=PRECHECK_TIMEOUT_S
         )
         return body if isinstance(body, dict) else {}
+
+    # ---- 소싱처 자동취소(로봇 취소 하네스, 2026-10-28) ----
+
+    def robot_cancels(
+        self, limit: int = 20, sites: set[str] | None = None
+    ) -> list[RobotCancelItem]:
+        """로봇이 처리할 소싱처 취소 행을 선점해 받는다 — 호출 자체가 선점(행은 claimed 가 된다).
+
+        ``sites`` 가 None·빈 집합이면 파라미터를 보내지 않는다(전부). 값은 `source_site` 그대로(대소문자 유지).
+        """
+        params: dict[str, object] = {'limit': limit}
+        if sites:
+            params['sites'] = ','.join(sorted(sites))
+        body = self._request('GET', '/robot-cancels', params=params)
+        items = body.get('items', []) if isinstance(body, dict) else []
+        return [RobotCancelItem.model_validate(it) for it in items]
+
+    def post_robot_cancel_result(self, cancel_id: str, outcome: str, reason: str = '') -> str:
+        """취소 시도 결과를 회신한다. 돌려주는 값은 전이 후 행 state(done·retry·wait_confirm …).
+
+        행이 claimed 가 아니면 삼바는 아무것도 반영하지 않고 현재 state(pending·skipped 등)를 그대로 준다.
+        """
+        body = self._request(
+            'POST',
+            f'/robot-cancels/{cancel_id}/result',
+            json={'outcome': outcome, 'reason': reason},
+        )
+        return str(body.get('state', '')) if isinstance(body, dict) else ''
 
     # ---- 발주 승인·이벤트(삼바 주문화면 승인카드, 사용자 2026-10-09) ----
 
