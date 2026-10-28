@@ -141,5 +141,6 @@ export function applyFocusEmulation(wc: WebContents): Promise<void> {
     if (!attach(wc)) return
     keepDebuggerAttached(wc)
     await send(wc, 'Emulation.setFocusEmulationEnabled', { enabled: true })
+    console.warn(`포커스 에뮬레이션 적용: ${wc.getURL().slice(0, 80)}`)
   })
 }
