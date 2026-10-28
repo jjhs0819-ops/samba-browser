@@ -1126,6 +1126,23 @@ export class TabManager {
     }
     wc.on('did-navigate', focusEmulate)
     wc.on('dom-ready', focusEmulate)
+    // [임시 진단] 가상키패드 상태를 5초마다 읽어 남긴다(읽기만)
+    wc.on('dom-ready', () => {
+      if (!needsFocusEmulation(wc.getURL())) return
+      let n = 0
+      const t = setInterval(() => {
+        if (wc.isDestroyed() || ++n > 36) return clearInterval(t)
+        const probe = `(() => { try { const e = document.getElementById('cardNo0'); const u = e && e.getAttribute('nppfs-keypad-uuid');
+          const k = u && document.getElementById(u); const w = window;
+          return JSON.stringify({ hf: document.hasFocus(), ae: (document.activeElement||{}).id || (document.activeElement||{}).tagName,
+            ro: e && e.getAttribute('readonly'), npro: e && e.getAttribute('nppfs-readonly'), cls: e && e.className, u,
+            kd: k ? getComputedStyle(k).display : null, dyn: document.querySelectorAll('.nppfs-dynamic-field').length,
+            tg: Array.from(document.querySelectorAll('input[name*=toggle]')).map(i => i.name + '=' + i.value).join(','),
+            abs: w.npVCtrl && w.npVCtrl.isAbsoluteUse ? w.npVCtrl.isAbsoluteUse() : 'na', npv: typeof w.npVCtrl, pfs: typeof w.npPfsCtrl,
+            kpdivs: document.querySelectorAll('.nppfs-keypad-div *').length, kpd: Array.from(document.querySelectorAll('[id^=nppfs-keypad]')).map(x => x.id + ':' + getComputedStyle(x).display).join(',') }) } catch (err) { return 'ERR ' + err } })()`
+        wc.executeJavaScript(probe).then((r) => console.warn(`[키패드진단] ${r}`)).catch((e) => console.warn(`[키패드진단] 실패 ${e}`))
+      }, 5000)
+    })
     // 결제창 보안 모듈 진단 — 가상키패드 결제창 콘솔은 수준과 관계없이 메인 로그로 남긴다
     wc.on('console-message', (ev) => {
       if (needsFocusEmulation(wc.getURL())) {
