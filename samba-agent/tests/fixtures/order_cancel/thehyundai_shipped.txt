@@ -1,0 +1,43 @@
+URL: https://hi.thehyundai.com/mypage/order/detail?ordNo=261023002632141
+TITLE: 주문 상세 정보 | 더현대Hi
+
+NOTE: ids are stable across snapshots on this page.
+INTERACTIVE ELEMENTS:
+[1] button "뒤로가기"
+[2] button "장바구니"
+[3] button "복사"
+[4] button "자세히 보기"
+[5] checkbox "배송완료 10.26 13:25:23 아이더 (DWW24543) 여성 아웃도어 CIRCULART (써큘라트) 미들 구스 다운 자켓(3칼라) 차콜그"
+[6] link href=/product/40B1494682
+[7] clickable
+[8] link "아이더 (DWW24543) 여성 아웃도어 CIRCULART (써큘라트) 미들 구스 다운 자켓(3칼라)" href=/product/40B1494682
+[9] clickable "아이더 (DWW24543) 여성 아웃도어 CIRCULART (써큘라트) 미들 구스 다운 자켓(3칼라)"
+[10] button "배송조회"
+[11] button "반품/교환"
+[12] button "리뷰쓰기"
+[13] button "자세히 보기"
+[14] button "도움말"
+[15] button "마스킹 해제"
+[16] button "자세히 보기"
+[17] button "자세히"
+[18] button "영수증 보기"
+[19] button "자세히 보기"
+[20] button "자세히 보기"
+[21] button "자세히 보기"
+[22] button "자세히 보기"
+[23] button "마스킹 해제"
+[24] link "발견" href=/homefeed
+[25] clickable "발견"
+[26] link "샵" href=/shop/main
+[27] clickable "샵"
+[28] link "카테고리" href=/category
+[29] clickable "카테고리"
+[30] link "GEM" href=/gem/gem
+[31] clickable "GEM"
+[32] link "지점이용" href=/omni
+[33] clickable "지점이용"
+[34] link "마이페이지" href=/mypage
+[35] clickable "마이페이지"
+
+PAGE TEXT:
+주문 상세 정보 2026.10.23 주문번호 261023002632141 주문상품 택배배송 현대백화점 더현대 대구 무료배송 배송완료 10.26 13:25:23 아이더 (DWW24543) 여성 아웃도어 CIRCULART (써큘라트) 미들 구스 다운 자켓(3칼라) 차콜그레이(CH)/95 179,100원133,260원 1개 배송조회 반품/교환 리뷰쓰기 배송지 [가림] 결제정보 상품금액 179,100원 할인금액 -35,820원 판매금액 143,280원 배송비 0원 결제수단 혜택 -10,020원 총 결제 금액 자세히 133,260원 영수증 보기 적립 예정 H.Point 주문적립 660P 결제수단 & 승인내역 신용카드 133,260원 - 현대백화점카드 일시불 승인일시 2026.10.23 22:47 승인금액 133,260원 결제정보 변경 내역 결제 2026.10.23 22:47:31 현대백화점카드 133,260원 주문자 [가림] 장*훈 010-[가림]*-3536 jjh[가림]**@[가림][가림][가림] 마스킹 해제 발견 샵 카테고리 GEM 지점이용 마이페이지

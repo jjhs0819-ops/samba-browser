@@ -1,0 +1,66 @@
+URL: https://www.gsshop.com/cust/login/login.gs?returnurl=2F696e6465782e6773
+TITLE: GS SHOP
+
+NOTE: ids are stable across snapshots on this page.
+INTERACTIVE ELEMENTS:
+[1] link href=https://www.gsshop.com/shop/spa/showCase.gs
+[2] clickable
+[3] link href=https://www.gsshop.com/shop/landing/paybackMain.gs
+[4] clickable
+[5] link "10.28(수) GS PAY 최대 7% 즉시할인 외" href=https://www.gsshop.com/shop/planCard.gs?svcid=gc&lseq=416465-1&dseq=957027806&gsid=gnb-AU416465-AU416465-1
+[6] clickable "10.28(수)"
+[7] clickable "%"
+[8] button "배너닫기"
+[9] clickable "배너닫기"
+[10] label "검색어 입력"
+[11] textbox "검색어 입력" name=gnb_tq value=""
+[12] button "검색"
+[13] clickable "검색"
+[14] link "마이쇼핑" href=javascript:redirectURL('mygs');
+[15] clickable "마이쇼핑"
+[16] link "장바구니" href=javascript:redirectURL('cart');
+[17] clickable "장바구니"
+[18] link "TV편성표" href=https://www.gsshop.com/shop/tv/tvScheduleMain.gs?lseq=415680-1&gsid=gnb-AU415680-AU415680-1
+[19] link "GS X 브랜드" href=https://www.gsshop.com/shop/spa/showCase.gs?lseq=409881-2&gsid=gnb-AU409881-AU409881-2
+[20] link "TV" href=https://www.gsshop.com/shop/tvHighlight.gs?lseq=425246&gsid=gnb-AU425246-AU425246
+[21] link "특가" href=https://www.gsshop.com/shop/bargain.gs?lseq=425247&gsid=gnb-AU425247-AU425247
+[22] link "오늘의딜" href=https://www.gsshop.com/shop/deal/newArrival.gs?lseq=408940-1&gsid=gnb-AU408940-AU408940-1
+[23] link "랭킹" href=https://www.gsshop.com/shop/spa/nowBest.gs?lseq=415303-1&gsid=gnb-AU415303-AU415303-1
+[24] link "GS혜택" href=https://www.gsshop.com/shop/eventMain.gs?lseq=381084-1&gsid=gnb-AU381084-AU381084-1
+[25] link "로그인" href=javascript:redirectURL('login');
+[26] link "회원가입" href=javascript:redirectURL('register');
+[27] link "고객센터" href=javascript:redirectURL('customer');
+[28] link "네이버" href=#
+[29] link "카카오" href=#
+[30] link "로그인 번호" href=#
+[31] label "아이디"
+[32] textbox name=id value=""
+[33] label "비밀번호"
+[34] textbox name=passwd (SECRET)
+[35] button "로그인"
+[36] checkbox "아이디 저장" value="on"
+[37] label "아이디 저장"
+[38] link "아이디 찾기" href=javascript:;
+[39] clickable "아이디 찾기"
+[40] link "비밀번호 찾기" href=javascript:;
+[41] clickable "비밀번호 찾기"
+[42] link "회원가입" href=#
+[43] link "비회원 배송조회" href=#
+[44] link "회사소개" href=javascript:prGo2(0);
+[45] link "이용약관 및 규칙" href=javascript:prGo2(6);
+[46] link "개인정보 처리방침 및 청소년보호정책" href=javascript:prGo2(7);
+[47] link "정도경영제보" href=javascript:prGo2(10);
+[48] link "우리동네GS" href=https://abr.ge/aprbjn
+[49] link "사업자정보확인" href=https://www.ftc.go.kr/bizCommPop.do?wrkr_no=1168118745
+[50] link "[가림]" href=mailto:[가림]
+[51] link "서비스가입사실 확인" href=javascript:openIBK('gnb');
+[52] link "인스타그램" href=https://www.instagram.com/gsshop_story
+[53] clickable "인스타그램"
+[54] link "홈" href=https://www.gsshop.com/index.gs?svcid=&lseq=414217&dseq=0&gsid=gnb-AU414217-AU414217-1
+[55] button "닫기"
+
+PAGE TEXT:
+추천 이벤트 10.28(수) GS PAY 최대 7% 즉시할인 외 배너닫기 검색어 입력 검색 마이쇼핑 메뉴 마이쇼핑 장바구니 카테고리 Global Navigation TV편성표 GS X 브랜드 TV 특가 오늘의딜 랭킹 GS혜택 사용자 메뉴 로그인 회원가입 고객센터 쉬운 로그인 네이버 카카오 로그인 번호 아이디 비밀번호 로그인 아이디 저장 아이디 찾기 비밀번호 찾기 회원가입 비회원 배송조회 회사소개 이용약관 및 규칙 개인정보 처리방침 및 청소년보호정책 정도경영제보 Family Site 우리동네GS (주)지에스리테일 대표이사 허서홍 / 주소: [가림], GS타워) 사업자등록번호 : 116-81-18745 / 통신판매업신고 : 제2014-서울강남-01544호 사업자정보확인 호스팅제공자 : ㈜지에스리테일 고객센터 : (무료)080-414-4545 / (유료)02-2007-4545 / 팩스 : 02-393-6093 / 이메일문의 : [가림] Copyright © GS Retail Co.,Ltd. All Rights Reserved 기업은행 채무지급보증안내 전자상거래등에서의 소비자보호에 관한 법률에 따라 기업은행과 채무지급보증 계약을 체결하여 [가림]님의 결제금액에 대해 안전거래를 보장하고 있습니다. 서비스가입사실 확인 인스타그램 홈 알림 닫기
+[frame 1: www.google.com] reCAPTCHA로 보호됨
+[frame 4: astg.widerplanet.com] /*<![CDATA[*/ const VIEW_MODEL = {} || {}; const widerplanetUserId = VIEW_MODEL?.wp_uid; if (VIEW_MODEL) { window.addEventListener('message', function(event) { try { if (widerplanetUserId) { // console.log('issue new widerplanetId'); localStorage.setItem('_wp_uid', widerplanetUserId); const dataToPush = { _wp_uid: widerplanetUserId, }; // console.log('send postMessage to up', dataToPush); event.source.postMessage(dataToPush, event.origin); } } catch (e) { console.error('widerplanet cookie to localStorage synchronization failure - model: ', VIEW_MODEL, e); } }, false); } /*]]>*/
+[frame 5: astg.widerplanet.com] /*<![CDATA[*/ const VIEW_MODEL = {"wp_uid":"2-22890760f525596adcd226a44e85af64-s1793164982.997527|windows_10|chrome-1i52lnc"} || {}; const widerplanetUserId = VIEW_MODEL?.wp_uid; if (VIEW_MODEL) { window.addEventListener('message', function(event) { try { if (widerplanetUserId) { // console.log('issue new widerplanetId'); localStorage.setItem('_wp_uid', widerplanetUserId); const dataToPush = { _wp_uid: widerplanetUserId, }; // console.log('send postMessage to up', dataToPush); event.source.postMessage(dataToPush, event.origin); } } catch (e) { console.error('widerplanet cookie to localStorage synchronization failure - model: ', VIEW_MODEL, e); } }, false); } /*]]>*/

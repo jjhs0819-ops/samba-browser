@@ -1,0 +1,42 @@
+URL: https://hi.thehyundai.com/mypage/order/detail?ordNo=260827001846595
+TITLE: 주문 상세 정보 | 더현대Hi
+
+NOTE: ids are stable across snapshots on this page.
+INTERACTIVE ELEMENTS:
+[1] button "뒤로가기"
+[2] button "장바구니"
+[3] button "복사"
+[4] button "자세히 보기"
+[5] checkbox "배송완료 08.29 14:25:27 휠라 휠라언더웨어 나일론스판 로고 JQ 런닝 FI4RNG1608M CGY CGY/100 32,000원27,0"
+[6] link href=/product/2241479663
+[7] clickable
+[8] link "휠라 휠라언더웨어 나일론스판 로고 JQ 런닝 FI4RNG1608M CGY" href=/product/2241479663
+[9] clickable "휠라 휠라언더웨어 나일론스판 로고 JQ 런닝 FI4RNG1608M CGY"
+[10] button "배송조회"
+[11] button "한달 리뷰쓰기"
+[12] button "자세히 보기"
+[13] button "도움말"
+[14] button "마스킹 해제"
+[15] button "자세히 보기"
+[16] button "자세히"
+[17] button "영수증 보기"
+[18] button "자세히 보기"
+[19] button "자세히 보기"
+[20] button "자세히 보기"
+[21] button "자세히 보기"
+[22] button "마스킹 해제"
+[23] link "발견" href=/homefeed
+[24] clickable "발견"
+[25] link "샵" href=/shop/main
+[26] clickable "샵"
+[27] link "카테고리" href=/category
+[28] clickable "카테고리"
+[29] link "GEM" href=/gem/gem
+[30] clickable "GEM"
+[31] link "지점이용" href=/omni
+[32] clickable "지점이용"
+[33] link "마이페이지" href=/mypage
+[34] clickable "마이페이지"
+
+PAGE TEXT:
+주문 상세 정보 2026.08.27 주문번호 260827001846595 주문상품 택배배송 현대백화점 미아점 무료배송 배송완료 08.29 14:25:27 휠라 휠라언더웨어 나일론스판 로고 JQ 런닝 FI4RNG1608M CGY CGY/100 32,000원27,000원 2개 배송조회 한달 리뷰쓰기 배송지 [가림] 결제정보 상품금액 32,000원 할인금액 -3,200원 판매금액 28,800원 배송비 0원 포인트 사용 -3,000P 결제수단 혜택 -1,800원 총 결제 금액 자세히 24,000원 영수증 보기 적립 예정 H.Point 주문적립 120P 결제수단 & 승인내역 신용카드 24,000원 - 현대백화점카드 일시불 H.Point 3,000원 승인일시 2026.08.27 21:15 승인금액 24,000원 결제정보 변경 내역 결제 2026.08.27 21:15:03 H.Point 3,000P 결제 2026.08.27 21:15:03 현대백화점카드 24,000원 주문자 [가림] 장*훈 010-[가림]*-3536 jjh[가림]**@[가림][가림][가림] 마스킹 해제 발견 샵 카테고리 GEM 지점이용 마이페이지

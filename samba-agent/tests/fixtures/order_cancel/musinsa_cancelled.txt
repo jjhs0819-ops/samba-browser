@@ -1,0 +1,159 @@
+URL: https://www.musinsa.com/order/order-detail/202610222201170001
+TITLE: 무신사
+
+NOTE: ids are stable across snapshots on this page.
+INTERACTIVE ELEMENTS:
+[1] link "카테고리 메뉴 열기" href=https://www.musinsa.com/menu/category
+[2] clickable
+[3] link "MUSINSA 페이지로 이동" href=https://www.musinsa.com/main/musinsa
+[4] link "BEAUTY 페이지로 이동" href=https://www.musinsa.com/main/beauty
+[5] link "SPORTS 페이지로 이동" href=https://www.musinsa.com/main/player
+[6] link "OUTLET 페이지로 이동" href=https://www.musinsa.com/main/outlet
+[7] link "BOUTIQUE 페이지로 이동" href=https://www.musinsa.com/main/boutique
+[8] link "KICKS 페이지로 이동" href=https://www.musinsa.com/main/sneaker
+[9] link "KIDS 페이지로 이동" href=https://www.musinsa.com/main/kids
+[10] link "USED 페이지로 이동" href=https://www.musinsa.com/main/used
+[11] link "스냅 페이지로 이동" href=https://www.musinsa.com/snap
+[12] button "검색 레이어 열기"
+[13] link "좋아요 페이지로 이동" href=https://www.musinsa.com/like/goods
+[14] link "마이 페이지로 이동" href=https://www.musinsa.com/mypage
+[15] link "장바구니 페이지로 이동" href=https://www.musinsa.com/order/cart
+[16] clickable "85"
+[17] link "로그아웃" href=https://www.musinsa.com/auth/logout?referer=https%3A%2F%2Fwww.musinsa.com%2Forder%2Forder-detail%2F202610222201170001
+[18] clickable "로그아웃"
+[22] button "판매자 정보"
+[25] button "취소 상세"
+[27] button "영수증"
+[31] button "주문 내역 삭제"
+[33] button "광고"
+[37] button "좋아요 버튼"
+[44] button "좋아요 버튼"
+[51] button "좋아요 버튼"
+[58] button "좋아요 버튼"
+[65] button "좋아요 버튼"
+[72] button "좋아요 버튼"
+[79] button "좋아요 버튼"
+[86] button "좋아요 버튼"
+[93] button "좋아요 버튼"
+[100] button "좋아요 버튼"
+[107] button "좋아요 버튼"
+[114] button "좋아요 버튼"
+[121] button "좋아요 버튼"
+[128] button "좋아요 버튼"
+[135] button "좋아요 버튼"
+[142] button "좋아요 버튼"
+[149] button "좋아요 버튼"
+[156] button "좋아요 버튼"
+[163] button "좋아요 버튼"
+[170] button "좋아요 버튼"
+[177] button "좋아요 버튼"
+[184] button "좋아요 버튼"
+[191] button "좋아요 버튼"
+[198] button "좋아요 버튼"
+[205] button "좋아요 버튼"
+[212] button "좋아요 버튼"
+[219] button "좋아요 버튼"
+[226] button "좋아요 버튼"
+[233] button "좋아요 버튼"
+[240] button "좋아요 버튼"
+[247] button "좋아요 버튼"
+[254] button "좋아요 버튼"
+[261] button "좋아요 버튼"
+[268] button "좋아요 버튼"
+[275] button "좋아요 버튼"
+[282] button "좋아요 버튼"
+[289] button "좋아요 버튼"
+[296] button "좋아요 버튼"
+[303] button "좋아요 버튼"
+[310] button "좋아요 버튼"
+[317] button "좋아요 버튼"
+[324] button "좋아요 버튼"
+[331] button "좋아요 버튼"
+[338] button "좋아요 버튼"
+[345] button "좋아요 버튼"
+[352] button "좋아요 버튼"
+[359] button "좋아요 버튼"
+[366] button "좋아요 버튼"
+[373] button "좋아요 버튼"
+[380] button "좋아요 버튼"
+[385] button "다음"
+[19] link href=https://www.musinsa.com/products/7347709
+[20] clickable
+[21] link "에잇세컨즈" href=https://www.musinsa.com/brand/8seconds
+[23] clickable "판매자 정보"
+[24] link "후드 경량 패딩 점퍼 카키" href=https://www.musinsa.com/products/7347709
+[26] clickable "취소 상세"
+[28] clickable "영수증"
+[29] clickable "-13,320원"
+[30] clickable "-4,990원"
+[32] clickable "주문 내역 삭제"
+[34] clickable "광고"
+[35] link "상품 상세로 이동" href=/products/1298814
+[36] clickable
+[38] clickable
+[39] link "아메리칸투어리스터 샵으로 이동"
+[40] link "INSTAGON 캐리어 81/30 EXP TSA V2 JET BLACK HJ419013 상품상세로 이동" href=/products/1298814
+[41] clickable "INSTAGON 캐리어 81/30 EXP TSA V2 JET BLACK HJ419013"
+[42] link "상품 상세로 이동" href=/products/4047606
+[43] clickable
+[45] clickable
+[46] link "아메리칸투어리스터 샵으로 이동"
+[47] link "INSTAGON 캐리어 81/30 EXP TSA V2 GT PASTEL BLUE HJ411017 상품상세로 이동" href=/products/4047606
+[48] clickable "INSTAGON 캐리어 81/30 EXP TSA V2 GT PASTEL BLUE HJ411017"
+[49] link "상품 상세로 이동" href=/products/5136072
+[50] clickable
+[52] clickable
+[53] link "아메리칸투어리스터 샵으로 이동"
+[54] link "ARGYLE 캐리어 81/30 EXP TSA V2 BLUE SLATE QH771012 상품상세로 이동" href=/products/5136072
+[55] clickable "ARGYLE 캐리어 81/30 EXP TSA V2 BLUE SLATE QH771012"
+[56] link "상품 상세로 이동" href=/products/2616437
+[57] clickable
+[59] clickable
+[60] link "아메리칸투어리스터 샵으로 이동"
+[61] link "ARGYLE 캐리어 55/20 TSA V2 DEEP TEAL QH751010 상품상세로 이동" href=/products/2616437
+[62] clickable "ARGYLE 캐리어 55/20 TSA V2 DEEP TEAL QH751010"
+[63] link "상품 상세로 이동" href=/products/2048822
+[64] clickable
+[66] clickable
+[67] link "벤토사 샵으로 이동"
+[68] link "[2PACK] Cto8 PD 고속 충전 데이터 전송 케이블 CT82P 상품상세로 이동" href=/products/2048822
+[69] clickable "[2PACK] Cto8 PD 고속 충전 데이터 전송 케이블 CT82P"
+[70] link "상품 상세로 이동" href=/products/7235663
+[71] clickable
+[73] clickable
+[74] link "아메리칸투어리스터 샵으로 이동"
+[75] link "INSTAGON 캐리어 69/25 EXP TSA V2 MINERAL BLUE HJ461012 상품상세로 이동" href=/products/7235663
+[76] clickable "INSTAGON 캐리어 69/25 EXP TSA V2 MINERAL BLUE HJ461012"
+[77] link "상품 상세로 이동" href=/products/2616434
+[78] clickable
+[80] clickable
+[81] link "아메리칸투어리스터 샵으로 이동"
+[82] link "ARGYLE 캐리어 55/20 TSA V2 BLACK QH709010 상품상세로 이동" href=/products/2616434
+[83] clickable "ARGYLE 캐리어 55/20 TSA V2 BLACK QH709010"
+[84] link "상품 상세로 이동" href=/products/1040318
+[85] clickable
+[87] clickable
+[88] link "아메리칸투어리스터 샵으로 이동"
+[89] link "ROCKFORD 캐리어 여행가방 55 NAVY BG941104 상품상세로 이동" href=/products/1040318
+[90] clickable "ROCKFORD 캐리어 여행가방 55 NAVY BG941104"
+[91] link "상품 상세로 이동" href=/products/934765
+[92] clickable
+[94] clickable
+[95] link "아메리칸투어리스터 샵으로 이동"
+[96] link "ROCKFORD 캐리어 여행가방 79 NAVY BG941003 상품상세로 이동" href=/products/934765
+[97] clickable "ROCKFORD 캐리어 여행가방 79 NAVY BG941003"
+[98] link "상품 상세로 이동" href=/products/5484929
+[99] clickable
+[101] clickable
+[102] link "바이모노 샵으로 이동"
+[103] link "쏙쏙숨티 자동넣입 드롭 긴팔티 [M-8XL] 상품상세로 이동" href=/products/5484929
+[104] clickable "쏙쏙숨티 자동넣입 드롭 긴팔티 [M-8XL]"
+[105] link "상품 상세로 이동" href=/products/4047612
+[106] clickable
+[108] clickable
+[109] link "아메리칸투어리스터 샵으로 이동"
+[110] link "INSTAGON 캐리어 81/30 EXP TSA V2 GT PEACH BLOSSOM HJ470017 상품상세로 이동" href=/products/4047612
+… 236 more elements not listed. Call find_elements with the text you are looking for to get their ids.
+
+PAGE TEXT:
+MUSINSA BEAUTY SPORTS OUTLET BOUTIQUE KICKS KIDS USED SNAP 검색 좋아요 마이 장바구니 85 로그아웃 무신사 주문 상세 26.10.22(목) 주문번호 202610222201170001 [가림] 주문 상품 1개 취소 완료 에잇세컨즈 판매자 정보 후드 경량 패딩 점퍼 카키 카키·XS / 1개 41,590원 취소 상세 결제 정보 영수증 상품 금액 59,900원 할인 금액 -13,320원 적립금 사용 -4,990원 배송비 무료배송 결제 금액 31% 41,590원 결제 수단 무신사머니 주문 내역 삭제

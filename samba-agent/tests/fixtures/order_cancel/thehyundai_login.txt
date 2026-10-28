@@ -1,0 +1,29 @@
+URL: https://hi.thehyundai.com/login?forwardUrl=%2Fmypage%2Forder%2Fdetail%3FordNo%3D261023002632141
+TITLE: 로그인 | 더현대Hi
+
+NOTE: ids are stable across snapshots on this page.
+INTERACTIVE ELEMENTS:
+[1] button "뒤로가기"
+[2] textbox name=loginId value=""
+[3] textbox name=password (SECRET)
+[4] button "비밀번호 보기"
+[5] checkbox "아이디 저장" name=example-default value="off"
+[6] label "아이디 저장"
+[7] checkbox "자동 로그인" name=example-default value="off"
+[8] label "자동 로그인"
+[9] button "로그인"
+[10] button "통합회원 가입하기"
+[11] button "아이디/비밀번호 찾기"
+[12] button "휴대폰 인증 로그인"
+[13] button "네이버 로그인"
+[14] button "카카오 로그인"
+[15] button "토스 로그인"
+[16] button "QR 코드 로그인"
+[17] button "H.Point APP 로그인"
+[18] button "BIZ회원 로그인 페이지로"
+[19] button "통합회원 전환"
+[20] button "조회하기"
+[21] button "투홈/더현대닷컴 회원 탈퇴"
+
+PAGE TEXT:
+로그인 H.Point 통합회원 로그인 아이디 저장 자동 로그인 로그인 통합회원 가입하기 아이디/비밀번호 찾기 휴대폰 인증 로그인 네이버 로그인 카카오 로그인 토스 로그인 QR 코드 로그인 H.Point APP 로그인 BIZ회원 로그인 BIZ회원으로 가입하시는 경우 BIZ회원 로그인 화면에서 로그인 해주세요. BIZ회원 로그인 페이지로 통합회원 전환 아래 통합회원 전환 버튼을 통해 전환 가입 후 더현대Hi 이용이 가능합니다. 통합회원 전환 과거 주문내역 확인 조회하기 투홈/더현대닷컴 회원 탈퇴

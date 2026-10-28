@@ -97,6 +97,17 @@
     ]
   },
   {
+    "name": "abc_order_cancel",
+    "host": "abcmart.a-rt.com",
+    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 취소형 미확인(2026-10-28 구매 프로필 로그인 풀려 상세 못 봄; 버튼 글자 추정 — 모르는 화면은 unknown/failed)",
+    "params": [
+      "source_order_no — 소싱처 주문번호",
+      "profile — 키마스터 계정 라벨(구매 계정)",
+      "mode — 'check'(읽기만, 기본) | 'cancel'(조건 충족 시 1번 클릭)",
+      "reason_text — 취소 사유 글자(기본 '단순 변심', 사이트의 가장 가까운 항목으로 고른다)"
+    ]
+  },
+  {
     "name": "checkout_enter_29cm",
     "host": "www.29cm.co.kr",
     "description": "이미 열린 29CM 주문서(/order/checkout)에서 card로 결제수단을 골라 결제 요청 직전까지 진행, 결제창(팝업)이 뜨면 그 URL을 돌려준다. 절대 비밀번호 입력 안 함.",
@@ -434,6 +445,17 @@
     ]
   },
   {
+    "name": "fashionplus_order_cancel",
+    "host": "fashionplus.co.kr",
+    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 접수형 추정(실측 2026-10-28: 결제완료 화면 링크 \"주문 취소\" → 상품 선택·사유·신청 여러 단계, 그 뒤 미확인)",
+    "params": [
+      "source_order_no — 소싱처 주문번호",
+      "profile — 키마스터 계정 라벨(구매 계정)",
+      "mode — 'check'(읽기만, 기본) | 'cancel'(조건 충족 시 1번 클릭)",
+      "reason_text — 취소 사유 글자(기본 '단순 변심', 사이트의 가장 가까운 항목으로 고른다)"
+    ]
+  },
+  {
     "name": "fp_diag_ce",
     "host": "fashionplus.co.kr",
     "description": "진단용(패션플러스 초안 실측) — 실사용 금지",
@@ -485,6 +507,17 @@
       "qty — 선택, 기본 1",
       "account — 선택, coupon 키로 쓸 계정명",
       "profile — 선택, 계정별 탭 프로필 이름"
+    ]
+  },
+  {
+    "name": "gsshop_order_cancel",
+    "host": "gsshop.com",
+    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 취소형 미확인(2026-10-28 로그인된 프로필·키마스터 계정 없음; 규칙 전부 추정 — SAMBA_AUTO_CANCEL 에서 뺄 것)",
+    "params": [
+      "source_order_no — 소싱처 주문번호",
+      "profile — 키마스터 계정 라벨(구매 계정)",
+      "mode — 'check'(읽기만, 기본) | 'cancel'(조건 충족 시 1번 클릭)",
+      "reason_text — 취소 사유 글자(기본 '단순 변심', 사이트의 가장 가까운 항목으로 고른다)"
     ]
   },
   {
@@ -769,6 +802,17 @@
     ]
   },
   {
+    "name": "lotteon_order_cancel",
+    "host": "lotteon.com",
+    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 즉시 취소완료형(실측 2026-10-28: 상품준비중 화면 버튼 \"취소하기\", 상세 /p/order/claim/orderDetail?odNo=; 확인창·사유 화면 미확인)",
+    "params": [
+      "source_order_no — 소싱처 주문번호",
+      "profile — 키마스터 계정 라벨(구매 계정)",
+      "mode — 'check'(읽기만, 기본) | 'cancel'(조건 충족 시 1번 클릭)",
+      "reason_text — 취소 사유 글자(기본 '단순 변심', 사이트의 가장 가까운 항목으로 고른다)"
+    ]
+  },
+  {
     "name": "musinsa_confirm_shipping",
     "host": "",
     "description": "배송지 팝업 폼 저장 → 배송지 선택 → 주문서 되읽기(무신사)",
@@ -891,6 +935,17 @@
       "name — 받는 사람 이름",
       "address — 도로명/지번 주소(검색어)",
       "address_detail — 상세주소(동/호수, 필수)"
+    ]
+  },
+  {
+    "name": "musinsa_order_cancel",
+    "host": "musinsa.com",
+    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 즉시 취소완료형(실측 2026-10-28: 결제 완료 화면 버튼 \"주문 취소\"; 확인창·사유 화면 미확인)",
+    "params": [
+      "source_order_no — 소싱처 주문번호",
+      "profile — 키마스터 계정 라벨(구매 계정)",
+      "mode — 'check'(읽기만, 기본) | 'cancel'(조건 충족 시 1번 클릭)",
+      "reason_text — 취소 사유 글자(기본 '단순 변심', 사이트의 가장 가까운 항목으로 고른다)"
     ]
   },
   {
@@ -1227,6 +1282,17 @@
       "address_detail — 선택, 상세주소",
       "memo — 선택, 배송 요청사항",
       "phone — 선택. 없으면 비워두고 phone_field_ids 반환"
+    ]
+  },
+  {
+    "name": "thehyundai_order_cancel",
+    "host": "hi.thehyundai.com",
+    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 취소형 미확인(2026-10-28 profile buy-1 로 배송완료 2건만 실측; 결제완료·취소 화면·버튼 글자 미확인 — SAMBA_AUTO_CANCEL 에서 뺄 것)",
+    "params": [
+      "source_order_no — 소싱처 주문번호",
+      "profile — 키마스터 계정 라벨(구매 계정)",
+      "mode — 'check'(읽기만, 기본) | 'cancel'(조건 충족 시 1번 클릭)",
+      "reason_text — 취소 사유 글자(기본 '단순 변심', 사이트의 가장 가까운 항목으로 고른다)"
     ]
   }
 ]

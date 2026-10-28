@@ -1,0 +1,159 @@
+URL: https://www.musinsa.com/order/order-detail/202610231522280001
+TITLE: 무신사
+
+NOTE: ids are stable across snapshots on this page.
+INTERACTIVE ELEMENTS:
+[1] link "카테고리 메뉴 열기" href=https://www.musinsa.com/menu/category
+[2] clickable
+[3] link "MUSINSA 페이지로 이동" href=https://www.musinsa.com/main/musinsa
+[4] link "BEAUTY 페이지로 이동" href=https://www.musinsa.com/main/beauty
+[5] link "SPORTS 페이지로 이동" href=https://www.musinsa.com/main/player
+[6] link "OUTLET 페이지로 이동" href=https://www.musinsa.com/main/outlet
+[7] link "BOUTIQUE 페이지로 이동" href=https://www.musinsa.com/main/boutique
+[8] link "KICKS 페이지로 이동" href=https://www.musinsa.com/main/sneaker
+[9] link "KIDS 페이지로 이동" href=https://www.musinsa.com/main/kids
+[10] link "USED 페이지로 이동" href=https://www.musinsa.com/main/used
+[11] link "스냅 페이지로 이동" href=https://www.musinsa.com/snap
+[12] button "검색 레이어 열기"
+[13] link "좋아요 페이지로 이동" href=https://www.musinsa.com/like/goods
+[14] link "마이 페이지로 이동" href=https://www.musinsa.com/mypage
+[15] link "장바구니 페이지로 이동" href=https://www.musinsa.com/order/cart
+[16] clickable "85"
+[17] link "로그아웃" href=https://www.musinsa.com/auth/logout?referer=https%3A%2F%2Fwww.musinsa.com%2Forder%2Forder-detail%2F202610231522280001
+[18] clickable "로그아웃"
+[22] button "판매자 정보"
+[25] button "스냅 보기"
+[27] button "구매 확정 (후기 작성 시 최대 500원 적립)"
+[29] button "반품 요청"
+[31] button "교환 요청"
+[33] button "배송 조회"
+[38] button "판매자 정보"
+[41] button "스냅 보기"
+[43] button "구매 확정 (후기 작성 시 최대 500원 적립)"
+[45] button "반품 요청"
+[47] button "교환 요청"
+[49] button "배송 조회"
+[54] button "판매자 정보"
+[57] button "스냅 보기"
+[59] button "구매 확정 (후기 작성 시 최대 500원 적립)"
+[61] button "반품 요청"
+[63] button "교환 요청"
+[65] button "배송 조회"
+[67] button "영수증"
+[69] button "거래명세서"
+[73] button
+[75] button "광고"
+[79] button "좋아요 버튼"
+[86] button "좋아요 버튼"
+[93] button "좋아요 버튼"
+[100] button "좋아요 버튼"
+[107] button "좋아요 버튼"
+[114] button "좋아요 버튼"
+[121] button "좋아요 버튼"
+[128] button "좋아요 버튼"
+[135] button "좋아요 버튼"
+[142] button "좋아요 버튼"
+[149] button "좋아요 버튼"
+[156] button "좋아요 버튼"
+[163] button "좋아요 버튼"
+[170] button "좋아요 버튼"
+[177] button "좋아요 버튼"
+[184] button "좋아요 버튼"
+[191] button "좋아요 버튼"
+[198] button "좋아요 버튼"
+[205] button "좋아요 버튼"
+[212] button "좋아요 버튼"
+[219] button "좋아요 버튼"
+[226] button "좋아요 버튼"
+[233] button "좋아요 버튼"
+[240] button "좋아요 버튼"
+[247] button "좋아요 버튼"
+[254] button "좋아요 버튼"
+[261] button "좋아요 버튼"
+[268] button "좋아요 버튼"
+[275] button "좋아요 버튼"
+[282] button "좋아요 버튼"
+[289] button "좋아요 버튼"
+[296] button "좋아요 버튼"
+[303] button "좋아요 버튼"
+[310] button "좋아요 버튼"
+[317] button "좋아요 버튼"
+[324] button "좋아요 버튼"
+[331] button "좋아요 버튼"
+[338] button "좋아요 버튼"
+[345] button "좋아요 버튼"
+[352] button "좋아요 버튼"
+[359] button "좋아요 버튼"
+[366] button "좋아요 버튼"
+[373] button "좋아요 버튼"
+[380] button "좋아요 버튼"
+[387] button "좋아요 버튼"
+[394] button "좋아요 버튼"
+[401] button "좋아요 버튼"
+[408] button "좋아요 버튼"
+[415] button "좋아요 버튼"
+[422] button "좋아요 버튼"
+[427] button "다음"
+[19] link href=https://www.musinsa.com/products/3414085
+[20] clickable
+[21] link "미즈노" href=https://www.musinsa.com/brand/mizuno
+[23] clickable "판매자 정보"
+[24] link "쿠션 미드 5족" href=https://www.musinsa.com/products/3414085
+[26] clickable "스냅 보기"
+[28] clickable "구매 확정 (후기 작성 시 최대 500원 적립)"
+[30] clickable "반품 요청"
+[32] clickable "교환 요청"
+[34] clickable "배송 조회"
+[35] link href=https://www.musinsa.com/products/3414085
+[36] clickable
+[37] link "미즈노" href=https://www.musinsa.com/brand/mizuno
+[39] clickable "판매자 정보"
+[40] link "쿠션 미드 5족" href=https://www.musinsa.com/products/3414085
+[42] clickable "스냅 보기"
+[44] clickable "구매 확정 (후기 작성 시 최대 500원 적립)"
+[46] clickable "반품 요청"
+[48] clickable "교환 요청"
+[50] clickable "배송 조회"
+[51] link href=https://www.musinsa.com/products/3414085
+[52] clickable
+[53] link "미즈노" href=https://www.musinsa.com/brand/mizuno
+[55] clickable "판매자 정보"
+[56] link "쿠션 미드 5족" href=https://www.musinsa.com/products/3414085
+[58] clickable "스냅 보기"
+[60] clickable "구매 확정 (후기 작성 시 최대 500원 적립)"
+[62] clickable "반품 요청"
+[64] clickable "교환 요청"
+[66] clickable "배송 조회"
+[68] clickable "영수증"
+[70] clickable "거래명세서"
+[71] clickable "-10,070원"
+[72] clickable "-3,670원"
+[74] clickable
+[76] clickable "광고"
+[77] link "상품 상세로 이동" href=/products/4047589
+[78] clickable
+[80] clickable
+[81] link "아메리칸투어리스터 샵으로 이동"
+[82] link "INSTAGON 캐리어 55/20 EXP TSA V2 GT PASTEL BLUE HJ411015 상품상세로 이동" href=/products/4047589
+[83] clickable "INSTAGON 캐리어 55/20 EXP TSA V2 GT PASTEL BLUE HJ411015"
+[84] link "상품 상세로 이동" href=/products/4047596
+[85] clickable
+[87] clickable
+[88] link "아메리칸투어리스터 샵으로 이동"
+[89] link "INSTAGON 캐리어 55/20 EXP TSA V2 GT PEACH BLOSSOM HJ470015 상품상세로 이동" href=/products/4047596
+[90] clickable "INSTAGON 캐리어 55/20 EXP TSA V2 GT PEACH BLOSSOM HJ470015"
+[91] link "상품 상세로 이동" href=/products/4047606
+[92] clickable
+[94] clickable
+[95] link "아메리칸투어리스터 샵으로 이동"
+[96] link "INSTAGON 캐리어 81/30 EXP TSA V2 GT PASTEL BLUE HJ411017 상품상세로 이동" href=/products/4047606
+[97] clickable "INSTAGON 캐리어 81/30 EXP TSA V2 GT PASTEL BLUE HJ411017"
+[98] link "상품 상세로 이동" href=/products/1298814
+[99] clickable
+[101] clickable
+[102] link "아메리칸투어리스터 샵으로 이동"
+[103] link "INSTAGON 캐리어 81/30 EXP TSA V2 JET BLACK HJ419013 상품상세로 이동" href=/products/1298814
+… 278 more elements not listed. Call find_elements with the text you are looking for to get their ids.
+
+PAGE TEXT:
+MUSINSA BEAUTY SPORTS OUTLET BOUTIQUE KICKS KIDS USED SNAP 검색 좋아요 마이 장바구니 85 로그아웃 무신사 주문 상세 26.10.23(금) 주문번호 202610231522280001 [가림] 주문 상품 3개 배송 완료 10.27(화) 도착 미즈노 판매자 정보 쿠션 미드 5족 블랙 · M 26 (255-280mm) / 1개 15,660원 스냅 보기 구매 확정 (후기 작성 시 최대 500원 적립) 반품 요청 교환 요청 배송 조회 배송 완료 10.27(화) 도착 미즈노 판매자 정보 쿠션 미드 5족 화이트/네이비 · M 26 (255-280mm) / 1개 16,650원 스냅 보기 구매 확정 (후기 작성 시 최대 500원 적립) 반품 요청 교환 요청 배송 조회 배송 완료 10.27(화) 도착 미즈노 판매자 정보 쿠션 미드 5족 화이트/네이비 · S 24 (220-250mm) / 1개 16,650원 스냅 보기 구매 확정 (후기 작성 시 최대 500원 적립) 반품 요청 교환 요청 배송 조회 결제 정보 영수증 거래명세서 상품 금액 62,700원 할인 금액 -10,070원 적립금 사용 -3,670원 배송비 무료배송 결제 금액 22% 48,960원 결제 수단 무신사머니 이번 주문으로 받은 혜택 총 할인 금액 13,740원 무신사머니 결제 적립 1,940원 기본 적립 1,460원 프로모션 적립 480원 LV.9 블랙다이아몬드 · 4% 적립 1,940원 배송비 무료배송 후기 적립 최대 1,500원 받은 총 혜택 19,120원

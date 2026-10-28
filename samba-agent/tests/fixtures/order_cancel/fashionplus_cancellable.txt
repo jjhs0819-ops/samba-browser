@@ -1,0 +1,108 @@
+URL: https://www.fashionplus.co.kr/mypage/order/detail/142874265
+TITLE: 마이페이지_주문 상세 - 패션플러스
+
+NOTE: ids are stable across snapshots on this page.
+INTERACTIVE ELEMENTS:
+[1] link "본문바로가기" href=#mm_body
+[2] link "오늘 종료되는 올리비아로렌 라이브 한정 혜택 놓치지 마세요!" href=/shopLive?redirect=true
+[3] clickable "오늘 종료되는 올리비아로렌 라이브 한정 혜택 놓치지 마세요!"
+[4] button "배너 닫기"
+[5] link "패션플러스" href=/
+[6] clickable "검색어를 입력하세요 언더웨어/발열내의 단독구성 특가 오픈 검색하기"
+[7] textbox value=""
+[8] button "검색하기"
+[9] link "로그아웃" href=javascript:void(0)
+[10] link "마이쇼핑" href=/mypage
+[11] link "좋아요" href=/mypage/wished-goods
+[12] link "0 장바구니" href=/global/shopping/cart
+[13] button
+[14] link "하고오프닝" href=/corner/5064
+[15] link "남성FW준비" href=/corner/5061
+[16] link "여성DAY" href=/corner/5078
+[17] link "크로커다일" href=/corner/5079
+[18] link href=/corner/4951
+[19] clickable
+[20] link "베스트 랭킹" href=/goods/best
+[21] link href=/corner/4414
+[22] clickable
+[23] link "LIVE" href=/shopLive
+[24] link "TV인기상품" href=/tvshopping/1
+[25] link "실속아울렛관" href=/goods/group-mall/100
+[26] link "추천딜" href=/deal
+[27] link href=/exhibition/22744
+[28] clickable
+[29] link href=/exhibition/19285
+[30] clickable
+[31] link href=/exhibition/12625
+[32] clickable
+[33] link href=/exhibition/20930
+[34] clickable
+[35] link href=/exhibition/11429
+[36] clickable
+[37] link href=/exhibition/22080
+[38] clickable
+[39] button "이전"
+[40] button "다음"
+[41] button "최근 본 상품"
+[42] link href=#mm_app
+[43] link "마이쇼핑" href=/mypage
+[44] link "나의 주문 관리"
+[45] link "주문 내역" href=/mypage/order
+[46] link "취소/반품/교환/환불 내역" href=/mypage/order/cancel-return-exchange-refund
+[47] link "나의 문의 관리" href=#
+[48] link "1:1 문의하기" href=/mypage/mall-qna/write
+[49] link "1:1 문의내역" href=/mypage/mall-qna
+[50] link "상품 Q&A" href=/mypage/seller-qna
+[51] link "나의 혜택 관리" href=#
+[52] link "쿠폰 관리" href=/mypage/coupon/usable
+[53] link "적립금 관리" href=/mypage/point
+[54] link "페이백 관리" href=/mypage/payback
+[55] link "나의 활동 관리" href=#
+[56] link "상품평 관리" href=/mypage/review
+[57] link "최근 본 상품" href=/mypage/recent-view-goods
+[58] link "좋아요한 상품" href=/mypage/wished-goods
+[59] link "좋아요한 브랜드" href=/mypage/wished-brand
+[60] link "나의 정보 관리" href=#
+[61] link "회원정보 관리" href=/mypage/edit/re-auth
+[62] link "간편결제 관리" href=javascript:faplePayMyPage();
+[63] link "배송지 관리" href=/mypage/receive-address
+[64] link "환불계좌 관리" href=javascript:goRefundAccount();
+[65] link "고객 보상 관리" href=#
+[66] link "배송지연 신고" href=/mypage/report/ship-delay
+[67] link "품절취소 신고" href=/mypage/report/soldout
+[68] button "복사"
+[69] link "배송지 변경" href=/mypage/order/change/address
+[70] link "판매자 정보" href=/mypage/order/seller-info?seller_name=%28%EC%A3%BC%29%EB%AA%A8%EB%8B%A4%EC%9D%B4%EB%85%B8%EC%B9%A9%20%EA%B5%AC%EB%A6%AC%
+[71] link "아디다스 가젤 볼드 W IE0876_GN 옵션 블랙 235" href=/goods/detail/362234114
+[72] clickable "아디다스 가젤 볼드 W IE0876_GN"
+[73] clickable "블랙 235"
+[74] link "주문 취소" href=/mypage/order/cancel/142874265/select-order-item?goodsId=362234114
+[75] link "영수증보기" href=https://npg.nicepay.co.kr/issue/IssueLoader.do?type=0&TID=fashion01m0101261028140930c148
+[76] link "파크랜드 수트 · 아우터 최대 90% 할인" href=/exhibition/9974
+[77] clickable "파크랜드"
+[78] clickable "수트 · 아우터 최대 90% 할인"
+[79] link "콜핑 FW 신상 보러가기 겨울 기모 팬츠 · 티셔츠 ~80%" href=/exhibition/10407
+[80] clickable "콜핑 FW 신상 보러가기"
+[81] clickable "겨울 기모 팬츠 · 티셔츠 ~80%"
+[82] link href=/hago/guide?affiliate=hago
+[83] clickable
+[84] button "배너 닫기"
+[85] link "사이트소개" href=/about/company
+[86] link "로그아웃" href=javascript:void(0)
+[87] link "고객센터" href=/cs-center
+[88] link "공지사항" href=/cs-center/notice
+[89] link "제휴 및 입점문의" href=/about/partnership
+[90] link "판매자SCM" href=https://seller.fashionplus.co.kr/
+[91] button "㈜하고하우스"
+[92] link "사업자 정보확인" href=http://www.ftc.go.kr/bizCommPop.do?wrkr_no=8208800547&apv_perm_no=
+[93] link "[가림]" href=mailto:[가림]
+[94] link "이용약관" href=/terms/now/clause
+[95] link "개인정보처리방침" href=/terms/now/privacy
+[96] link "청소년 보호정책" href=/terms/now/youthProtection
+[97] link "서비스가입 사실 확인" href=https://npg.nicepay.co.kr/issue/issueEscrow.do?Mid=fashion01m&CoNo=8208800547
+[98] clickable "서비스가입 사실 확인"
+[99] link href=https://img.fashionplus.co.kr/mall/common/isms_certification.pdf
+[100] clickable
+
+PAGE TEXT:
+본문바로가기 오늘 종료되는 올리비아로렌 라이브 한정 혜택 놓치지 마세요! 배너 닫기 패션플러스 검색어를 입력하세요 언더웨어/발열내의 단독구성 특가 오픈 검색하기 로그아웃 마이쇼핑 좋아요 0 장바구니 하고오프닝 남성FW준비 여성DAY 크로커다일 베스트 랭킹 LIVE TV인기상품 실속아울렛관 추천딜 이전 다음 1 / 5 최근 본 상품 마이쇼핑 나의 주문 관리 주문 내역 취소/반품/교환/환불 내역 나의 문의 관리 1:1 문의하기 1:1 문의내역 상품 Q&A 나의 혜택 관리 쿠폰 관리 적립금 관리 페이백 관리 나의 활동 관리 상품평 관리 최근 본 상품 좋아요한 상품 좋아요한 브랜드 나의 정보 관리 회원정보 관리 간편결제 관리 배송지 관리 환불계좌 관리 고객 보상 관리 배송지연 신고 품절취소 신고 주문 상세 142874265 (신청일: 2026-10-28) 복사 주문자 [가림] 주문자명 [가림] 휴대폰 번호 [가림] 이메일 [가림] 배송지 정보 [가림] 상품 정보 (주)모다이노칩 구리남양주점 판매자 정보 아디다스 가젤 볼드 W IE0876_GN 옵션 블랙 235 결제완료 1개 79,000 149,000 주문 취소 최종 결제금액 총 상품금액79,000 총 할인금액0 총 배송비 0 총 결제 예상금액(1건)79,000 결제수단 정보 결제수단 네이버 페이 결제승인일 2026-10-28 결제금액 79,000원 영수증보기 할인 상세 내역 쿠폰할인 - 0 상품쿠폰 - 0 장바구니쿠폰 - 0 페이백 즉시 할인 - 0 적립금 사용 - 0 기타결제 - 0

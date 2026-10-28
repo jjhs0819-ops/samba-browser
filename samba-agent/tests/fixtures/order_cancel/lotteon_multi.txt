@@ -1,0 +1,159 @@
+URL: https://www.lotteon.com/p/order/claim/orderDetail?odNo=2026102314077420
+TITLE: 주문 상세ㅣ주문/배송 내역ㅣ마이롯데 : 롯데ON
+
+NOTE: ids are stable across snapshots on this page.
+INTERACTIVE ELEMENTS:
+[2] link "본문 바로가기" href=#content
+[211] link "최근본상품 95개" href=https://www.lotteon.com/p/mylotte/recent/product
+[4] button "로그아웃"
+[10] textbox "청풍명월한우 쿠폰 카드혜택" value=""
+[11] button "검색"
+[16] button "전체 카테고리 보기"
+[32] button "전체보기 닫기"
+[34] button "메뉴 더보기"
+[36] button "전체 순위 보기"
+[164] button "몰이동"
+[189] button "프로필 수정"
+[194] button "한눈에 보는 회원등급"
+[195] button "L.POINT"
+[198] button "교환하기"
+[199] button "나의쿠폰"
+[210] button
+[245] button "영수증"
+[246] button "거래명세서"
+[247] button "주문 내역 삭제"
+[248] button "구매확정"
+[249] button "문의하기"
+[251] button "배송상세조회"
+[252] button "상품을받았어요"
+[253] button "반품하기"
+[254] button "교환하기"
+[255] button "문의하기"
+[257] button
+[259] button "배송상세조회"
+[260] button "최대 200P + L.stamp 리뷰쓰기"
+[262] button "반품하기"
+[263] button "교환하기"
+[264] button "미수령/상품누락 신고"
+[265] button "주문 금액 정보 안내"
+[267] button "상세보기"
+[268] button "목록보기"
+[221] button "판매자서비스"
+[222] button "Family Site"
+[232] button "자세히보기"
+[1] clickable "본문 바로가기 [가림]님로그아웃주문배송고객센터 검색어 검색 좋아요 마이롯데 장바구니 전체 카테고리 보기 빅세이브마켓홈쇼핑특가패션뷰티키즈푸드리빙스킨"
+[3] link "[가림]님" href=https://www.lotteon.com/p/mylotte/index/main
+[5] link "주문배송" href=https://www.lotteon.com/p/order/mylotte/orderDeliveryList
+[6] link "고객센터" href=https://www.lotteon.com/p/customer/customerCenter/customerMain
+[7] link href=https://www.lotteon.com?mall_no=1
+[8] clickable
+[9] label "검색어"
+[12] clickable "검색"
+[13] link "좋아요" href=https://www.lotteon.com/p/mylotte/bmk/wish
+[14] link "마이롯데" href=https://www.lotteon.com/p/mylotte/index/main
+[15] link "장바구니" href=https://www.lotteon.com/p/order/cart/viewCart
+[17] clickable "전체 카테고리 보기"
+[18] clickable "빅세이브마켓홈쇼핑특가패션뷰티키즈푸드리빙스킨수티컬즈베스트브랜드판타지백화점여행/레저온누리 전체보기 닫기"
+[19] link "빅세이브마켓" href=https://www.lotteon.com/display/shop/seltDpShop/53745
+[20] link "홈" href=https://www.lotteon.com/p/display/shop/seltDpShop/60875?callType=menu
+[21] link "쇼핑특가" href=https://www.lotteon.com/p/display/shop/seltDpShop/60937?callType=menu
+[22] link "패션" href=https://www.lotteon.com/p/display/shop/seltDpShop/60877?callType=menu
+[23] link "뷰티" href=https://www.lotteon.com/p/display/shop/seltDpShop/60851?callType=menu
+[24] link "키즈" href=https://www.lotteon.com/p/display/shop/seltDpShop/60879?callType=menu
+[25] link "푸드리빙" href=https://www.lotteon.com/p/display/shop/seltDpShop/60881?callType=menu
+[26] link "스킨수티컬즈" href=https://www.lotteon.com/display/shop/seltDpShop/48771?mall_no=1
+[27] link "베스트" href=https://www.lotteon.com/p/display/shop/seltDpShop/13979?callType=menu
+[28] link "브랜드판타지" href=https://www.lotteon.com/display/shop/seltDpShop/53722
+[29] link "백화점" href=https://www.lotteon.com/p/display/shop/seltDpShop/13331?callType=menu
+[30] link "여행/레저" href=https://www.lotteon.com/p/display/shop/seltDpShop/47881?callType=menu
+[31] link "온누리" href=https://www.lotteon.com/p/display/shop/seltDpShop/57821?callType=menu
+[33] clickable "전체보기 닫기"
+[35] clickable "메뉴 더보기"
+[37] clickable "전체 순위 보기"
+[38] clickable "30기모후드집업New 1과메기 2수산대전 3보브 2 4마리끌레르 2 5꽃보다오징어 2 6k2 5 7리린New 8슈슈앤크라 6 9베베드피노 11 "
+[39] link "30기모후드집업New" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EA%B8%B0%EB%AA%A8%ED%9B%84%EB%93%9C%EC%A7%91%
+[40] clickable "30"
+[41] clickable "기모후드집업"
+[42] clickable "New"
+[43] link "1과메기" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EA%B3%BC%EB%A9%94%EA%B8%B0&mallId=1
+[44] clickable "1"
+[45] clickable "과메기"
+[46] link "2수산대전" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EC%88%98%EC%82%B0%EB%8C%80%EC%A0%84&mallId=1
+[47] clickable "2"
+[48] clickable "수산대전"
+[49] link "3보브 2" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EB%B3%B4%EB%B8%8C&mallId=1
+[50] clickable "3"
+[51] clickable "보브"
+[52] clickable "2"
+[53] link "4마리끌레르 2" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EB%A7%88%EB%A6%AC%EB%81%8C%EB%A0%88%EB%A5%B4&
+[54] clickable "4"
+[55] clickable "마리끌레르"
+[56] clickable "2"
+[57] link "5꽃보다오징어 2" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EA%BD%83%EB%B3%B4%EB%8B%A4%EC%98%A4%EC%A7%95%
+[58] clickable "5"
+[59] clickable "꽃보다오징어"
+[60] clickable "2"
+[61] link "6k2 5" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=k2&mallId=1
+[62] clickable "6"
+[63] clickable "k2"
+[64] clickable "5"
+[65] link "7리린New" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EB%A6%AC%EB%A6%B0&mallId=1
+[66] clickable "7"
+[67] clickable "리린"
+[68] clickable "New"
+[69] link "8슈슈앤크라 6" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EC%8A%88%EC%8A%88%EC%95%A4%ED%81%AC%EB%9D%BC&
+[70] clickable "8"
+[71] clickable "슈슈앤크라"
+[72] clickable "6"
+[73] link "9베베드피노 11" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EB%B2%A0%EB%B2%A0%EB%93%9C%ED%94%BC%EB%85%B8&
+[74] clickable "9"
+[75] clickable "베베드피노"
+[76] clickable "11"
+[77] link "10활새우New" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%ED%99%9C%EC%83%88%EC%9A%B0&mallId=1
+[78] clickable "10"
+[79] clickable "활새우"
+[80] clickable "New"
+[81] link "11cc콜렉트 7" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=cc%EC%BD%9C%EB%A0%89%ED%8A%B8&mallId=1
+[82] clickable "11"
+[83] clickable "cc콜렉트"
+[84] clickable "7"
+[85] link "12후드집업 24" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%ED%9B%84%EB%93%9C%EC%A7%91%EC%97%85&mallId=1
+[86] clickable "12"
+[87] clickable "후드집업"
+[88] clickable "24"
+[89] link "13써스데이아일랜드 9" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EC%8D%A8%EC%8A%A4%EB%8D%B0%EC%9D%B4%EC%95%84%
+[90] clickable "13"
+[91] clickable "써스데이아일랜드"
+[92] clickable "9"
+[93] link "14양모이불 4" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EC%96%91%EB%AA%A8%EC%9D%B4%EB%B6%88&mallId=1
+[94] clickable "14"
+[95] clickable "양모이불"
+[96] clickable "4"
+[97] link "15설화수New" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EC%84%A4%ED%99%94%EC%88%98&mallId=1
+[98] clickable "15"
+[99] clickable "설화수"
+[100] clickable "New"
+[101] link "16디올 8" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EB%94%94%EC%98%AC&mallId=1
+[102] clickable "16"
+[103] clickable "디올"
+[104] clickable "8"
+[105] link "17스케쳐스여성운동화New" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EC%8A%A4%EC%BC%80%EC%B3%90%EC%8A%A4%EC%97%AC%
+[106] clickable "17"
+[107] clickable "스케쳐스여성운동화"
+[108] clickable "New"
+[109] link "18탑텐키즈 10" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%ED%83%91%ED%85%90%ED%82%A4%EC%A6%88&mallId=1
+[110] clickable "18"
+[111] clickable "탑텐키즈"
+[112] clickable "10"
+[113] link "19쉬즈미스 9" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EC%89%AC%EC%A6%88%EB%AF%B8%EC%8A%A4&mallId=1
+[114] clickable "19"
+[115] clickable "쉬즈미스"
+[116] clickable "9"
+[117] link "20여성니트 48" href=https://www.lotteon.com/csearch/search/search?render=search&platform=pc&q=%EC%97%AC%EC%84%B1%EB%8B%88%ED%8A%B8&mallId=1
+[118] clickable "20"
+[119] clickable "여성니트"
+[120] clickable "48"
+… 118 more elements not listed. Call find_elements with the text you are looking for to get their ids.
+
+PAGE TEXT:
+본문 바로가기 [가림]님로그아웃주문배송고객센터 검색어 검색 좋아요 마이롯데 장바구니 전체 카테고리 보기 빅세이브마켓홈쇼핑특가패션뷰티키즈푸드리빙스킨수티컬즈베스트브랜드판타지백화점여행/레저온누리 전체보기 닫기 메뉴 더보기 전체 순위 보기 30기모후드집업New 1과메기 2수산대전 3보브 2 4마리끌레르 2 5꽃보다오징어 2 6k2 5 7리린New 8슈슈앤크라 6 9베베드피노 11 10활새우New 11cc콜렉트 7 12후드집업 24 13써스데이아일랜드 9 14양모이불 4 15설화수New 16디올 8 17스케쳐스여성운동화New 18탑텐키즈 10 19쉬즈미스 9 20여성니트 48 21경량패딩 55 22향수New 23구찌머플러 25 24라코스테여성New 25샤넬New 26새우 11 27압소바New 28패딩 3 29내셔널지오그래픽 8 30기모후드집업New 1과메기 롯데온 롯데ON 몰이동 몰이동 마이롯데 주문 관리 주문 내역 취소/교환/반품 내역2 여행 예약 내역 여행 취소 내역 서비스 신청/예약 내역 환불 예정 금액 선물함 나의 활동 나의 리뷰 이벤트 응모내역 추천 서비스 롯데오너스 리서치 패널 고객센터 직거래 유도 제보 1:1 문의 내역 채팅상담 내역 판매자톡 내역 상품 QnA 내역 나의 정보 / 결제 관리 회원정보관리 L.PAY 관리 L.POINT 충전결제 회원탈퇴 롯데ON 고객센터 1899-7000(유료) 월~금요일 09:00 ~ 18:00 주말, 공휴일 휴무 고객센터 1:1 문의하기 프로필 수정 쇼핑하기 좋은 날 이에요! [가림]님 도움말 롯데ON MVG 등급이네요! 한눈에 보는 회원등급 L.POINT 2,451P교환하기 나의쿠폰 11개 알림 [리서치패널]참여 시 L.POINT 최대 5만점 적립 [정보]사진 리뷰 작성 시 L.stamp 적립 [리서치패널]참여 시 L.POINT 최대 5만점 적립 [정보]사진 리뷰 작성 시 L.stamp 적립 주문 상세 2026.10.23 2026102314077420 영수증 거래명세서 주문 내역 삭제 구매확정 롯데백화점 택배배송 문의하기 롯데백화점 Lee 키즈 키즈 스몰트위치 긴팔티셔츠 LK2603LT02 블랙 / 145 39,000원 수량 1 배송진행중 상품이 도착예정입니다. 배송상세조회 상품을받았어요 반품하기 교환하기 상품 1개 + 배송비 0원 + 무료배송 롯데백화점 택배배송 문의하기 롯데백화점 Lee 키즈 키즈 스몰트위치 긴팔티셔츠 LK2603LT02 화이트 / 145 자동구매확정 예정일 : 2026.11.03 39,000원 수량 1 배송완료 상품이 배송지에 도착하였습니다. 배송상세조회 최대 200P + L.stamp 리뷰쓰기 반품하기 교환하기 미수령/상품누락 신고 상품 1개 + 배송비 0원 + 무료배송 배송정보 [가림] 주문 금액 정보 주문 금액 정보 안내 상품금액 78,000원 할인금액 0원 배송비/포장비 0원 총 결제금액 78,000원 L.POINT 적립 예정 상세보기 구매적립예정 388P 리뷰적립예정 최대 400P 구매적립은 구매확정 시 적립됩니다. 리뷰적립은 리뷰 작성 시 적립됩니다. 결제정보 네이버페이 결제완료 78,000원 2026.10.23
