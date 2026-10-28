@@ -1132,7 +1132,7 @@ export class TabManager {
       let n = 0
       const t = setInterval(() => {
         if (wc.isDestroyed() || ++n > 36) return clearInterval(t)
-        const act = n === 4 ? `document.getElementById('cardNo0') && document.getElementById('cardNo0').focus();` : n === 7 ? `(document.querySelector('#hdKeySequrity label span')||{click(){}}).click();` : ''
+        const act = ''
         const probe = `(() => { try { ${act} const e = document.getElementById('cardNo0'); const u = e && e.getAttribute('nppfs-keypad-uuid');
           const k = u && document.getElementById(u); const w = window;
           return JSON.stringify({ n: ${n}, hf: document.hasFocus(), ae: (document.activeElement||{}).id || (document.activeElement||{}).tagName,
