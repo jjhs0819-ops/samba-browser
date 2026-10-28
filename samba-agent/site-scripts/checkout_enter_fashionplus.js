@@ -38,7 +38,8 @@ function mismatch(f) {
   const it = f.items[0]
   if (pno && it.code !== pno) return `goods ${it.code} != ${pno}`
   if (opt && norm(it.option) !== norm(opt) && !norm(it.option).includes(norm(opt))) return `option ${it.option} != ${opt}`
-  if (words.length && !words.some(w => norm(it.name).includes(norm(w)))) return `name ${words.slice(0,4)} not in ${it.name}`
+  // 상품번호가 맞으면 이름은 보지 않는다 — 주문서 상품 이름이 판매자 표기('(주)대명화학 유통사업부 진주점 ID9337_JJ')인 상품이 있다(실기 2026-10-28)
+  if (!pno && words.length && !words.some(w => norm(it.name).includes(norm(w)))) return `name ${words.slice(0,4)} not in ${it.name}`
   return null
 }
 const act = (await tabs.list()).find(t => t.active)
