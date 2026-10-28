@@ -1,4 +1,4 @@
-// 패션플러스 주문서 정돈 — 쿠폰 최대할인(상품·중복·장바구니)과 보유 적립금 모두 사용(사용자 규칙: 포인트·적립금 항상 사용). 결제 없음.
+// 패션플러스 주문서 정돈 — 쿠폰 최대할인(상품·중복·장바구니), 적립금은 쓰지 않는다(사용자 2026-10-28). 결제 없음.
 // 탭: args.tab > 이 레인의 패션플러스 주문서 탭 하나(여럿이면 expect.product_no 로 고르고, 못 고르면 멈춤)
 // 쿠폰: '최대할인 적용'이 꺼져 있거나 쿠폰 창의 '총 N원 할인 적용'이 주문서 쿠폰 합보다 크면 창에서 켜고 적용한다
 // 반환 {ok,total,coupon,cart_coupon,discount,points_balance,points_used,points_box,points_limit,reward,prepay,order_tab,note}
@@ -67,19 +67,21 @@ if (open >= 0) {
   if (mx && !mx.on) notes.push('최대할인 적용 체크 못함')
 } else notes.push('쿠폰 선택 버튼 없음')
 
-// 2) 적립금 모두 사용
-let limit = r.balance
-if (r.balance > 0) {
+// 2) 적립금 쓰지 않음 — 사용자 2026-10-28: 패플은 적립금을 쓰지 않는다(적립금 7,550원 주문서에서 새 배송지 등록이
+// 계속 실패). 켜져 있으면 끈다
+let limit = 0
+if (r.used > 0) {
   const pb = await boxBefore('적립금 모두사용')
-  if (!pb) return fail('points checkbox not found', { order_tab: tab, points_balance: r.balance })
-  if (!pb.on) { await page.click(pb.label); await sleep(1000) }
-  const ls = await lines()
-  const box = near(ls, '적립금 모두사용', 1)
-  const ap = parseInt((ls.find(l => /button "적용"$/.test(l)) || '[-1]').slice(1))
+  if (pb && pb.on) { await page.click(pb.label); await sleep(1000) }
   r = await read()
-  if (r.used === 0 && ap >= 0) { await page.click(ap); await sleep(1000); r = await read() }
-  limit = Math.max(r.used, /textbox/.test(box) ? num((box.match(/value="(\d+)"/) || [])[1]) : 0)
-  if (r.used === 0) return fail('points not applied', { order_tab: tab, points_balance: r.balance })
+  if (r.used > 0) {
+    const ls = await lines()
+    const box = near(ls, '적립금 모두사용', 1)
+    const ap = parseInt((ls.find(l => /button "적용"$/.test(l)) || '[-1]').slice(1))
+    if (/textbox/.test(box)) { await page.type(parseInt(box.slice(1)), '0', false); if (ap >= 0) await page.click(ap); await sleep(1000); r = await read() }
+  }
+  if (r.used > 0) return fail(`points not released: ${r.used}`, { order_tab: tab, points_balance: r.balance })
+  notes.push('적립금 사용 해제')
 }
 return {
   ok: r.total > 0 || (r.total === 0 && r.used > 0),
