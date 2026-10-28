@@ -3,7 +3,7 @@ import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { TabManager, Tab } from '../browser/tab-manager'
 import { adpickTrackingLink } from './affiliate'
-import { pageBridge } from '../browser/page-bridge'
+import { needsPaymentTyping, pageBridge } from '../browser/page-bridge'
 import type { KeypadLayout, LoginFieldsResult } from '../browser/page-bridge'
 import { serializeSnapshot } from '../../shared/snapshot'
 import type { PageOverlay, PageSnapshot } from '../../shared/snapshot'
@@ -2295,6 +2295,8 @@ overlays left: ${after.length}${kept}`
             return `refused: saved password.${fieldKey} cannot be shaped as ${format}`
           const movedPay = viaOpener ? null : verifyFillTarget(account, tab)
           if (movedPay) return movedPay
+          // 읽기 전용 비밀번호 칸(키 입력만 받는 결제창 — 더현대 hdpay)은 진짜 키로 친다(2026-10-28)
+          if (needsPaymentTyping(currentHost(tab))) return await pageBridge.typeLogin(tab, elementId, shaped)
           return await pageBridge.fillValue(tab, elementId, shaped)
         }
         const raw =
