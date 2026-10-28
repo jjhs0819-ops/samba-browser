@@ -401,7 +401,7 @@ function opToCode(op: AgentOp): string {
     case 'hasFocus':
       return `__samba.hasFocus(${op.id})`
     case 'focusEl':
-      return `__samba.focusEl(${op.id})`
+      return `__samba.focusEl(${op.id}${op.reveal ? ', true' : ''})`
     case 'ancestorsOf':
       return `__samba.ancestorsOf(${op.id})`
     case 'idOfRowCell':
@@ -683,9 +683,12 @@ export const pageBridge = {
   // 최신 스냅샷 기준 요소가 비밀 입력칸(type=password)인지 확인(fill_secret 대상 검증용)
   isSecretField: (tab: Tab, id: number): Promise<boolean> =>
     callById(tab, id, (n) => ({ op: 'isSecretField', id: n }), boolSchema),
-  /** 요소에 포커스만 준다(가상키패드가 비밀번호 칸 focus 로 열리는 결제창 — 더현대 hdpay) */
+  /**
+   * 요소에 포커스를 주고 화면 위쪽으로 스크롤한다 — 가상키패드가 비밀번호 칸 focus 로 열리는 결제창(더현대 hdpay).
+   * 사이트도 칸을 누르면 같은 일을 한다. 스크롤하지 않으면 키패드가 창 아래로 잘려 칸을 읽지 못했다
+   */
   focusElement: (tab: Tab, id: number): Promise<boolean> =>
-    callById(tab, id, (n) => ({ op: 'focusEl', id: n }), boolSchema),
+    callById(tab, id, (n) => ({ op: 'focusEl', id: n, reveal: true }), boolSchema),
   /**
    * 요소 가운데의 뷰포트 좌표(스크롤 반영). 실제 마우스 클릭(clickAt)을 보낼 자리다.
    *

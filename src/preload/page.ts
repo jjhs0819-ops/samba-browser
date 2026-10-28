@@ -130,7 +130,7 @@ if (!isExtensionDocument) {
     // 입력칸 값의 글자 수만(값은 안 돌려준다) — 진짜 키 입력이 들어갔는지 확인용
     valueLength: (id: number) => valueLength(id),
     hasFocus: (id: number) => hasFocus(id),
-    focusEl: (id: number) => focusEl(id),
+    focusEl: (id: number, reveal?: boolean) => focusEl(id, reveal),
     idOfExactText: (text: string, nth: number) => idOfExactText(text, nth),
     idOfRowCell: (id: number, index: number) => idOfRowCell(id, index),
     ancestorsOf: (id: number) => ancestorsOf(id)

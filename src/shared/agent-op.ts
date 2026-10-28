@@ -22,7 +22,7 @@ export type AgentOp =
   | { op: 'rectOf'; id: number }
   | { op: 'valueLength'; id: number }
   | { op: 'hasFocus'; id: number }
-  | { op: 'focusEl'; id: number }
+  | { op: 'focusEl'; id: number; reveal?: boolean }
   | { op: 'idOfExactText'; text: string; nth: number }
   | { op: 'idOfRowCell'; id: number; index: number }
   | { op: 'ancestorsOf'; id: number }

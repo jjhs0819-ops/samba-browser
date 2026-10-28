@@ -733,10 +733,11 @@ export function hasFocus(id: number): boolean {
 }
 
 /** 요소에 포커스를 준다(클릭이 포커스로 이어지지 않는 화면용 — Nexacro). 포커스를 받았으면 true */
-export function focusEl(id: number): boolean {
+export function focusEl(id: number, reveal = false): boolean {
   const el = get(id)
   if (!el) return false
   el.focus()
+  if (reveal) el.scrollIntoView(true)
   return hasFocus(id)
 }
 
