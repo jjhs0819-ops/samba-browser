@@ -435,10 +435,7 @@ const HUMAN_TYPING_HOSTS = [
   'gsshop.com',
   'payco.com',
   'shoemarker.co.kr',
-  'partner.hmall.com',
-  // 더현대 결제창(간편 결제) — 비밀번호 칸이 읽기 전용이라 키 입력으로만 받는다(실기 2026-10-28: 값을 직접 넣으면
-  // '결제 하기'가 반응하지 않았다). agent/tools.ts PAYMENT_TYPING_HOSTS 에도 있어 결제 비밀번호도 키로 친다
-  'hdpay.ehyundai.com'
+  'partner.hmall.com'
 ]
 
 function safeHost(wc: WebContents): string {
@@ -686,6 +683,9 @@ export const pageBridge = {
   // 최신 스냅샷 기준 요소가 비밀 입력칸(type=password)인지 확인(fill_secret 대상 검증용)
   isSecretField: (tab: Tab, id: number): Promise<boolean> =>
     callById(tab, id, (n) => ({ op: 'isSecretField', id: n }), boolSchema),
+  /** 요소에 포커스만 준다(가상키패드가 비밀번호 칸 focus 로 열리는 결제창 — 더현대 hdpay) */
+  focusElement: (tab: Tab, id: number): Promise<boolean> =>
+    callById(tab, id, (n) => ({ op: 'focusEl', id: n }), boolSchema),
   /**
    * 요소 가운데의 뷰포트 좌표(스크롤 반영). 실제 마우스 클릭(clickAt)을 보낼 자리다.
    *

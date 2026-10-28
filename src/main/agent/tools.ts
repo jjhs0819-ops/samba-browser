@@ -194,9 +194,11 @@ export const KEYPAD_SKIPPED_NEXT =
 // 넘김 카드에 표시할 근거 문구(값이 아니라 화면 종류만 담는다)
 const KEYPAD_HANDOFF_MATCHED = '결제 비밀번호 키패드'
 // 앱이 키패드에 결제 비밀번호를 다 넣었을 때. 확인·입력완료 버튼은 모델이 누른다
-// 결제 비밀번호를 값 넣기 대신 진짜 키 입력(typeLogin)으로 넣는 결제창 — 읽기 전용 비밀번호 칸(더현대 hdpay, 2026-10-28).
-// page-bridge HUMAN_TYPING_HOSTS 에도 있어야 typeLogin 이 키로 친다
-const PAYMENT_TYPING_HOSTS = ['hdpay.ehyundai.com']
+// 비밀번호 칸에 포커스를 줘야 가상키패드(nProtect)가 뜨는 결제창 — 칸은 읽기 전용이라 값도 키도 안 받는다.
+// 포커스로 키패드를 띄운 뒤 키패드 입력(OCR 배치)으로 넣는다(더현대 hdpay, 실기 2026-10-28)
+const VIRTUAL_KEYPAD_HOSTS = ['hdpay.ehyundai.com']
+// 포커스 뒤 키패드가 그려질 때까지 기다리는 시간(시험에서는 기다리지 않는다)
+const VIRTUAL_KEYPAD_OPEN_MS = process.env['VITEST'] ? 0 : 1200
 export const KEYPAD_ENTERED_NEXT =
   'ok: the app entered the payment password on the keypad. ' +
   'Now call get_page and press the confirm/입력완료 button if the keypad has one; never press the digits yourself.'
@@ -2233,6 +2235,14 @@ overlays left: ${after.length}${kept}`
         if (!tab) return 'no active tab'
         // 웹 결제 키패드: 입력칸이 아니라 숫자 버튼이다 — 앱이 키마스터 값을 눌러 넣는다.
         // 결제 비밀번호가 아닌 항목을 키패드 화면에서 부르면 넘긴다(넣을 곳이 없다)
+        if (
+          itemType === 'password' &&
+          VIRTUAL_KEYPAD_HOSTS.some((h) => currentHost(tab).endsWith(h))
+        ) {
+          await pageBridge.focusElement(tab, elementId).catch(() => false)
+          await new Promise((resolve) => setTimeout(resolve, VIRTUAL_KEYPAD_OPEN_MS))
+          return await keypadEnter(tab, accountLabel, provider, dryRunDigits)
+        }
         if (await secretKeypadGate.check(tab)) {
           if (itemType !== 'password') return await keypadHandoff(tab)
           return await keypadEnter(tab, accountLabel, provider, dryRunDigits)
@@ -2298,9 +2308,6 @@ overlays left: ${after.length}${kept}`
             return `refused: saved password.${fieldKey} cannot be shaped as ${format}`
           const movedPay = viaOpener ? null : verifyFillTarget(account, tab)
           if (movedPay) return movedPay
-          // 읽기 전용 비밀번호 칸(키 입력만 받는 결제창 — 더현대 hdpay)은 진짜 키로 친다(2026-10-28)
-          if (PAYMENT_TYPING_HOSTS.some((h) => currentHost(tab).endsWith(h)))
-            return await pageBridge.typeLogin(tab, elementId, shaped)
           return await pageBridge.fillValue(tab, elementId, shaped)
         }
         const raw =

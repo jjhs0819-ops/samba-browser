@@ -1325,8 +1325,9 @@ export function keypadLayout(): KeypadLayoutDto | null {
   return { digits, filled: pin ? pin.value.length : null }
 }
 
-// 글자 없는 키패드 버튼 후보
-const KEYPAD_UNLABELED_SELECTOR = 'button, [role="button"], a'
+// 글자 없는 키패드 버튼 후보. img.kpd-data 는 nProtect 가상키패드(더현대 결제창)의 투명 칸 —
+// 숫자는 뒤의 큰 키패드 그림에 그려져 있고 칸마다 투명 그림이 덮여 누름을 받는다(실기 2026-10-28)
+const KEYPAD_UNLABELED_SELECTOR = 'button, [role="button"], a, img.kpd-data'
 // 보안 키패드 한 칸으로 볼 크기(px). 아이콘·전체 화면 레이어는 빼낸다
 const KEYPAD_CELL_MIN = 16
 // 창이 넓으면 네이버페이 PC 키패드 한 칸이 200px 을 넘는다(실기 2026-09-29: 버튼 11개가 다 걸러져 사람에게 넘김)

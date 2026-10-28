@@ -1126,36 +1126,6 @@ export class TabManager {
     }
     wc.on('did-navigate', focusEmulate)
     wc.on('dom-ready', focusEmulate)
-    // [임시 진단] 가상키패드 상태를 5초마다 읽어 남긴다(읽기만)
-    wc.on('dom-ready', () => {
-      if (!needsFocusEmulation(wc.getURL())) return
-      let n = 0
-      const t = setInterval(() => {
-        if (wc.isDestroyed() || ++n > 36) return clearInterval(t)
-        const act = n === 3 ? `document.getElementById('cardNo0') && document.getElementById('cardNo0').focus();` : ''
-        if (n === 5) {
-          const dump = `(() => { const k = document.getElementById('nppfs-keypad-cardNo0'); if (!k) return 'none';
-            return Array.from(k.querySelectorAll('*')).map(x => { const r = x.getBoundingClientRect();
-              return x.tagName + '.' + String(x.className).slice(0, 30) + ' t=' + (x.textContent || '').trim().slice(0, 6) + ' al=' + (x.getAttribute('aria-label') || x.getAttribute('alt') || '') + ' act=' + (x.getAttribute('data-keypad-action') || '') + ' role=' + (x.getAttribute('role') || '') + ' ' + Math.round(r.x) + ',' + Math.round(r.y) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height) }).join(' | ').slice(0, 6000) })()`
-          wc.executeJavaScript(dump).then((r) => console.warn(`[키패드구조] ${r}`)).catch(() => {})
-        }
-        const probe = `(() => { try { ${act} const e = document.getElementById('cardNo0'); const u = e && e.getAttribute('nppfs-keypad-uuid');
-          const k = u && document.getElementById(u); const w = window;
-          return JSON.stringify({ n: ${n}, hf: document.hasFocus(), ae: (document.activeElement||{}).id || (document.activeElement||{}).tagName,
-            ro: e && e.getAttribute('readonly'), npro: e && e.getAttribute('nppfs-readonly'), cls: e && e.className, u,
-            kd: k ? getComputedStyle(k).display : null, dyn: document.querySelectorAll('.nppfs-dynamic-field').length,
-            tg: Array.from(document.querySelectorAll('input[name*=toggle]')).map(i => i.name + '=' + i.value).join(','),
-            abs: w.npVCtrl && w.npVCtrl.isAbsoluteUse ? w.npVCtrl.isAbsoluteUse() : 'na', npv: typeof w.npVCtrl, pfs: typeof w.npPfsCtrl,
-            kpdivs: document.querySelectorAll('.nppfs-keypad-div *').length, kpd: Array.from(document.querySelectorAll('[id^=nppfs-keypad]')).map(x => x.id + ':' + getComputedStyle(x).display).join(',') }) } catch (err) { return 'ERR ' + err } })()`
-        wc.executeJavaScript(probe).then((r) => console.warn(`[키패드진단] ${r}`)).catch((e) => console.warn(`[키패드진단] 실패 ${e}`))
-      }, 5000)
-    })
-    // 결제창 보안 모듈 진단 — 가상키패드 결제창 콘솔은 수준과 관계없이 메인 로그로 남긴다
-    wc.on('console-message', (ev) => {
-      if (needsFocusEmulation(wc.getURL())) {
-        console.warn(`결제창 콘솔[${ev.level}]: ${ev.message.slice(0, 300)} (${ev.sourceId}:${ev.lineNumber})`)
-      }
-    })
     // 팝업(결제창·로그인 창)에서도 사람의 키 입력·마우스 누름을 기록한다(부모 창 단위로도 남는다)
     this.watchHumanInput(wc)
     // 페이지 JS 대화상자도 탭과 같은 정책으로 처리한다(결제창의 alert 가 작업을 멈추지 않게)
