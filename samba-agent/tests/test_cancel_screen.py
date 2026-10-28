@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from samba_agent.ops.cancel_screen import (
+    DEDUCTION_PATTERNS,
     SITE_CONFIRM,
     SITE_KEYS,
     SITE_RULES,
@@ -170,8 +171,14 @@ def test_JS_규칙표가_파이썬과_같다(key: str) -> None:
     assert _js_const(code, 'RULES') == rules
     assert _js_const(code, 'CONFIRM') == SITE_CONFIRM[key]
     assert _js_const(code, 'VERIFIED') is SITE_VERIFIED[key]
-    assert code.index('const VERIFIED') < code.index('page.click(')  # 가드가 클릭보다 앞
-    assert 'if (!VERIFIED) return done(' in code
+    assert _js_const(code, 'DED') == list(DEDUCTION_PATTERNS)
+    # 미검증 가드와 전체 가드(buttons==1)가 첫 클릭보다 앞에 있다
+    first_click = code.index('page.click(')
+    assert code.index('if (!VERIFIED) return done(') < first_click
+    assert code.index('c.buttons === 1)) return done(') < first_click
+    # 확인 후보는 클릭 전 id 집합에 없는 것만 — 주소 변경 예외 없음
+    assert 'const isNew = e => !pre.has(e.id)' in code
+    assert 'url0' not in code
 
 
 def test_공제_글자는_클릭_전보다_늘었을_때만_잡는다() -> None:

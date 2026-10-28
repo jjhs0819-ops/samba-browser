@@ -181,7 +181,8 @@ def count_items(pattern: str, segment: str) -> int:
 
 def deduction_counts(text: str) -> list[int]:
     """공제 글자별 등장 횟수(JS dedCounts 와 같다)."""
-    return [len(re.findall(p, text)) for p in DEDUCTION_PATTERNS]
+    # 정규식이 아니라 글자 그대로 센다(JS dedCounts 의 split 과 같다)
+    return [text.count(p) for p in DEDUCTION_PATTERNS]
 
 
 def deduction_increased(before: str, after: str) -> bool:
