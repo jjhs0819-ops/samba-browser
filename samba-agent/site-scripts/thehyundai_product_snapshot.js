@@ -23,13 +23,13 @@ if (!pno) return { options: [], error: 'no_product', note: 'no product number' }
 const product_url = `${H}/product/${pno}`
 const tid = tabId(await tabs.open({ ...P, url: product_url }))
 if (tid) await tabs.switch(tid)
-if (!(await page.waitFor('구매하기', 12000))) return { options: [], error: 'no_product', note: '상품 화면이 안 열림', product_tab: tid, product_url }
+if (!(await page.waitFor('구매하기', 12000))) return { options: [], error: 'no_product', note: '상품 화면 안 열림', product_tab: tid, product_url }
 const product_name = String(await page.title()).replace(/\s*\|\s*더현대Hi\s*$/, '').trim()
 const base = { coupons: {}, methods: [], cost: null, product_url, product_no: pno, product_name, product_tab: tid }
 let tr = await tree()
 if (linesOf(tr).some(l => /link "로그인" href=\/login/.test(l))) return { ...base, options: [], error: 'login_required', note: '로그인 안 됨' }
 const t0 = textOf(tr)
-if (/일시품절|품절된 상품|판매종료|판매 종료/.test(t0.split('상세정보')[0])) return { ...base, options: [], sold_out: true, error: 'sold_out', note: '상품 전체 품절 표시' }
+if (/일시품절|품절된 상품|판매종료|판매 종료/.test(t0.split('상세정보')[0])) return { ...base, options: [], sold_out: true, error: 'sold_out', note: '전체 품절' }
 
 const buyLines = linesOf(tr).filter(l => /\] button "구매하기"$/.test(l))
 if (!buyLines.length) return { ...base, options: [], note: 'buy button not found' }
@@ -37,18 +37,19 @@ await page.click(idOfLine(buyLines[buyLines.length - 1]))
 await sleep(1200)
 
 const combo = async name => (await find(name)).find(l => new RegExp(`\\] combobox "${name}"`).test(l))
-const optionsOf = async () => {
-  const ls = linesOf(await tree({ selector: '[role=listbox], [class*=option]' }))
-  return ls.filter(l => /\] option "/.test(l)).map(l => ({ id: idOfLine(l), t: l.match(/option "([^"]*)"/)[1].trim() }))
-}
+const optionsOf = async () => linesOf(await tree({ selector: '[role=listbox], [class*=option]' })).filter(l => /\] option "/.test(l)).map(l => ({ id: idOfLine(l), t: l.match(/option "([^"]*)"/)[1].trim() }))
 const pickBy = (opts, w) => {
   const live = opts.filter(o => !/품절/.test(o.t)), part = live.filter(o => norm(o.t).includes(norm(w)) || norm(w).includes(norm(o.t)))
   return live.find(o => norm(o.t) === norm(w)) || (part.length === 1 ? part[0] : null)
 }
 const wantParts = want.split('/').map(s => s.trim()).filter(Boolean)
-const names = (await combo('컬러')) || (await combo('사이즈')) ? ['컬러', '사이즈'] : ['옵션을 선택해 주세요.']
-const boxes = []
-for (const n of names) if (await combo(n)) boxes.push(n)
+// 옵션 칸은 늦게 그려진다 — 최대 6초 기다림
+let boxes = []
+for (let i = 0; i < 12 && !boxes.length; i++) {
+  for (const n of ['컬러', '사이즈', '옵션을 선택해 주세요.']) if (await combo(n)) boxes.push(n)
+  if (!boxes.length) await sleep(500)
+}
+if (boxes.length > 1) boxes = boxes.filter(n => n !== '옵션을 선택해 주세요.')
 let options = [], picked = []
 if (!boxes.length) {
   options = ['단일']
@@ -73,7 +74,7 @@ if (!boxes.length) {
 }
 for (let i = 1; i < qty; i++) { const plus = (await find('증가')).find(l => /\] button "증가"$/.test(l)); if (!plus) break; await page.click(idOfLine(plus)); await sleep(300) }
 const sheet = await tree()
-if (boxes.length && !/총 [\d,]+원/.test(sheet.match(/^OVERLAY: "([^"]*)"/m)?.[1] || textOf(sheet))) return { ...base, options, note: '옵션 선택이 반영되지 않음' }
+if (boxes.length && !/총 [\d,]+원/.test(sheet.match(/^OVERLAY: "([^"]*)"/m)?.[1] || textOf(sheet))) return { ...base, options, note: '옵션 선택 미반영' }
 const direct = (await find('바로구매')).find(l => /\] button "바로구매"$/.test(l))
 if (!direct) return { ...base, options, note: 'buy button not found' }
 await page.click(idOfLine(direct))
@@ -117,5 +118,4 @@ if (radio && /value="on"/.test(radio) && cardBtn) { await page.click(idOfLine(ca
 else if (radio) notes.push(cardBtn ? '현대백화점 카드 선택 안 됨' : `등록 카드 ${cardSuffix} 없음`)
 const t2 = textOf(tr)
 const cost = num((t2.match(/결제 금액 ([\d,]+)원/) || [])[1]) || null
-const discount = num((t2.match(/현대백화점카드 - ([\d,]+)원/) || [])[1])
-return { ...base, product_tab: null, options, selected, cost, qty: itQty, pay_amount: cost, reward: 0, points_used: 0, coupon: 0, card_discount: discount, methods, card: methods.length ? `현대백화점카드 ${cardSuffix}` : null, order_tab: tid, order_item: it.slice(0, 120), note: notes.join('; ') || 'dup check skipped' }
+return { ...base, product_tab: null, options, selected, cost, qty: itQty, pay_amount: cost, reward: 0, points_used: 0, coupon: 0, methods, card: methods.length ? `현대백화점카드 ${cardSuffix}` : null, order_tab: tid, order_item: it.slice(0, 120), note: notes.join('; ') || 'dup check skipped' }
