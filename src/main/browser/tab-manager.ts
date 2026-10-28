@@ -1132,9 +1132,10 @@ export class TabManager {
       let n = 0
       const t = setInterval(() => {
         if (wc.isDestroyed() || ++n > 36) return clearInterval(t)
-        const probe = `(() => { try { const e = document.getElementById('cardNo0'); const u = e && e.getAttribute('nppfs-keypad-uuid');
+        const act = n === 4 ? `document.getElementById('cardNo0') && document.getElementById('cardNo0').focus();` : n === 7 ? `(document.querySelector('#hdKeySequrity label span')||{click(){}}).click();` : ''
+        const probe = `(() => { try { ${act} const e = document.getElementById('cardNo0'); const u = e && e.getAttribute('nppfs-keypad-uuid');
           const k = u && document.getElementById(u); const w = window;
-          return JSON.stringify({ hf: document.hasFocus(), ae: (document.activeElement||{}).id || (document.activeElement||{}).tagName,
+          return JSON.stringify({ n: ${n}, hf: document.hasFocus(), ae: (document.activeElement||{}).id || (document.activeElement||{}).tagName,
             ro: e && e.getAttribute('readonly'), npro: e && e.getAttribute('nppfs-readonly'), cls: e && e.className, u,
             kd: k ? getComputedStyle(k).display : null, dyn: document.querySelectorAll('.nppfs-dynamic-field').length,
             tg: Array.from(document.querySelectorAll('input[name*=toggle]')).map(i => i.name + '=' + i.value).join(','),
