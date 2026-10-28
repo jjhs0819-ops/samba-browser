@@ -679,9 +679,22 @@ def main() -> None:
 
         def _cancel_profiles(site: str) -> list[str]:
             # 키마스터 목록 조회(list_accounts)는 그 사이트 탭을 먼저 열어야 해 싸지 않다 —
-            # sources.yaml 의 buy_accounts 를 라벨 목록으로 쓴다(라벨은 우리 사이트에서 로그인 아이디와 같다)
+            # sources.yaml 의 buy_accounts 를 알려진 라벨 목록으로 쓴다. 라벨은 로그인 아이디와 다를 수
+            # 있어(무신사 buy-1) 삼바 주문계정 아이디가 이 목록에 정확히 있을 때만 그 라벨을 쓴다
             src = default_sources().by_id(site)
             return list(src.buy_accounts) if src is not None else []
+
+        def _cancel_ledger_account(source_order_no: str) -> str | None:
+            # 발주 때 실제 쓴 키마스터 라벨 — 교차검증 장부(최근 30일)의 그 소싱주문 줄. crosscheck 도 같은 값을
+            # 주문 상세 스크립트의 profile 로 쓴다
+            try:
+                rows = crosscheck_ledger.recent(30)
+            except sqlite3.Error:
+                return None
+            return next(
+                (r.account for r in rows if r.source_order_no == source_order_no and r.account),
+                None,
+            )
 
         canceller = SourceCanceller(
             wave,
@@ -694,6 +707,7 @@ def main() -> None:
             # 주문 작업이 도는 동안에는 브라우저를 건드리지 않는다
             idle=lambda: not any(j.state in ('queued', 'running') for j in queue.live()),
             profiles=_cancel_profiles,
+            ledger_account=_cancel_ledger_account,
             sites=None if cancel_sites == 'all' else set(cancel_sites),
         )
         threading.Thread(

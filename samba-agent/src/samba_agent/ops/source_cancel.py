@@ -5,8 +5,9 @@
 → 반영된 회신(done·wait_confirm)에만 텔레그램 카드 1통.
 
 원칙("확신 없으면 누르지 않는다"): 묶음(같은 발주번호 주문 2건 이상·화면 상품행 2개 이상)은 안 누른다.
-재선점(claimed 방치) 행은 mode=check 로 와서 먼저 상태만 읽는다 — 취소 가능할 때만 같은 사이클에
-cancel 로 한 번 더 부른다(클릭은 최대 1회). 마켓 취소승인 API 는 여기서 절대 부르지 않는다.
+mode=check(접수 재확인·claimed 방치 재선점)는 상태만 읽고 **절대 누르지 않는다** — 다시 취소 가능 상태면
+failed 로 회신해 삼바가 30분 뒤 cancel 모드로 다시 내주거나(attempts<2) 사람에게 넘긴다.
+한 사이클에 한 건당 스크립트 호출은 1번이다. 마켓 취소승인 API 는 여기서 절대 부르지 않는다.
 """
 
 from __future__ import annotations
@@ -29,12 +30,13 @@ _log = logging.getLogger(__name__)
 
 DEFAULT_INTERVAL_S = 300.0
 DEFAULT_LIMIT = 20
-# 스크립트가 취소 사유 선택지에 고를 글자(사이트마다 가장 가까운 항목으로 맞춘다 — Task 6)
+# 스크립트 args.reason_text 로 넘기는 취소 사유 글자. 사이트마다 선택지가 달라 스크립트(Task 6)가
+# 자기 사이트의 가장 가까운 항목(무신사 '단순 변심', ABC '고객 변심' 식)으로 옮겨 고른다 — 그대로 찾지 않는다
 DEFAULT_REASON_TEXT = '단순 변심'
-# 회신이 실제로 반영됐을 때 삼바가 돌려주는 행 state — 이 밖(pending·skipped·claimed…)은 "반영 안 됨"
-_APPLIED_STATES = frozenset({'done', 'retry', 'wait_confirm'})
-# retry_click: check 로 읽었더니 취소 가능 — 실행기가 같은 사이클에 cancel 로 한 번 더 부른다(회신 outcome 아님)
-RETRY_CLICK = 'retry_click'
+# 텔레그램을 보내는 회신 state. retry(30분 뒤 다시)·pending·skipped·claimed(반영 안 됨)는 조용히
+_ANNOUNCE_STATES = frozenset({'done', 'wait_confirm'})
+# 접수(accepted) 회신이 done 으로 닫히면 삼바가 72시간 만료로 failed 처리한 것 — 사람에게 넘긴다
+EXPIRED_REASON = '취소 접수 후 72시간 확정 안 됨'
 
 # outcome → (level, 결론, 할일). failed 의 결론은 사유를 붙인다
 _CARDS: dict[str, tuple[Level, str, str]] = {
@@ -68,12 +70,20 @@ def order_no_token_match(text: str, no: str) -> bool:
 
 
 def resolve_profile(
-    src: Source, account_username: str | None, keymaster_labels: list[str]
+    src: Source,
+    account_username: str | None,
+    keymaster_labels: list[str],
+    ledger_account: str | None = None,
 ) -> str | None:
     """스크립트에 넘길 키마스터 프로필(계정 라벨).
 
-    아이디가 라벨과 정확히 같으면 그 라벨, 아니면 `buy_accounts` 가 1개일 때 그 계정. 둘 다 아니면 None.
+    순서: (a) 교차검증 장부에 적힌 이 소싱주문의 구매 계정(발주 때 실제 쓴 키마스터 라벨 — crosscheck 의
+    `_source_status` 도 이 값을 profile 로 쓴다) → (b) 삼바 주문계정 아이디가 알려진 라벨과 정확히 같으면 그 라벨
+    → (c) `buy_accounts` 가 정확히 1개면 그 계정. 셋 다 아니면 None(→ failed `구매 계정을 정하지 못함`).
     """
+    ledger = (ledger_account or '').strip()
+    if ledger:
+        return ledger
     username = (account_username or '').strip()
     if username and username in keymaster_labels:
         return username
@@ -96,8 +106,7 @@ def _int(screen: dict[str, object], key: str) -> int:
 def decide(item: RobotCancelItem, screen: dict[str, object] | None) -> tuple[str, str]:
     """스크립트 출력 → (outcome, reason). 순수함수이고 규칙은 적힌 순서대로 적용한다.
 
-    outcome 은 삼바 회신값(cancelled·already_cancelled·accepted·shipped·bundle·failed) 또는
-    실행기 내부값 `retry_click`(check 에서 취소 가능 — cancel 로 한 번 더).
+    outcome 은 삼바 회신값(cancelled·already_cancelled·accepted·shipped·bundle·failed)뿐이다.
     """
     # 1) 같은 발주번호 주문이 2건 이상이면 화면을 보기 전에 묶음 — 삼바가 걸렀어도 한 번 더 본다
     if item.bundle_count >= 2:
@@ -121,9 +130,10 @@ def decide(item: RobotCancelItem, screen: dict[str, object] | None) -> tuple[str
         return 'already_cancelled', ''
     if state == 'cancel_pending':
         return 'accepted', ''
-    # 5) 읽기만 했는데 취소 가능 — 같은 사이클에 cancel 로 다시
+    # 5) check 는 읽기 전용 — 다시 취소 가능 상태면 누르지 않고 사람(또는 삼바의 cancel 재선점)에게 넘긴다
+    #    (접수 재확인에서 판매자가 되돌렸거나, 클릭 도중 로봇이 죽어 claimed 로 남았던 건)
     if item.mode == 'check' and state == 'cancellable':
-        return RETRY_CLICK, ''
+        return 'failed', '재확인 중 다시 취소 가능 상태 — 사람 확인'
     # 6) 눌렀으면 되읽은 상태로만 성공을 친다
     if item.mode == 'cancel' and _flag(screen, 'clicked'):
         after = str(screen.get('after_state') or '')
@@ -153,6 +163,7 @@ class SourceCanceller:
         idle: Callable[[], bool],
         profiles: Callable[[str], list[str]],
         *,
+        ledger_account: Callable[[str], str | None] = lambda source_order_no: None,
         sites: set[str] | None = None,
         sources: Sources | None = None,
         limit: int = DEFAULT_LIMIT,
@@ -164,6 +175,7 @@ class SourceCanceller:
         self._enabled = enabled
         self._idle = idle
         self._profiles = profiles
+        self._ledger_account = ledger_account
         self._sites = sites
         self._sources = sources or default_sources()
         self._limit = limit
@@ -206,22 +218,21 @@ class SourceCanceller:
         return done
 
     def _handle(self, item: RobotCancelItem) -> tuple[str, str]:
-        """한 건의 판정 — 스크립트를 최대 2번(check→cancel) 부른다."""
+        """한 건의 판정 — 스크립트는 1번만 부른다(check 는 읽기만, cancel 은 누르고 되읽기)."""
         if item.bundle_count >= 2:
             return decide(item, None)
         src = self._sources.by_id(item.source_site)
         if src is None:
             return 'failed', '소싱처 설정 없음'
-        profile = resolve_profile(src, item.account_username, self._profiles(src.id))
+        profile = resolve_profile(
+            src,
+            item.account_username,
+            self._profiles(src.id),
+            self._ledger_account(item.sourcing_order_number),
+        )
         if profile is None:
             return 'failed', '구매 계정을 정하지 못함'
-        screen = self._screen(src, item, profile, item.mode)
-        outcome, reason = decide(item, screen)
-        if outcome == RETRY_CLICK:
-            # 읽어 보니 취소 가능 — 같은 사이클에 cancel 로 한 번 더(클릭은 이 한 번뿐)
-            retry = item.model_copy(update={'mode': 'cancel'})
-            outcome, reason = decide(retry, self._screen(src, retry, profile, 'cancel'))
-        return outcome, reason
+        return decide(item, self._screen(src, item, profile, item.mode))
 
     def _screen(
         self, src: Source, item: RobotCancelItem, profile: str, mode: str
@@ -242,11 +253,19 @@ class SourceCanceller:
         return screen if isinstance(screen, dict) else None
 
     def _announce(self, item: RobotCancelItem, outcome: str, reason: str, state: str) -> None:
-        """반영된 회신에만 카드 1통. retry 는 30분 뒤 다시 하므로 조용히, 재확인에서 또 접수면 조용히."""
-        if state not in _APPLIED_STATES or state == 'retry':
+        """카드는 (회신 outcome, 돌아온 state) 로 고른다 — 반영된 회신에만 1통.
+
+        retry(30분 뒤 다시)·반영 안 됨은 조용히. accepted 가 wait_confirm 이면 처음(cancel)만 알리고
+        재확인(check)에서 또 접수면 조용히. accepted 인데 done 으로 닫혔으면 삼바가 72시간 만료로
+        failed 처리한 것 — mode 와 상관없이 실패 카드로 사람에게 넘긴다.
+        """
+        if state not in _ANNOUNCE_STATES:
             return
-        if outcome == 'accepted' and item.mode != 'cancel':
-            return
+        if outcome == 'accepted':
+            if state == 'done':
+                outcome, reason = 'failed', EXPIRED_REASON
+            elif item.mode != 'cancel':
+                return
         src = self._sources.by_id(item.source_site)
         title = f'{item.order_number} · {src.label if src else item.source_site}'
         level, conclusion, todo = card_for(outcome, reason)

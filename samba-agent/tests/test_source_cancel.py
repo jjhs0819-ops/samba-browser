@@ -10,7 +10,7 @@ from samba_agent.ops.source_cancel import (
     order_no_token_match,
     resolve_profile,
 )
-from samba_agent.sources import Source, Sources
+from samba_agent.sources import Source, Sources, default_sources
 from samba_agent.wave.client import RobotCancelItem, WaveError
 
 
@@ -47,7 +47,8 @@ def _sources() -> Sources:
     return Sources(
         [
             Source(id='MUSINSA', key='musinsa', label='무신사', buy_accounts=['buy-1']),
-            Source(id='THEHYUNDAI', key='hmall', label='현대H몰', buy_accounts=['buy-1']),
+            # 실제 sources.yaml 처럼 buy_accounts 가 없다(DB source_site 는 THEHYUNDAI 로 온다)
+            Source(id='TheHyundai', key='thehyundai', label='더현대닷컴'),
             Source(id='GrandStage', key='abc', label='그랜드', buy_accounts=['b1', 'b2']),
         ]
     )
@@ -79,8 +80,12 @@ def test_decide_발송_기취소_접수상태를_그대로_옮긴다():
     assert decide(_item(), _screen(state='cancel_pending'))[0] == 'accepted'
 
 
-def test_decide_check모드에서_취소가능이면_retry_click이다():
-    assert decide(_item(mode='check'), _screen()) == ('retry_click', '')
+def test_decide_check모드에서_취소가능이면_누르지_않고_failed다():
+    # 통제자 판정: check 화면은 절대 클릭으로 이어지지 않는다 — 삼바가 cancel 로 다시 내주거나 사람에게
+    assert decide(_item(mode='check'), _screen()) == (
+        'failed',
+        '재확인 중 다시 취소 가능 상태 — 사람 확인',
+    )
 
 
 def test_decide_cancel모드_클릭후_확인으로만_성공을_친다():
@@ -120,14 +125,20 @@ def test_order_no_token_match():
 def test_resolve_profile():
     one = Source(id='MUSINSA', key='musinsa', label='무신사', buy_accounts=['buy-1'])
     many = Source(id='GrandStage', key='abc', label='그랜드', buy_accounts=['b1', 'b2'])
-    # 1) 아이디가 라벨과 정확히 같으면 그 라벨
+    none = Source(id='TheHyundai', key='thehyundai', label='더현대닷컴')
+    # a) 장부에 적힌 발주 계정(키마스터 라벨)이 먼저다
+    assert resolve_profile(many, 'b2', ['b1', 'b2'], ledger_account='b1') == 'b1'
+    assert resolve_profile(none, None, [], ledger_account='hy-1') == 'hy-1'
+    assert resolve_profile(none, None, [], ledger_account='  ') is None
+    # b) 아이디가 라벨과 정확히 같으면 그 라벨
     assert resolve_profile(many, 'b2', ['b1', 'b2']) == 'b2'
-    # 2) 아니면 buy_accounts 가 1개일 때 그 계정
+    # c) 아니면 buy_accounts 가 1개일 때 그 계정
     assert resolve_profile(one, 'someone', ['x']) == 'buy-1'
     assert resolve_profile(one, None, []) == 'buy-1'
-    # 3) 둘 다 아니면 None
+    # 셋 다 아니면 None
     assert resolve_profile(many, 'nobody', ['b1', 'b2']) is None
     assert resolve_profile(many, None, []) is None
+    assert resolve_profile(none, 'someone', []) is None
 
 
 # ---- 실행기 ----
@@ -183,6 +194,7 @@ def _runner(
     enabled=lambda site: True,
     idle=lambda: True,
     profiles=lambda site: ['buy-1'],
+    ledger_account=lambda source_order_no: None,
     sites: set[str] | None = None,
 ) -> tuple[SourceCanceller, _Notify]:
     notify = notify or _Notify()
@@ -193,6 +205,7 @@ def _runner(
         enabled=enabled,
         idle=idle,
         profiles=profiles,
+        ledger_account=ledger_account,
         sites=sites,
         sources=_sources(),
     )
@@ -200,8 +213,9 @@ def _runner(
 
 
 def test_reclaimed_row_checks_first():
-    # 재선점(claimed 방치) 행은 mode=check 로 온다 — 먼저 상태만 읽고, 취소 가능하면 같은 사이클에 cancel 1회
-    wave = _Wave([_item(mode='check')])
+    # 재선점(claimed 방치) 행은 mode=check 로 온다 — 상태만 읽고 절대 누르지 않는다(cancel 호출 0회).
+    # 다시 취소 가능이면 failed 로 회신 → 삼바가 retry(30분 뒤 cancel 모드)로 내주거나 사람에게 넘긴다
+    wave = _Wave([_item(mode='check')], states={'rc_1': 'retry'})
     script = _Script(
         {
             'check': _screen(),
@@ -209,17 +223,43 @@ def test_reclaimed_row_checks_first():
         }
     )
     runner, notify = _runner(wave, script)
-    assert runner.run_once() == ['cancelled']
-    assert [a['mode'] for _, a in script.calls] == ['check', 'cancel']
+    assert runner.run_once() == ['failed']
+    assert [a['mode'] for _, a in script.calls] == ['check']
     name, args = script.calls[0]
     assert name == 'musinsa_order_cancel'
-    assert args['source_order_no'] == 'M20261028777'
-    assert args['profile'] == 'buy-1'
-    assert isinstance(args['reason_text'], str) and args['reason_text']
+    assert args == {
+        'source_order_no': 'M20261028777',
+        'profile': 'buy-1',
+        'mode': 'check',
+        'reason_text': '단순 변심',
+    }
+    assert wave.results == [('rc_1', 'failed', '재확인 중 다시 취소 가능 상태 — 사람 확인')]
+    assert notify.cards == []
+
+
+def test_cancel모드는_스크립트_1회로_누르고_되읽는다():
+    wave = _Wave([_item()])
+    script = _Script({'cancel': _screen(clicked=True, after_state='already_cancelled')})
+    runner, notify = _runner(wave, script)
+    assert runner.run_once() == ['cancelled']
+    assert [a['mode'] for _, a in script.calls] == ['cancel']
     assert wave.results == [('rc_1', 'cancelled', '')]
-    assert len(notify.cards) == 1
-    assert notify.cards[0][0] == 'ok'
-    assert notify.cards[0][1] == '20261028001 · 무신사'
+    assert notify.cards == [
+        ('ok', '20261028001 · 무신사', '소싱처 취소 완료', '마켓 취소승인 눌러주세요')
+    ]
+
+
+def test_장부_계정이_있으면_그_라벨로_스크립트를_부른다():
+    wave = _Wave([_item(source_site='GrandStage', account_username='nobody')])
+    script = _Script({'cancel': _screen(clicked=True, after_state='already_cancelled')})
+    runner, _ = _runner(
+        wave,
+        script,
+        profiles=lambda site: ['b1', 'b2'],
+        ledger_account=lambda no: 'b2' if no == 'M20261028777' else None,
+    )
+    assert runner.run_once() == ['cancelled']
+    assert script.calls[0][1]['profile'] == 'b2'
 
 
 def test_check모드에서_이미_발송이면_cancel을_부르지_않는다():
@@ -292,6 +332,31 @@ def test_accepted_recheck_no_telegram():
     assert notify.cards == []
 
 
+def test_접수가_done으로_닫히면_72시간_만료_실패_카드다():
+    # check 재확인에서 접수인데 삼바가 done 을 돌려줌 = 72시간 만료 → 실패 카드 정확히 1통
+    recheck = _Wave([_item(mode='check')], states={'rc_1': 'done'})
+    runner, notify = _runner(recheck, _Script({'check': _screen(state='cancel_pending')}))
+    assert runner.run_once() == ['accepted']
+    assert recheck.results == [('rc_1', 'accepted', '')]
+    assert notify.cards == [
+        (
+            'bad',
+            '20261028001 · 무신사',
+            '자동취소 실패: 취소 접수 후 72시간 확정 안 됨',
+            '직접 취소',
+        )
+    ]
+    # cancel 모드에서 접수했는데 done 이어도 접수 카드가 아니라 실패 카드다
+    first = _Wave([_item()], states={'rc_1': 'done'})
+    runner, notify = _runner(
+        first, _Script({'cancel': _screen(clicked=True, after_state='cancel_pending')})
+    )
+    assert runner.run_once() == ['accepted']
+    assert len(notify.cards) == 1
+    assert notify.cards[0][0] == 'bad'
+    assert '72시간' in notify.cards[0][2]
+
+
 def test_반영_안_된_회신은_텔레그램을_보내지_않는다():
     wave = _Wave([_item()], states={'rc_1': 'skipped'})
     script = _Script({'cancel': _screen(clicked=True, after_state='already_cancelled')})
@@ -314,9 +379,48 @@ def test_소싱처_설정이_없으면_failed로_회신한다():
 def test_소싱처_id는_대소문자를_가리지_않는다():
     wave = _Wave([_item(source_site='THEHYUNDAI')])
     script = _Script({'cancel': _screen(clicked=True, after_state='already_cancelled')})
-    runner, _ = _runner(wave, script)
+    runner, _ = _runner(wave, script, ledger_account=lambda no: 'hy-1')
     assert runner.run_once() == ['cancelled']
-    assert script.calls[0][0] == 'hmall_order_cancel'
+    assert script.calls[0][0] == 'thehyundai_order_cancel'
+
+
+def test_실제_sources_yaml_더현대는_thehyundai_키이고_계정_없으면_명시적으로_실패한다():
+    # 회귀: 가짜 표가 THEHYUNDAI→hmall 로 돼 있던 실수. 실제 표를 읽어 고정한다
+    real = default_sources()
+    src = real.by_id('THEHYUNDAI')
+    assert src is not None and src.key == 'thehyundai' and src.id == 'TheHyundai'
+    assert src.buy_accounts == []
+    # 장부도 buy_accounts 도 없으면 추측하지 않고 실패한다
+    assert resolve_profile(src, 'someone', list(src.buy_accounts)) is None
+    wave = _Wave([_item(source_site='THEHYUNDAI', account_username='someone')])
+    script = _Script({'cancel': _screen()})
+    runner = SourceCanceller(
+        wave,  # type: ignore[arg-type]
+        script,
+        _Notify(),  # type: ignore[arg-type]
+        enabled=lambda site: True,
+        idle=lambda: True,
+        profiles=lambda site: list(real.by_id(site).buy_accounts),  # type: ignore[union-attr]
+        sources=real,
+    )
+    assert runner.run_once() == ['failed']
+    assert wave.results == [('rc_1', 'failed', '구매 계정을 정하지 못함')]
+    assert script.calls == []
+    # 장부 계정이 있으면 실제 표로도 thehyundai_order_cancel 을 부른다
+    wave2 = _Wave([_item(source_site='THEHYUNDAI')])
+    script2 = _Script({'cancel': _screen(clicked=True, after_state='already_cancelled')})
+    runner2 = SourceCanceller(
+        wave2,  # type: ignore[arg-type]
+        script2,
+        _Notify(),  # type: ignore[arg-type]
+        enabled=lambda site: True,
+        idle=lambda: True,
+        profiles=lambda site: [],
+        ledger_account=lambda no: 'hy-1',
+        sources=real,
+    )
+    assert runner2.run_once() == ['cancelled']
+    assert script2.calls[0][0] == 'thehyundai_order_cancel'
 
 
 def test_구매_계정을_못_정하면_failed다():
