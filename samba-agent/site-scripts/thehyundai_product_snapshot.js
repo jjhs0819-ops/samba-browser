@@ -1,5 +1,5 @@
 // 더현대Hi 스냅샷 — 옵션 골라 바로구매로 주문서까지, 즉시할인·현대백화점 카드·등록 카드 맞춘 결제액. 결제 없음. 2026-10-28
-// 옵션 'Z1(블랙)/L(100)' = 컬러/사이즈(combobox → option). 사용자 10-28: 현대백화점카드 4625 만, H.Point 안 씀.
+// 옵션 'Z1(블랙)/L(100)' = 컬러/사이즈 두 칸 또는 '옵션을 선택해 주세요.' 한 칸. 현대백화점카드 4625 만.
 // args: sku, size, qty, profile, card_suffix(기본 4625)
 const H = 'https://hi.thehyundai.com'
 const OF = /thehyundai\.com\/shop\/order(?:[?#]|$)/
@@ -19,7 +19,7 @@ const find = async q => linesOf(String(await page.find(q)))
 
 if (!args.keepOrderTabs) for (const x of await tabs.list()) if (OF.test(x.url || '')) { try { await tabs.close(x.id) } catch (e) {} }
 const pno = (sku.match(/product\/([0-9A-Z]+)/) || [])[1] || (/^[0-9A-Z]{8,}$/.test(sku) ? sku : null)
-if (!pno) return { options: [], error: 'no_product', note: 'product number not found: ' + sku.slice(0, 80) }
+if (!pno) return { options: [], error: 'no_product', note: 'no product number' }
 const product_url = `${H}/product/${pno}`
 const tid = tabId(await tabs.open({ ...P, url: product_url }))
 if (tid) await tabs.switch(tid)
@@ -46,17 +46,18 @@ const pickBy = (opts, w) => {
   return live.find(o => norm(o.t) === norm(w)) || (part.length === 1 ? part[0] : null)
 }
 const wantParts = want.split('/').map(s => s.trim()).filter(Boolean)
-const colorBox = await combo('컬러'), sizeBox = await combo('사이즈')
-const boxes = [colorBox, sizeBox].filter(Boolean)
+const names = (await combo('컬러')) || (await combo('사이즈')) ? ['컬러', '사이즈'] : ['옵션을 선택해 주세요.']
+const boxes = []
+for (const n of names) if (await combo(n)) boxes.push(n)
 let options = [], picked = []
 if (!boxes.length) {
   options = ['단일']
   if (want && !/단일|free|one/i.test(want)) return { ...base, options, note: 'size not available: ' + want }
 } else {
-  if (boxes.length !== wantParts.length && !(boxes.length === 1 && wantParts.length >= 1)) return { ...base, options: [], note: `option shape ${boxes.length} boxes vs '${want}'` }
-  const parts = boxes.length === 1 ? [wantParts[wantParts.length - 1]] : wantParts
+  if (boxes.length !== wantParts.length && boxes.length !== 1) return { ...base, options: [], note: `option shape ${boxes.length} boxes vs '${want}'` }
+  const parts = boxes[0] === '옵션을 선택해 주세요.' ? [want] : boxes.length === 1 ? [wantParts[wantParts.length - 1]] : wantParts
   for (let i = 0; i < boxes.length; i++) {
-    const box = await combo(boxes[i] === colorBox ? '컬러' : '사이즈')
+    const box = await combo(boxes[i])
     if (!box) return { ...base, options, note: 'option box missing' }
     await page.click(idOfLine(box)); await sleep(700)
     let opts = await optionsOf()
@@ -87,7 +88,7 @@ let items = []
 for (let i = 0; i < 20 && !items.length; i++) { await sleep(500); tr = await tree(); items = linesOf(tr).filter(l => /\] checkbox ".* [\d,]+원 \d+개 /.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1]) }
 if (items.length !== 1) return { ...base, options, order_tab: tid, product_tab: null, error: 'order_form_mismatch', note: `주문서 불일치: order items ${items.length}` }
 const it = items[0]
-const optTxt = (boxes.length ? picked.join(' / ') : '')
+const optTxt = boxes.length ? picked.join(' / ') : ''
 const selected = boxes.length ? optTxt : '단일'
 const itQty = num((it.match(/ (\d+)개 /) || [])[1])
 const bad = boxes.length && !norm(it).includes(norm(optTxt)) ? `option ${optTxt} not in ${it.slice(0, 80)}` : itQty !== qty ? `qty ${itQty} != ${qty}` : null
