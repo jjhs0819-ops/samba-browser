@@ -239,6 +239,9 @@ sources:
     order_type: direct
     customer_phone: false
     pay_provider: site
+    paid_is_cost: true   # 원가 = 실제 결제액(즉시할인 반영). 일반 현대카드 청구할인 2.7% 계수를 곱하지 않는다
+    keypad_query: cardNo0   # hdpay 간편 결제의 '카드 비밀번호 앞 2자리' 칸(이름표 없음)
+    keypad_submit: 결제 하기   # 비밀번호를 넣은 뒤 결제창 '결제 하기'를 눌러야 결제된다
     status: active
   - id: REXMONDE
     key: rexmonde

@@ -19,7 +19,7 @@ from samba_agent.agents.contracts import AgentResult, Assignment
 from samba_agent.export.desktop import toast
 from samba_agent.failures import FailReason
 from samba_agent.ops.masking import mask_text
-from samba_agent.sources import default_sources
+from samba_agent.sources import Source, default_sources
 from samba_agent.wave.client import WaveClient, WaveError
 
 # 결제 성공을 확인하는 문구. 이걸 보기 전에는 ok 를 내지 않는다(브리프 §완료조건)
@@ -1505,7 +1505,32 @@ class PayerAgent(AgentBase):
                 f'결제 비밀번호를 앱이 넣지 못했다 — 사람이 직접 누른다: {mask_text(out[:100])}',
                 FailReason.PERMISSION_DENIED,
             )
+        self._keypad_submit(a)
         self.tool('wait', ms=PAY_RESULT_WAIT_MS)
+
+    def _keypad_source(self, a: Assignment) -> Source | None:
+        """결제 비밀번호 칸 검색어(keypad_query)를 따로 둔 소싱처면 그 행, 아니면 None."""
+        src = default_sources().by_id(str(a.handoff.get('buy_source') or a.order.source or ''))
+        return src if src is not None and src.keypad_query else None
+
+    def _keypad_submit(self, a: Assignment) -> None:
+        """비밀번호를 넣은 뒤 결제창 버튼(keypad_submit)을 눌러야 결제되는 소싱처(더현대 hdpay '결제 하기', 2026-10-28).
+
+        앱이 비밀번호를 넣은 뒤에만 부른다. 버튼을 못 찾으면 결제는 안 된 것이다 — 누르지 않고 사람에게 넘긴다.
+        """
+        src = default_sources().by_id(str(a.handoff.get('buy_source') or a.order.source or ''))
+        label = src.keypad_submit if src is not None else None
+        if not label:
+            return
+        btn = _element_id(self.tool('find_elements', query=label))
+        if btn is None:
+            raise AgentFailure(
+                'needs_human',
+                f"비밀번호는 넣었지만 결제창 '{label}' 버튼을 못 찾았다 — 결제 안 됨, 사람이 확인한다",
+                FailReason.PAY_INTERRUPTED,
+            )
+        self.step(f'payer: 결제창 {label}')
+        self.tool('click', id=btn, label=label)
 
     def _naverpay_agree_after_card(self, a: Assignment) -> None:
         """같은 탭 네이버페이 결제창(롯데온): 카드를 먼저 고르고 '동의하고 결제하기' 를 누른다.
@@ -1731,6 +1756,10 @@ class PayerAgent(AgentBase):
                 if tab_id:
                     self.tool('switch_tab', id=tab_id)
                 found = self.tool('find_elements', query=KEYPAD_QUERY)
+                keypad_src = self._keypad_source(a)
+                if _element_id(found) is None and keypad_src is not None:
+                    # 결제창 비밀번호 칸 이름이 따로 있는 소싱처(더현대 hdpay 'cardNo0', 2026-10-28)
+                    found = self.tool('find_elements', query=str(keypad_src.keypad_query))
                 calls += 1
                 try:
                     out = self.tool(
