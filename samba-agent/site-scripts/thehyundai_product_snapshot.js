@@ -1,6 +1,6 @@
 // 더현대Hi 스냅샷 — 옵션 골라 바로구매로 주문서까지, 즉시할인·현대백화점 카드·등록 카드 맞춘 결제액. 결제 없음. 2026-10-28
 // 옵션 'Z1(블랙)/L(100)' = 컬러/사이즈(combobox → option). 사용자 10-28: 현대백화점카드 4625 만, H.Point 안 씀.
-// args: sku(상품 URL·번호), size, qty, profile, card_suffix(기본 4625)
+// args: sku, size, qty, profile, card_suffix(기본 4625)
 const H = 'https://hi.thehyundai.com'
 const OF = /thehyundai\.com\/shop\/order(?:[?#]|$)/
 const num = s => parseInt(String(s || '').replace(/[^\d]/g, ''), 10) || 0
@@ -25,7 +25,7 @@ const tid = tabId(await tabs.open({ ...P, url: product_url }))
 if (tid) await tabs.switch(tid)
 if (!(await page.waitFor('구매하기', 12000))) return { options: [], error: 'no_product', note: '상품 화면이 안 열림', product_tab: tid, product_url }
 const product_name = String(await page.title()).replace(/\s*\|\s*더현대Hi\s*$/, '').trim()
-const base = { already_ordered: null, existing_order_no: null, coupons: {}, methods: [], cost: null, product_url, product_no: pno, product_name, product_tab: tid }
+const base = { coupons: {}, methods: [], cost: null, product_url, product_no: pno, product_name, product_tab: tid }
 let tr = await tree()
 if (linesOf(tr).some(l => /link "로그인" href=\/login/.test(l))) return { ...base, options: [], error: 'login_required', note: '로그인 안 됨' }
 const t0 = textOf(tr)
@@ -83,8 +83,8 @@ if (!OF.test(ou)) return { ...base, options, error: 'no_checkout', note: '주문
 if (!(await page.waitFor('결제하기', 10000))) return { ...base, options, error: 'no_checkout', note: '주문서 로딩 실패', order_tab: tid }
 
 // 주문서 상품 줄 checkbox "<상품> <옵션> <정가>원 <수량>개 …" 대조
-tr = await tree()
-const items = linesOf(tr).filter(l => /\] checkbox ".* [\d,]+원 \d+개 /.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1])
+let items = []
+for (let i = 0; i < 20 && !items.length; i++) { await sleep(500); tr = await tree(); items = linesOf(tr).filter(l => /\] checkbox ".* [\d,]+원 \d+개 /.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1]) }
 if (items.length !== 1) return { ...base, options, order_tab: tid, product_tab: null, error: 'order_form_mismatch', note: `주문서 불일치: order items ${items.length}` }
 const it = items[0]
 const optTxt = (boxes.length ? picked.join(' / ') : '')
