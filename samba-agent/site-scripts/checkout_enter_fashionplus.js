@@ -1,7 +1,7 @@
 // 패션플러스 주문서에서 결제수단을 고르고 필수 동의 뒤 '주문하기'로 결제창(팝업)을 연다(실결제 진입). 2026-09-27 새 계약.
-// 안전장치: 시험(dryRun·dry_run 참)은 주문하기 직전에서 멈춘다. 실결제는 expect(상품번호 또는 옵션)·amount·tab 이 없으면 누르지 않는다.
+// 안전장치: 시험(dryRun)은 주문하기 직전에서 멈춘다. 실결제는 expect·amount·tab 이 없으면 누르지 않는다.
 //  탭 = args.tab > expect 와 맞는 패션플러스 주문서 탭 정확히 하나(대조 근거가 없으면 탭 하나일 때만). 보이는 주문서 탭이 고른 탭과 다르면 멈춤
-//  주문서 상품 줄은 하나여야 하고 상품번호·옵션(selected)·상품명 단어가 맞아야 한다. 총 결제 예상금액 > amount 면 멈춤,누르기 직전 재대조
+//  주문서 상품 줄은 하나, 상품번호·옵션(없으면 상품명 단어)이 맞아야 한다. 총액 > amount 면 멈춤,누르기 직전 재대조
 // args: card(네이버페이·페이코·포인트전액),profile,dryRun,expect{name,option,selected,product_no},amount,tab
 // 반환 {ok,method,popup_url,dry?,total,order_tab,order_item,note}
 const OF = /fashionplus\.co\.kr\/order\/\d+(?:[?#]|$)/
@@ -38,7 +38,6 @@ function mismatch(f) {
   const it = f.items[0]
   if (pno && it.code !== pno) return `goods ${it.code} != ${pno}`
   if (opt && norm(it.option) !== norm(opt) && !norm(it.option).includes(norm(opt))) return `option ${it.option} != ${opt}`
-  // 상품번호가 맞으면 이름은 보지 않는다 — 주문서 상품 이름이 판매자 표기('(주)대명화학 유통사업부 진주점 ID9337_JJ')인 상품이 있다(실기 2026-10-28)
   if (!pno && words.length && !words.some(w => norm(it.name).includes(norm(w)))) return `name ${words.slice(0,4)} not in ${it.name}`
   return null
 }
