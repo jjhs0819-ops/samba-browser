@@ -114,6 +114,8 @@ SITE_RULES: dict[str, dict[str, object]] = {
     },
 }
 SITE_KEYS: tuple[str, ...] = tuple(SITE_RULES)
+# 공제·수수료 글자 — 첫 클릭 뒤 전체 본문에서 이 글자의 개수가 클릭 전보다 늘면 더 가지 않는다(리뷰 2차 판정 B)
+DEDUCTION_PATTERNS: tuple[str, ...] = ('공제', '취소 수수료', '위약금', '차감')
 # 실측으로 취소 가능 화면·버튼 글자를 확인한 사이트만 True — False 면 mode=cancel 이어도 절대 누르지 않는다(리뷰 1차 판정 1)
 SITE_VERIFIED: dict[str, bool] = {
     'musinsa': True,
@@ -175,6 +177,18 @@ def count_items(pattern: str, segment: str) -> int:
         m = rx.search(segment)
         return int(m.group(1)) if m else 0
     return len(rx.findall(segment))
+
+
+def deduction_counts(text: str) -> list[int]:
+    """공제 글자별 등장 횟수(JS dedCounts 와 같다)."""
+    return [len(re.findall(p, text)) for p in DEDUCTION_PATTERNS]
+
+
+def deduction_increased(before: str, after: str) -> bool:
+    """클릭 뒤 본문에서 공제 글자가 하나라도 늘었는가 — '취소 수수료' 처럼 전부터 있던 낱말은 늘지 않으면 무시한다."""
+    return any(
+        z > a for a, z in zip(deduction_counts(before), deduction_counts(after), strict=True)
+    )
 
 
 def may_click(key: str, screen: dict[str, object]) -> bool:

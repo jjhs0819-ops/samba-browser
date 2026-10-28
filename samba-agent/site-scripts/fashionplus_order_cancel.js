@@ -41,44 +41,54 @@ const classify = (t, url) => {
 // 로그 증거: 상품 구간 시작 글자를 못 찾으면 본문 대신 요약만(고객 이름이 로그에 안 가게)
 const summary = c => '상태 ' + c.state + ' · 상품행 ' + c.items + ' · 버튼 ' + c.buttons
 const noteOf = c => c.segOk ? mask(c.seg) : summary(c)
+// page.get({}) 는 보이는 것부터 150개만 나열한다(src/shared/snapshot.ts) — 버튼 수·확인 버튼은 글자 검색(page.get({query}), 문서 전체·원래 id)으로 센다
+const labeled = async labels => { const seen = new Map(); for (const q of new Set(labels)) for (const e of elems(String((await page.get({ query: q })).tree || ''))) seen.set(e.id, e); return [...seen.values()] }
+// 공제·수수료 글자가 클릭 전보다 늘었는가(전체 본문 기준) — cancel_screen.deduction_increased 와 같다
+const DED = ["공제", "취소 수수료", "위약금", "차감"]
+const dedCounts = s => DED.map(p => (s.match(new RegExp(p, 'g')) || []).length)
+const dedUp = (b0, b1) => { const a = dedCounts(b0), z = dedCounts(b1); return z.some((n, i) => n > a[i]) }
 await open('https://www.fashionplus.co.kr/mypage/order/detail/' + no)
 try { await page.waitFor(/결제수단 정보|로그인/, 10000) } catch (e) {}
 await sleep(800)
 let t = await tree()
 const c = classify(t, await page.url())
+// 취소 버튼 수는 문서 전체 글자 검색으로(150개 밖의 같은 버튼도 센다)
+const firstBtns = exact(await labeled(RULES.buttons), RULES.buttons)
+c.buttons = firstBtns.length
 Object.assign(R, { login: c.login, found: c.found, items: c.items, state: c.state, buttons: c.buttons, note: noteOf(c) })
 if (mode !== 'cancel') return done(R)
 if (!VERIFIED) return done({ ...R, note: '조건 미충족 — 미검증 사이트: ' + summary(c) })
 if (!(c.login && c.found && c.items === 1 && c.state === 'cancellable' && c.buttons === 1)) return done({ ...R, note: '조건 미충족 — 누르지 않음: ' + noteOf(c) })
-// 클릭 전 요소·본문 스냅샷 — 그 뒤 '새로 나타난' 요소·글자만 본다(확인 버튼 탐색이 페이지 전체로 번지지 않게)
-const before = new Set(elems(t).map(e => e.key))
-const beforeWords = new Set(body(t).split(' '))
+// 클릭 전: 확인 후보 글자를 가진 요소의 id(원래 id, 같은 문서 안에서 안정)와 본문을 기억한다 — 그 뒤 새 id 만 확인 버튼으로 본다
+const url0 = await page.url()
+const pre = new Set((await labeled([...CONFIRM, ...RULES.buttons, '확인'])).map(e => e.id))
+const body0 = body(t)
 // 1) 취소 버튼 1개 클릭(여기까지가 전체 가드)
-await page.click(exact(elems(t), RULES.buttons)[0].id)
+await page.click(firstBtns[0].id)
 R.clicked = true
 try { await page.waitFor(/취소|사유/, 8000) } catch (e) {}
 await sleep(1200)
 t = await tree()
-const fresh = () => elems(t).filter(e => !before.has(e.key))
-const freshText = () => body(t).split(' ').filter(w => !beforeWords.has(w)).join(' ')
+// 주소가 바뀌었으면 새 문서라 id 가 처음부터 다시 매겨진다 — 그때는 클릭 전 id 집합을 쓰지 않는다
+const isNew = async e => (await page.url()) !== url0 || !pre.has(e.id)
+const newExact = async labels => { const out = []; for (const e of exact(await labeled(labels), labels)) if (await isNew(e)) out.push(e); return out }
 const steps = ['클릭']
-const bad = s => /공제|취소 수수료|위약금|차감/.test(s)
-if (!fresh().length && !freshText()) steps.push('새 화면 없음')
-else if (bad(freshText())) steps.push('공제 글자 보여 중단')
+if (dedUp(body0, body(t))) steps.push('공제 금액 표시 — 사람 확인')
 else {
-  // 2) 사유: 새로 나타난 select 는 글자로, 새 라디오/버튼이면 1클릭
+  // 2) 사유: '단순 변심' 계열 — select 는 글자로, 새 라디오/버튼이면 1클릭
   const variants = [reason, reason.replace(/\s/g, ''), '단순변심', '단순 변심', '구매 의사 취소', '고객 변심']
-  const sel = fresh().find(e => e.role === 'select')
+  const found = await labeled(variants)
+  const sel = found.find(e => e.role === 'select')
   if (sel) { for (const v of variants) { try { await page.select(sel.id, v); steps.push('사유 ' + v); break } catch (e) {} } }
-  else { const opt = fresh().find(e => /^(radio|option|clickable|button|label)$/.test(e.role) && variants.includes(e.t)); if (opt) { await page.click(opt.id); steps.push('사유 ' + opt.t) } }
+  else { for (const opt of found) if (/^(radio|option|clickable|button|label)$/.test(opt.role) && variants.includes(opt.t) && (await isNew(opt))) { await page.click(opt.id); steps.push('사유 ' + opt.t); break } }
   await sleep(600); t = await tree()
-  if (bad(freshText())) steps.push('공제 글자 보여 중단')
+  if (dedUp(body0, body(t))) steps.push('공제 금액 표시 — 사람 확인')
   else {
-    // 3) 최종 확인: 새 요소 중 정확한 글자 후보가 1개일 때만. 0개면 되읽기만(네이티브 confirm 이 이미 처리했을 수 있다), 2개 이상이면 중단
-    const fin = exact(fresh(), CONFIRM)
+    // 3) 최종 확인: 클릭 뒤 새로 생긴 정확한 글자 후보가 1개일 때만. 0개면 되읽기만(네이티브 confirm 이 이미 처리했을 수 있다), 2개 이상이면 중단
+    const fin = await newExact(CONFIRM)
     if (fin.length === 1) {
       await page.click(fin[0].id); steps.push('확인 ' + fin[0].t); await sleep(1500); t = await tree()
-      if (/하시겠습니까|할까요|하시겠어요/.test(freshText())) { const ok = exact(fresh(), ['확인']); if (ok.length === 1) { await page.click(ok[0].id); steps.push('확인창'); await sleep(1500) } }
+      if (/하시겠습니까|할까요|하시겠어요/.test(body(t))) { const ok = await newExact(['확인']); if (ok.length === 1) { await page.click(ok[0].id); steps.push('확인창'); await sleep(1500) } }
     } else steps.push('확인 버튼 후보 ' + fin.length + '개 — 안 누름')
   }
 }

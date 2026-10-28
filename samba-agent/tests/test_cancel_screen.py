@@ -15,6 +15,7 @@ from samba_agent.ops.cancel_screen import (
     SITE_RULES,
     SITE_VERIFIED,
     classify_screen,
+    deduction_increased,
     may_click,
 )
 
@@ -171,3 +172,15 @@ def test_JS_규칙표가_파이썬과_같다(key: str) -> None:
     assert _js_const(code, 'VERIFIED') is SITE_VERIFIED[key]
     assert code.index('const VERIFIED') < code.index('page.click(')  # 가드가 클릭보다 앞
     assert 'if (!VERIFIED) return done(' in code
+
+
+def test_공제_글자는_클릭_전보다_늘었을_때만_잡는다() -> None:
+    before = '주문 상세 취소 수수료 안내 차감 없음 주문 취소'
+    assert deduction_increased(before, before) is False
+    # 전부터 있던 '차감' 은 그대로, 새로 '공제' 가 생기면 잡는다
+    assert deduction_increased(before, before + ' 환불 시 공제 금액 3,000원') is True
+    # 전부터 있던 낱말이 한 번 더 나와도(횟수 증가) 잡는다
+    assert deduction_increased(before, before + ' 취소 수수료 2,500원') is True
+    # 글자가 줄어드는 건 공제가 아니다
+    assert deduction_increased(before, '주문 상세') is False
+    assert deduction_increased('', '') is False
