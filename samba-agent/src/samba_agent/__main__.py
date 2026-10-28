@@ -57,6 +57,7 @@ from samba_agent.ops.source_audit import (
     run_js_json,
 )
 from samba_agent.ops.source_cancel import SourceCanceller
+from samba_agent.ops.source_login import LOGIN_TOOLS, ensure_bridge_login
 from samba_agent.ops.ssg_gift_accept import make_after_done
 from samba_agent.ops.telegram import TelegramNotifier
 from samba_agent.ops.tracing import configure_tracing
@@ -72,7 +73,7 @@ from samba_agent.repair import (
     app_supports_pay_guard,
 )
 from samba_agent.settings import Settings, load_settings
-from samba_agent.sources import default_sources
+from samba_agent.sources import Source, default_sources
 from samba_agent.supervisor.graph import build_supervisor
 from samba_agent.version import harness_version
 from samba_agent.wave.client import WaveClient, WaveError
@@ -655,7 +656,11 @@ def main() -> None:
             '소싱처 자동취소를 띄우지 않는다 — 삼바웨이브 설정·SAMBA_AUTO_CANCEL·텔레그램 토큰/채팅 ID 중 빠진 것이 있다'
         )
     else:
-        cbridge = bridge.scoped(['run_script', 'run_js']).with_lane('cancel')
+        # 취소 레인: 스크립트·탭 정리에 더해 스크립트 전 키마스터 로그인(결제와 같은 new_tab→login) 도구까지
+        cbridge = bridge.scoped(['run_script', 'run_js', *LOGIN_TOOLS]).with_lane('cancel')
+
+        def _cancel_login(src: Source, label: str) -> tuple[bool, str]:
+            return ensure_bridge_login(lambda name, **a: cbridge.call(name, **a).result, src, label)
 
         def _cancel_script(name: str, args: dict[str, object]) -> dict[str, object] | None:
             """`<key>_order_cancel` 을 부르고 출력 JSON 을 돌려준다. 스크립트가 없거나 깨지면 None(→ failed)."""
@@ -707,6 +712,7 @@ def main() -> None:
             # 주문 작업이 도는 동안에는 브라우저를 건드리지 않는다
             idle=lambda: not any(j.state in ('queued', 'running') for j in queue.live()),
             profiles=_cancel_profiles,
+            ensure_login=_cancel_login,
             ledger_account=_cancel_ledger_account,
             sites=None if cancel_sites == 'all' else set(cancel_sites),
         )

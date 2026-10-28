@@ -215,6 +215,7 @@ def _runner(
     idle=lambda: True,
     profiles=lambda site: ['buy-1'],
     ledger_account=lambda source_order_no: None,
+    ensure_login=lambda src, label: (True, ''),
     sites: set[str] | None = None,
 ) -> tuple[SourceCanceller, _Notify]:
     notify = notify or _Notify()
@@ -225,6 +226,7 @@ def _runner(
         enabled=enabled,
         idle=idle,
         profiles=profiles,
+        ensure_login=ensure_login,
         ledger_account=ledger_account,
         sites=sites,
         sources=_sources(),
@@ -433,6 +435,7 @@ def test_실제_sources_yaml_더현대는_thehyundai_키이고_미검증이라_�
         enabled=lambda site: True,
         idle=lambda: True,
         profiles=lambda site: list(real.by_id(site).buy_accounts),  # type: ignore[union-attr]
+        ensure_login=lambda src, label: (True, ''),
         sources=real,
     )
     assert runner.run_once() == ['failed']
@@ -448,6 +451,7 @@ def test_실제_sources_yaml_더현대는_thehyundai_키이고_미검증이라_�
         enabled=lambda site: True,
         idle=lambda: True,
         profiles=lambda site: [],
+        ensure_login=lambda src, label: (True, ''),
         ledger_account=lambda no: 'hy-1',
         sources=real,
     )
@@ -547,3 +551,173 @@ def test_텔레그램_문구표(outcome: str, level: str, conclusion: str, todo:
     from samba_agent.ops.source_cancel import card_for
 
     assert card_for(outcome, '로그인 안 됨') == (level, conclusion, todo)
+
+
+# ---- 소싱처 로그인(스크립트 전) ----
+
+
+class _Login:
+    """ensure_login 가짜 — 돌려줄 (ok, detail) 과 호출 기록."""
+
+    def __init__(self, ok: bool = True, detail: str = '') -> None:
+        self.ok = ok
+        self.detail = detail
+        self.calls: list[tuple[str, str]] = []
+
+    def __call__(self, src: Source, label: str) -> tuple[bool, str]:
+        self.calls.append((src.id, label))
+        return self.ok, self.detail
+
+
+def test_로그인이_되면_그_계정으로_스크립트를_부른다():
+    wave = _Wave([_item()])
+    script = _Script({'cancel': _screen(clicked=True, after_state='already_cancelled')})
+    login = _Login()
+    runner, _ = _runner(wave, script, ensure_login=login)
+    assert runner.run_once() == ['cancelled']
+    assert login.calls == [('MUSINSA', 'buy-1')]
+    assert [a['profile'] for _, a in script.calls] == ['buy-1']
+
+
+def test_로그인_실패면_스크립트_없이_failed_사유에_라벨을_적는다():
+    wave = _Wave([_item()], states={'rc_1': 'retry'})
+    script = _Script({'cancel': _screen(clicked=True, after_state='already_cancelled')})
+    # detail(도구 출력)은 회신 사유에 싣지 않는다 — 로그에만
+    login = _Login(ok=False, detail='error: fields not found')
+    runner, notify = _runner(wave, script, ensure_login=login)
+    assert runner.run_once() == ['failed']
+    assert wave.results == [('rc_1', 'failed', '소싱처 로그인 실패(buy-1)')]
+    assert script.calls == []
+    assert notify.cards == []
+
+
+def test_로그인_뒤에도_화면이_login_false면_그대로_failed이고_다시_로그인하지_않는다():
+    wave = _Wave([_item()])
+    script = _Script({'cancel': _screen(login=False)})
+    login = _Login()
+    runner, _ = _runner(wave, script, ensure_login=login)
+    assert runner.run_once() == ['failed']
+    assert wave.results == [('rc_1', 'failed', '로그인 안 됨')]
+    assert len(login.calls) == 1
+    assert len(script.calls) == 1
+
+
+def test_미검증_사이트와_사전판정은_로그인을_부르지_않는다():
+    login = _Login()
+    # 미검증 사이트
+    wave = _Wave([_item(source_site='GSShop')])
+    runner, _ = _runner(wave, _Script({}), ensure_login=login, ledger_account=lambda no: 'g1')
+    assert runner.run_once() == ['failed']
+    # 사전판정(발송·묶음)
+    wave = _Wave([_item(id='rc_2', tracking_number='T1'), _item(id='rc_3', bundle_count=2)])
+    runner, _ = _runner(wave, _Script({}), ensure_login=login)
+    assert runner.run_once() == ['shipped', 'bundle']
+    # 구매 계정을 못 정한 건
+    wave = _Wave([_item(id='rc_4', source_site='LOTTEON', account_username='nobody')])
+    runner, _ = _runner(wave, _Script({}), ensure_login=login, profiles=lambda s: ['b1', 'b2'])
+    assert runner.run_once() == ['failed']
+    assert login.calls == []
+
+
+# ---- 브릿지 로그인 도우미 ----
+
+
+class _Tool:
+    """브릿지 도구 가짜 — login 은 차례대로 정한 출력을, 나머지는 'ok' 를 돌려준다."""
+
+    def __init__(self, logins: list[str], new_tab: str = 'ok: tab 0123abcd-ef01') -> None:
+        self.logins = list(logins)
+        self.new_tab = new_tab
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def __call__(self, name: str, **args: object) -> str:
+        self.calls.append((name, dict(args)))
+        if name == 'login':
+            return self.logins.pop(0) if self.logins else 'fields not found'
+        if name == 'new_tab':
+            return self.new_tab
+        return 'ok'
+
+
+def _names(tool: _Tool) -> list[str]:
+    return [n for n, _ in tool.calls]
+
+
+def test_bridge_login_이미_로그인이면_홈_탭을_열고_닫는다():
+    from samba_agent.ops.source_login import ensure_bridge_login
+
+    src = Source(id='MUSINSA', key='musinsa', label='무신사', home='https://www.musinsa.com/')
+    tool = _Tool(['already signed in (logout)'])
+    assert ensure_bridge_login(tool, src, 'buy-1') == (True, '이미 로그인돼 있음')
+    assert _names(tool) == ['new_tab', 'switch_tab', 'wait', 'login', 'close_tab']
+    assert tool.calls[0][1] == {'url': 'https://www.musinsa.com/', 'profile': 'buy-1'}
+    assert tool.calls[1][1] == {'id': '0123abcd-ef01'}
+    assert tool.calls[3][1] == {'accountLabel': 'buy-1'}
+    assert tool.calls[4][1] == {'id': '0123abcd-ef01'}
+
+
+def test_bridge_login_제출_뒤_다시_확인해_로그인_완료다():
+    from samba_agent.ops.source_login import ensure_bridge_login
+
+    src = Source(id='MUSINSA', key='musinsa', label='무신사', home='https://www.musinsa.com/')
+    tool = _Tool(['submitted: check the page', 'already signed in (logout)'])
+    ok, _ = ensure_bridge_login(tool, src, 'buy-1')
+    assert ok
+    assert _names(tool) == ['new_tab', 'switch_tab', 'wait', 'login', 'wait', 'login', 'close_tab']
+
+
+def test_bridge_login_칸을_못_찾으면_홈을_다시_열어_두_번까지_재시도하고_탭을_전부_닫는다():
+    from samba_agent.ops.source_login import ensure_bridge_login
+
+    src = Source(id='MUSINSA', key='musinsa', label='무신사', home='https://www.musinsa.com/')
+    # 1회: 칸 못 찾음 → 홈 다시 열고 재시도, 2회: 응답 없음 → 탭 그대로 재시도, 3회: 로그인됨
+    tool = _Tool(['fields not found', 'error: page did not respond', 'already signed in (logout)'])
+    ok, _ = ensure_bridge_login(tool, src, 'buy-1')
+    assert ok
+    assert _names(tool) == [
+        'new_tab', 'switch_tab', 'wait', 'login',
+        'new_tab', 'switch_tab', 'wait', 'login',
+        'wait', 'login',
+        'close_tab', 'close_tab',
+    ]  # fmt: skip
+    # 두 번 열었으니 두 번 닫는다(같은 id 가짜라 id 는 같다)
+    # 재시도를 다 써도 실패면 False — 출력은 가려서 돌려준다
+    tool = _Tool(['fields not found'] * 3)
+    ok, detail = ensure_bridge_login(tool, src, 'buy-1')
+    assert not ok
+    assert 'fields not found' in detail
+    assert _names(tool).count('login') == 3
+    assert _names(tool).count('close_tab') == 3
+
+
+def test_bridge_login_도구_출력의_아이디_비밀번호_꼴은_가린다():
+    from samba_agent.ops.source_login import ensure_bridge_login
+
+    src = Source(id='MUSINSA', key='musinsa', label='무신사', home='https://www.musinsa.com/')
+    tool = _Tool(['error: login rejected id=jjhs0819 password=Secret!23 user@x.com 010-1234-5678'])
+    ok, detail = ensure_bridge_login(tool, src, 'buy-1')
+    assert not ok
+    for leak in ('jjhs0819', 'Secret!23', 'user@x.com', '1234-5678'):
+        assert leak not in detail
+    assert 'login rejected' in detail
+
+
+def test_bridge_login_홈_주소가_없거나_도구가_실패하면_False다():
+    from samba_agent.bridge.client import BridgeError
+    from samba_agent.ops.source_login import ensure_bridge_login
+
+    no_home = Source(id='X', key='x', label='엑스')
+    tool = _Tool(['already signed in'])
+    assert ensure_bridge_login(tool, no_home, 'a')[0] is False
+    assert tool.calls == []
+
+    src = Source(id='MUSINSA', key='musinsa', label='무신사', home='https://www.musinsa.com/')
+
+    def boom(name: str, **args: object) -> str:
+        if name == 'login':
+            raise BridgeError(FailReason.BRIDGE_DOWN, '도구 시간 초과: login')
+        return 'ok: tab 0123abcd-ef01'
+
+    ok, detail = ensure_bridge_login(boom, src, 'buy-1')
+    assert not ok
+    assert '시간 초과' in detail

@@ -10,7 +10,8 @@ failed 로 회신해 삼바가 30분 뒤 cancel 모드로 다시 내주거나(at
 한 사이클에 한 건당 스크립트 호출은 1번이다. 마켓 취소승인 API 는 여기서 절대 부르지 않는다.
 
 건마다 순서(최종 리뷰 판정): 소싱처 설정 → 삼바 데이터 사전판정(묶음 → 송장/배송상태 발송) → 검증 사이트
-(`cancel_screen.SITE_VERIFIED`) → 구매 계정 → 스크립트. 사전판정·미검증에서 끝나면 스크립트는 아예 안 부른다.
+(`cancel_screen.SITE_VERIFIED`) → 구매 계정 → 소싱처 로그인(결제와 같은 키마스터 로그인, `source_login`)
+→ 스크립트. 사전판정·미검증·계정 미정·로그인 실패에서 끝나면 스크립트는 아예 안 부른다.
 목록 호출(`GET /robot-cancels`)이 곧 선점이라 `idle()` 이 아니면 목록도 부르지 않는다.
 
 띄우는 설정은 `SAMBA_AUTO_CANCEL=true`(전 소싱처)를 의도한다 — 미검증 사이트는 클릭하지 않고
@@ -56,6 +57,8 @@ SHIPPED_SHIPPING_STATUS_KEYWORDS: tuple[str, ...] = (
 )
 SHIPPED_BY_SAMBA_REASON = '삼바 송장/배송상태로 발송 확인'
 UNVERIFIED_SITE_REASON = '미검증 사이트 — 직접 취소'
+# 스크립트 전 키마스터 로그인이 안 된 건 — 사유에 계정 라벨만 적는다(도구 출력은 로그에만, 가려서)
+LOGIN_FAILED_REASON = '소싱처 로그인 실패({label})'
 
 # outcome → (level, 결론, 할일). failed 의 결론은 사유를 붙인다
 _CARDS: dict[str, tuple[Level, str, str]] = {
@@ -200,6 +203,8 @@ class SourceCanceller:
         idle: Callable[[], bool],
         profiles: Callable[[str], list[str]],
         *,
+        # (소싱처, 키마스터 라벨) → (로그인됨, 가린 설명). 스크립트 전에 그 프로필 세션을 로그인 상태로 만든다
+        ensure_login: Callable[[Source, str], tuple[bool, str]],
         ledger_account: Callable[[str], str | None] = lambda source_order_no: None,
         sites: set[str] | None = None,
         sources: Sources | None = None,
@@ -212,6 +217,7 @@ class SourceCanceller:
         self._enabled = enabled
         self._idle = idle
         self._profiles = profiles
+        self._ensure_login = ensure_login
         self._ledger_account = ledger_account
         self._sites = sites
         self._sources = sources or default_sources()
@@ -261,7 +267,7 @@ class SourceCanceller:
     def _handle(self, item: RobotCancelItem) -> tuple[str, str]:
         """한 건의 판정 — 스크립트는 1번만 부른다(check 는 읽기만, cancel 은 누르고 되읽기).
 
-        순서: 소싱처 설정 → 삼바 사전판정(묶음·발송) → 검증 사이트 → 구매 계정 → 스크립트.
+        순서: 소싱처 설정 → 삼바 사전판정(묶음·발송) → 검증 사이트 → 구매 계정 → 소싱처 로그인 → 스크립트.
         """
         src = self._sources.by_id(item.source_site)
         if src is None:
@@ -280,6 +286,18 @@ class SourceCanceller:
         )
         if profile is None:
             return 'failed', '구매 계정을 정하지 못함'
+        # 결제와 같이 스크립트 전에 그 계정으로 로그인해 둔다 — 안 되면 화면을 열지 않고 사람에게.
+        # 로그인됐는데도 스크립트가 login=false 면 decide 의 기존 failed 로 끝낸다(다시 로그인하지 않는다)
+        ok, detail = self._ensure_login(src, profile)
+        if not ok:
+            _log.warning(
+                '소싱처 로그인 실패 %s %s profile=%s: %s',
+                src.id,
+                item.order_number,
+                profile,
+                detail,
+            )
+            return 'failed', LOGIN_FAILED_REASON.format(label=profile)
         return decide(item, self._screen(src, item, profile, item.mode))
 
     def _screen(
