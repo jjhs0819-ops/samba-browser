@@ -121,3 +121,25 @@ export function clearMobileEmulation(wc: WebContents): Promise<void> {
     }
   })
 }
+
+// 창이 앞에 없어도 페이지가 포커스를 가진 것처럼 보이게 할 결제창 호스트.
+// 더현대 결제창(nProtect 가상키패드)은 비밀번호 칸이 focus 이벤트를 받아야 키패드를 띄우는데,
+// 윈도우가 뒤에서 도는 앱의 창을 앞으로 올려 주지 않아 focus 이벤트가 오지 않았다(실기 2026-10-28)
+export const FOCUS_EMULATION_HOSTS = ['hdpay.ehyundai.com']
+
+export function needsFocusEmulation(url: string): boolean {
+  try {
+    return FOCUS_EMULATION_HOSTS.includes(new URL(url).hostname)
+  } catch {
+    return false
+  }
+}
+
+/** 이 webContents 를 늘 포커스를 가진 페이지로 보이게 한다(창 포커스와 무관) */
+export function applyFocusEmulation(wc: WebContents): Promise<void> {
+  return enqueue(wc, async () => {
+    if (!attach(wc)) return
+    keepDebuggerAttached(wc)
+    await send(wc, 'Emulation.setFocusEmulationEnabled', { enabled: true })
+  })
+}

@@ -24,7 +24,13 @@ import { normalizeHost } from '../../shared/host'
 import { moveItem } from '../../shared/reorder'
 import { attachInternalProtocol } from './internal-protocol'
 import type { PermissionMode, SearchEngine } from '../../shared/settings'
-import { applyMobileEmulation, clearMobileEmulation, MOBILE_WIDTH } from './emulation'
+import {
+  applyFocusEmulation,
+  applyMobileEmulation,
+  clearMobileEmulation,
+  MOBILE_WIDTH,
+  needsFocusEmulation
+} from './emulation'
 import {
   googleLoadOptions,
   installGooglePasskeyBlock,
@@ -1114,11 +1120,9 @@ export class TabManager {
     // 팝업도 탭과 똑같이 막는다 — 결제창에서 file:// 로 넘어가면 로컬 DB 파일이
     // 그대로 읽힌다. 확장 문서는 팝업으로 열 일이 없으므로 허용하지 않는다
     guardNavigation(wc, false)
-    // 결제창 보안 모듈(nProtect 키패드) 진단 — 더현대 결제창 콘솔은 수준과 관계없이 메인 로그로 넘긴다
-    wc.on('console-message', (ev) => {
-      if (/ehyundai\.com/.test(wc.getURL())) {
-        console.warn(`결제창 콘솔[${ev.level}]: ${ev.message} (${ev.sourceId}:${ev.lineNumber})`)
-      }
+    // 가상키패드 결제창은 창이 앞에 없어도 포커스가 있는 페이지로 보이게 한다(emulation.ts)
+    wc.on('did-navigate', (_e, target) => {
+      if (needsFocusEmulation(target)) void applyFocusEmulation(wc)
     })
     // 팝업(결제창·로그인 창)에서도 사람의 키 입력·마우스 누름을 기록한다(부모 창 단위로도 남는다)
     this.watchHumanInput(wc)
