@@ -1132,7 +1132,13 @@ export class TabManager {
       let n = 0
       const t = setInterval(() => {
         if (wc.isDestroyed() || ++n > 36) return clearInterval(t)
-        const act = ''
+        const act = n === 3 ? `document.getElementById('cardNo0') && document.getElementById('cardNo0').focus();` : ''
+        if (n === 5) {
+          const dump = `(() => { const k = document.getElementById('nppfs-keypad-cardNo0'); if (!k) return 'none';
+            return Array.from(k.querySelectorAll('*')).map(x => { const r = x.getBoundingClientRect();
+              return x.tagName + '.' + String(x.className).slice(0, 30) + ' t=' + (x.textContent || '').trim().slice(0, 6) + ' al=' + (x.getAttribute('aria-label') || x.getAttribute('alt') || '') + ' act=' + (x.getAttribute('data-keypad-action') || '') + ' role=' + (x.getAttribute('role') || '') + ' ' + Math.round(r.x) + ',' + Math.round(r.y) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height) }).join(' | ').slice(0, 6000) })()`
+          wc.executeJavaScript(dump).then((r) => console.warn(`[키패드구조] ${r}`)).catch(() => {})
+        }
         const probe = `(() => { try { ${act} const e = document.getElementById('cardNo0'); const u = e && e.getAttribute('nppfs-keypad-uuid');
           const k = u && document.getElementById(u); const w = window;
           return JSON.stringify({ n: ${n}, hf: document.hasFocus(), ae: (document.activeElement||{}).id || (document.activeElement||{}).tagName,
