@@ -222,12 +222,27 @@ sources:
     home: https://shopping.naver.com/
     login_host: shopping.naver.com
     status: hold
+  # 더현대Hi(더현대닷컴) — 2026-10-28 본 인스턴스 자동결제 시작(사용자 지시). 전부 고객 직배.
+  # 결제(사용자 2026-10-28): 현대백화점카드 4625 로만 — 주문서 '현대백화점카드 즉시할인' 체크 → 결제수단 '현대백화점 카드'
+  # → 등록 카드 4625 → 결제창(hdpay.ehyundai.com) '간편 결제' → 카드 비밀번호 앞 두 자리(키마스터 site 항목, 앱이 누른다).
+  # H.Point 는 쓰지 않는다. 계정은 키마스터 buy-1 하나
   - id: TheHyundai
     key: thehyundai
     label: 더현대닷컴
-    home: https://www.thehyundai.com/
+    home: https://hi.thehyundai.com/
     login_host: thehyundai.com
-    status: hold
+    product_id: '/product/([0-9A-Z]+)'
+    payment_quotes: true   # thehyundai_payment_quotes — 현대백화점카드 간편결제 한 줄
+    shipping_confirm: true   # thehyundai_set_shipping(배송지 폼) → 전화 → thehyundai_confirm_shipping(저장·주문서 되읽기)
+    compare_accounts: false
+    buy_accounts: [buy-1]
+    order_type: direct
+    customer_phone: false
+    pay_provider: site
+    paid_is_cost: true   # 원가 = 실제 결제액(즉시할인 반영). 일반 현대카드 청구할인 2.7% 계수를 곱하지 않는다
+    keypad_query: cardNo0   # hdpay 간편 결제의 '카드 비밀번호 앞 2자리' 칸(이름표 없음)
+    keypad_submit: 결제 하기   # 비밀번호를 넣은 뒤 결제창 '결제 하기'를 눌러야 결제된다
+    status: active
   - id: REXMONDE
     key: rexmonde
     label: 렉스몽드

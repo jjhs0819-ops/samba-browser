@@ -1294,5 +1294,82 @@
       "mode — 'check'(읽기만, 기본) | 'cancel'(조건 충족 시 1번 클릭)",
       "reason_text — 취소 사유 글자(기본 '단순 변심', 사이트의 가장 가까운 항목으로 고른다)"
     ]
+  },
+  {
+    "name": "thehyundai_product_snapshot",
+    "host": "hi.thehyundai.com",
+    "description": "더현대Hi 상품 스냅샷 — 옵션 골라 바로구매로 주문서까지, 현대백화점카드 즉시할인·등록카드 맞춘 결제액",
+    "params": [
+      "sku",
+      "size",
+      "qty",
+      "profile",
+      "card_suffix"
+    ]
+  },
+  {
+    "name": "thehyundai_payment_quotes",
+    "host": "hi.thehyundai.com",
+    "description": "더현대Hi 결제수단 견적 — 현대백화점카드 간편결제 한 줄",
+    "params": [
+      "profile",
+      "tab",
+      "card_suffix"
+    ]
+  },
+  {
+    "name": "checkout_enter_thehyundai",
+    "host": "hi.thehyundai.com",
+    "description": "더현대Hi 결제창 진입 — 결제하기 → hdpay '간편 결제'(키패드는 결제 에이전트)",
+    "params": [
+      "card",
+      "profile",
+      "dryRun",
+      "expect",
+      "amount",
+      "tab",
+      "card_suffix"
+    ]
+  },
+  {
+    "name": "thehyundai_select_shipping",
+    "host": "hi.thehyundai.com",
+    "description": "더현대Hi 배송지 목록에서 같은 이름·주소 항목 선택",
+    "params": [
+      "name",
+      "address",
+      "address_detail",
+      "profile",
+      "tab"
+    ]
+  },
+  {
+    "name": "thehyundai_set_shipping",
+    "host": "hi.thehyundai.com",
+    "description": "더현대Hi 배송지 폼 입력(추가, 10개 꽉 차면 맨 아래 항목 수정) — 저장은 confirm",
+    "params": [
+      "name",
+      "address",
+      "address_detail",
+      "postal_code",
+      "profile",
+      "tab"
+    ]
+  },
+  {
+    "name": "thehyundai_confirm_shipping",
+    "host": "hi.thehyundai.com",
+    "description": "더현대Hi 배송지 저장 → 목록에서 선택 → 주문서 되읽기",
+    "params": [
+      "name",
+      "address",
+      "address_detail",
+      "profile",
+      "tab",
+      "name_id",
+      "phone_id",
+      "road_id",
+      "detail_id"
+    ]
   }
 ]

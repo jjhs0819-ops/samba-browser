@@ -194,6 +194,9 @@ export const KEYPAD_SKIPPED_NEXT =
 // 넘김 카드에 표시할 근거 문구(값이 아니라 화면 종류만 담는다)
 const KEYPAD_HANDOFF_MATCHED = '결제 비밀번호 키패드'
 // 앱이 키패드에 결제 비밀번호를 다 넣었을 때. 확인·입력완료 버튼은 모델이 누른다
+// 결제 비밀번호를 값 넣기 대신 진짜 키 입력(typeLogin)으로 넣는 결제창 — 읽기 전용 비밀번호 칸(더현대 hdpay, 2026-10-28).
+// page-bridge HUMAN_TYPING_HOSTS 에도 있어야 typeLogin 이 키로 친다
+const PAYMENT_TYPING_HOSTS = ['hdpay.ehyundai.com']
 export const KEYPAD_ENTERED_NEXT =
   'ok: the app entered the payment password on the keypad. ' +
   'Now call get_page and press the confirm/입력완료 button if the keypad has one; never press the digits yourself.'
@@ -2295,6 +2298,9 @@ overlays left: ${after.length}${kept}`
             return `refused: saved password.${fieldKey} cannot be shaped as ${format}`
           const movedPay = viaOpener ? null : verifyFillTarget(account, tab)
           if (movedPay) return movedPay
+          // 읽기 전용 비밀번호 칸(키 입력만 받는 결제창 — 더현대 hdpay)은 진짜 키로 친다(2026-10-28)
+          if (PAYMENT_TYPING_HOSTS.some((h) => currentHost(tab).endsWith(h)))
+            return await pageBridge.typeLogin(tab, elementId, shaped)
           return await pageBridge.fillValue(tab, elementId, shaped)
         }
         const raw =

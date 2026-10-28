@@ -422,9 +422,7 @@ def test_실제_sources_yaml_더현대는_thehyundai_키이고_미검증이라_�
     real = default_sources()
     src = real.by_id('THEHYUNDAI')
     assert src is not None and src.key == 'thehyundai' and src.id == 'TheHyundai'
-    assert src.buy_accounts == []
-    # 장부도 buy_accounts 도 없으면 추측하지 않고 실패한다
-    assert resolve_profile(src, 'someone', list(src.buy_accounts)) is None
+    # 2026-10-28 더현대 자동결제 합류로 buy_accounts 가 생겼다 — 계정은 정해져도 미검증이면 누르지 않는다
     # 미검증 사이트(SITE_VERIFIED False)는 계정 판단보다 먼저 사람에게 넘긴다 — 스크립트 호출 0회
     wave = _Wave([_item(source_site='THEHYUNDAI', account_username='someone')])
     script = _Script({'cancel': _screen()})
