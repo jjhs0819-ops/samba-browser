@@ -99,7 +99,7 @@
   {
     "name": "abc_order_cancel",
     "host": "abcmart.a-rt.com",
-    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 취소형 미확인(2026-10-28 구매 프로필 로그인 풀려 상세 못 봄; 버튼 글자 추정 — 모르는 화면은 unknown/failed)",
+    "description": "abc 주문상세 판정(읽기). 미검증 사이트 — cancel 모드여도 누르지 않는다(VERIFIED=false)",
     "params": [
       "source_order_no — 소싱처 주문번호",
       "profile — 키마스터 계정 라벨(구매 계정)",
@@ -447,7 +447,7 @@
   {
     "name": "fashionplus_order_cancel",
     "host": "fashionplus.co.kr",
-    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 접수형 추정(실측 2026-10-28: 결제완료 화면 링크 \"주문 취소\" → 상품 선택·사유·신청 여러 단계, 그 뒤 미확인)",
+    "description": "fashionplus 주문상세 판정(읽기). 미검증 사이트 — cancel 모드여도 누르지 않는다(VERIFIED=false)",
     "params": [
       "source_order_no — 소싱처 주문번호",
       "profile — 키마스터 계정 라벨(구매 계정)",
@@ -512,7 +512,7 @@
   {
     "name": "gsshop_order_cancel",
     "host": "gsshop.com",
-    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 취소형 미확인(2026-10-28 로그인된 프로필·키마스터 계정 없음; 규칙 전부 추정 — SAMBA_AUTO_CANCEL 에서 뺄 것)",
+    "description": "gsshop 주문상세 판정(읽기). 미검증 사이트 — cancel 모드여도 누르지 않는다(VERIFIED=false)",
     "params": [
       "source_order_no — 소싱처 주문번호",
       "profile — 키마스터 계정 라벨(구매 계정)",
@@ -804,7 +804,7 @@
   {
     "name": "lotteon_order_cancel",
     "host": "lotteon.com",
-    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 즉시 취소완료형(실측 2026-10-28: 상품준비중 화면 버튼 \"취소하기\", 상세 /p/order/claim/orderDetail?odNo=; 확인창·사유 화면 미확인)",
+    "description": "롯데온 주문상세 판정·취소. mode=check 는 읽기만, cancel 은 found·상품1개·취소가능·버튼1개일 때만 1회 클릭 후 새 확인버튼 1개·공제 문구 없을 때 확정, 상세 되읽어 after_state (검증 사이트)",
     "params": [
       "source_order_no — 소싱처 주문번호",
       "profile — 키마스터 계정 라벨(구매 계정)",
@@ -940,7 +940,7 @@
   {
     "name": "musinsa_order_cancel",
     "host": "musinsa.com",
-    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 즉시 취소완료형(실측 2026-10-28: 결제 완료 화면 버튼 \"주문 취소\"; 확인창·사유 화면 미확인)",
+    "description": "무신사 주문상세 판정·취소. mode=check 는 읽기만, cancel 은 found·상품1개·취소가능·버튼1개일 때만 1회 클릭 후 새 확인버튼 1개·공제 문구 없을 때 확정, 상세 되읽어 after_state (검증 사이트)",
     "params": [
       "source_order_no — 소싱처 주문번호",
       "profile — 키마스터 계정 라벨(구매 계정)",
@@ -1287,7 +1287,7 @@
   {
     "name": "thehyundai_order_cancel",
     "host": "hi.thehyundai.com",
-    "description": "소싱처 주문상세에서 주문번호 source_order_no 를 열어 {source_order_no, login, found, items, state(cancellable|shipped|already_cancelled|cancel_pending|unknown), buttons, clicked, after_state, note} 를 판정한다. mode=check 는 절대 누르지 않고, mode=cancel 은 found·items==1·state==cancellable·buttons==1 일 때만 취소 버튼 1번 → 사유(단순 변심 계열) → 정확한 글자의 최종 확인 1개 → 15초 안에 상세 되읽기. 취소형 미확인(2026-10-28 profile buy-1 로 배송완료 2건만 실측; 결제완료·취소 화면·버튼 글자 미확인 — SAMBA_AUTO_CANCEL 에서 뺄 것)",
+    "description": "thehyundai 주문상세 판정(읽기). 미검증 사이트 — cancel 모드여도 누르지 않는다(VERIFIED=false)",
     "params": [
       "source_order_no — 소싱처 주문번호",
       "profile — 키마스터 계정 라벨(구매 계정)",
