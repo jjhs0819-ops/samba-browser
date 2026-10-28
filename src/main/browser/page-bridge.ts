@@ -437,11 +437,9 @@ const HUMAN_TYPING_HOSTS = [
   'shoemarker.co.kr',
   'partner.hmall.com',
   // 더현대 결제창(간편 결제) — 비밀번호 칸이 읽기 전용이라 키 입력으로만 받는다(실기 2026-10-28: 값을 직접 넣으면
-  // '결제 하기'가 반응하지 않았다). PAYMENT_TYPING_HOSTS 에도 있어 결제 비밀번호도 키로 친다
+  // '결제 하기'가 반응하지 않았다). agent/tools.ts PAYMENT_TYPING_HOSTS 에도 있어 결제 비밀번호도 키로 친다
   'hdpay.ehyundai.com'
 ]
-// 결제 비밀번호(fill_secret password)를 값 넣기 대신 진짜 키 입력으로 넣는 결제창(키패드가 아닌 입력칸)
-const PAYMENT_TYPING_HOSTS = ['hdpay.ehyundai.com']
 
 function safeHost(wc: WebContents): string {
   try {
@@ -457,11 +455,6 @@ function safeHost(wc: WebContents): string {
 
 export function needsHumanTyping(host: string): boolean {
   return HUMAN_TYPING_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
-}
-
-/** 결제 비밀번호도 진짜 키 입력으로 넣어야 하는 결제창인가(PAYMENT_TYPING_HOSTS) */
-export function needsPaymentTyping(host: string): boolean {
-  return PAYMENT_TYPING_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
 }
 
 /**
