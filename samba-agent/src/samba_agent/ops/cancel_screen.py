@@ -56,7 +56,7 @@ SITE_RULES: dict[str, dict[str, object]] = {
     'abc': {
         'segment': (r'', r'결제 정보'),
         'items': r'(?:입금대기|결제완료|상품준비중|배송준비중|배송중|배송완료|수령완료|취소완료|취소접수)',
-        'buttons': ['주문취소', '취소신청'],
+        'buttons': ['주문취소', '주문 취소'],
         'shipped': [
             '상품준비중',
             '배송준비중',
@@ -96,7 +96,7 @@ SITE_RULES: dict[str, dict[str, object]] = {
     'gsshop': {
         'segment': (r'', r'결제정보|결제 정보'),
         'items': r'(?:주문접수|결제완료|상품준비중|배송준비중|배송중|배송완료|취소완료|취소접수)',
-        'buttons': ['주문취소', '취소신청'],
+        'buttons': ['주문취소', '주문 취소'],
         'shipped': ['상품준비중', '배송준비중', '배송중', '배송완료', '구매확정', '반품', '교환'],
         'already_cancelled': ['취소완료'],
         'cancel_pending': ['취소접수', '취소요청', '취소신청'],
@@ -106,7 +106,7 @@ SITE_RULES: dict[str, dict[str, object]] = {
     'thehyundai': {
         'segment': (r'주문상품', r'배송지'),
         'items': r'원\s*\d+개',
-        'buttons': ['주문취소', '취소신청'],
+        'buttons': ['주문취소', '주문 취소'],
         'shipped': ['배송완료', '배송중', '배송준비중', '상품준비중', '구매확정', '반품', '교환'],
         'already_cancelled': ['취소완료'],
         'cancel_pending': ['취소접수', '취소요청', '취소신청'],
@@ -114,6 +114,25 @@ SITE_RULES: dict[str, dict[str, object]] = {
     },
 }
 SITE_KEYS: tuple[str, ...] = tuple(SITE_RULES)
+# 실측으로 취소 가능 화면·버튼 글자를 확인한 사이트만 True — False 면 mode=cancel 이어도 절대 누르지 않는다(리뷰 1차 판정 1)
+SITE_VERIFIED: dict[str, bool] = {
+    'musinsa': True,
+    'lotteon': True,
+    'abc': False,
+    'fashionplus': False,
+    'gsshop': False,
+    'thehyundai': False,
+}
+# 첫 클릭 뒤 '새로 나타난' 요소 중 정확한 글자로 1개일 때만 누르는 최종 확인 버튼 후보(전부 미확인 추정).
+# 첫 버튼 자신의 글자('주문 취소'·'취소하기')와 '다음' 같은 일반 글자는 넣지 않는다(리뷰 1차 판정 2)
+SITE_CONFIRM: dict[str, list[str]] = {
+    'musinsa': ['취소 신청', '신청하기', '취소 요청'],
+    'lotteon': ['취소 신청', '취소신청', '신청하기'],
+    'abc': ['취소신청', '취소 신청', '신청하기'],
+    'fashionplus': ['취소 신청', '취소신청', '신청하기'],
+    'gsshop': ['취소신청', '취소 신청', '신청하기'],
+    'thehyundai': ['취소신청', '취소 신청', '신청하기'],
+}
 _STATE_ORDER: tuple[str, ...] = ('shipped', 'already_cancelled', 'cancel_pending', 'cancellable')
 _ELEMENT = re.compile(r'^\[\d+\] (button|link|clickable) "([^"]*)"', re.MULTILINE)
 _LOGIN_FORM = re.compile(r'아이디 저장|로그인하시면')
@@ -156,6 +175,18 @@ def count_items(pattern: str, segment: str) -> int:
         m = rx.search(segment)
         return int(m.group(1)) if m else 0
     return len(rx.findall(segment))
+
+
+def may_click(key: str, screen: dict[str, object]) -> bool:
+    """mode=cancel 에서 첫 취소 버튼을 눌러도 되는가 — JS 의 전체 가드와 같다(검증 사이트 · 로그인 · 주문번호 · 상품행 1 · cancellable · 버튼 1)."""
+    return bool(
+        SITE_VERIFIED.get(key)
+        and screen.get('login')
+        and screen.get('found')
+        and screen.get('items') == 1
+        and screen.get('state') == 'cancellable'
+        and screen.get('buttons') == 1
+    )
 
 
 def classify_screen(key: str, text: str, no: str) -> dict[str, object]:

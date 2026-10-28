@@ -4,13 +4,22 @@ fixture 는 앱 `page.get({})` 의 tree 전체(URL 줄 · INTERACTIVE ELEMENTS �
 같은 규칙표(`SITE_RULES`)를 쓰므로, 여기서 고정한 found/items/state/buttons 가 곧 스크립트의 판정이다.
 """
 
+import json
 from pathlib import Path
 
 import pytest
 
-from samba_agent.ops.cancel_screen import SITE_KEYS, SITE_RULES, classify_screen
+from samba_agent.ops.cancel_screen import (
+    SITE_CONFIRM,
+    SITE_KEYS,
+    SITE_RULES,
+    SITE_VERIFIED,
+    classify_screen,
+    may_click,
+)
 
 FIX = Path(__file__).parent / 'fixtures' / 'order_cancel'
+SCRIPTS = Path(__file__).parent.parent / 'site-scripts'
 
 
 def _fixture(name: str) -> str:
@@ -105,3 +114,60 @@ def test_규칙표는_6사이트() -> None:
         assert r['buttons'], (
             key
         )  # 취소 버튼 글자 목록은 비어 있으면 안 된다(없으면 어떤 화면도 안 누른다)
+
+
+def test_검증된_사이트는_무신사_롯데온뿐() -> None:
+    assert {k for k, v in SITE_VERIFIED.items() if v} == {'musinsa', 'lotteon'}
+    assert set(SITE_VERIFIED) == set(SITE_KEYS)
+
+
+def test_미검증_사이트는_취소_가능_화면이어도_누르지_않는다() -> None:
+    screen = {'login': True, 'found': True, 'items': 1, 'state': 'cancellable', 'buttons': 1}
+    assert may_click('musinsa', screen) is True
+    for key in ('abc', 'fashionplus', 'gsshop', 'thehyundai'):
+        assert may_click(key, screen) is False, key
+    # 검증 사이트도 조건 하나라도 빠지면 안 누른다
+    for bad in (
+        {'items': 2},
+        {'buttons': 0},
+        {'buttons': 2},
+        {'state': 'shipped'},
+        {'found': False},
+        {'login': False},
+    ):
+        assert may_click('musinsa', {**screen, **bad}) is False, bad
+
+
+def test_확인_버튼_후보에_첫_버튼_글자와_일반_글자가_없다() -> None:
+    for key in SITE_KEYS:
+        for label in SITE_CONFIRM[key]:
+            assert label not in SITE_RULES[key]['buttons'], (key, label)  # type: ignore[operator]
+            assert label not in ('다음', '확인', '취소'), (key, label)
+
+
+def _js_const(code: str, name: str) -> object:
+    line = next(ln for ln in code.splitlines() if ln.startswith(f'const {name} = '))
+    return json.loads(line[len(f'const {name} = ') :])
+
+
+@pytest.mark.parametrize('key', SITE_KEYS)
+def test_JS_규칙표가_파이썬과_같다(key: str) -> None:
+    code = (SCRIPTS / f'{key}_order_cancel.js').read_text(encoding='utf-8')
+    rules = {
+        k: SITE_RULES[key][k]
+        for k in (
+            'segment',
+            'items',
+            'buttons',
+            'shipped',
+            'already_cancelled',
+            'cancel_pending',
+            'cancellable',
+        )
+    }
+    rules['segment'] = list(rules['segment'])  # type: ignore[arg-type]
+    assert _js_const(code, 'RULES') == rules
+    assert _js_const(code, 'CONFIRM') == SITE_CONFIRM[key]
+    assert _js_const(code, 'VERIFIED') is SITE_VERIFIED[key]
+    assert code.index('const VERIFIED') < code.index('page.click(')  # 가드가 클릭보다 앞
+    assert 'if (!VERIFIED) return done(' in code
