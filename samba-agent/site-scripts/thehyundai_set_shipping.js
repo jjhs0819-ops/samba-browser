@@ -68,12 +68,19 @@ if (pick.length !== 1) pick = results.filter(l => wk && key((l.match(/도로명(
 if (pick.length !== 1 && results.length === 1) pick = results
 if (pick.length !== 1) return fail(`주소 검색 결과 ${results.length}건 중 하나로 못 고름`, { order_tab: tab })
 const zip = (pick[0].match(/우편번호(\d{5})/) || [])[1] || null
-await page.click(idOf(pick[0])); await sleep(1000)
-const dBox = await one(/textbox "상세 주소 입력"/)
-if (dBox) { await page.type(idOf(dBox), det, false); await sleep(200) }
-const saves = await L(/\] button "배송지 저장"$/)
-if (saves.length < 2) return fail('주소 창 저장 버튼 없음', { order_tab: tab })
-await page.click(idOf(saves[saves.length - 1])); await sleep(1200)
+// 결과를 고르면 상세 주소 칸과 그 아래 '배송지 저장'(창)이 늦게 그려진다 — 최대 6초, 3초째 한 번 더 고름.
+// 창이 뜨면 폼의 '배송지 저장'은 목록에서 빠지기도 한다 — 개수 대신 상세 칸 뒤 버튼으로 찾는다(10-29 실기)
+let save = null, dBox = null
+await page.click(idOf(pick[0]))
+for (let i = 0; i < 12 && !save; i++) {
+  await sleep(500)
+  dBox = await one(/textbox "상세 주소 입력"/)
+  save = dBox ? (await L(/\] button "배송지 저장"$/)).find(l => idOf(l) > idOf(dBox)) : null
+  if (i === 5 && !save) await page.click(idOf(pick[0]))
+}
+if (!save) return fail('주소 창 저장 버튼 없음', { order_tab: tab })
+await page.type(idOf(dBox), det, false); await sleep(200)
+await page.click(idOf(save)); await sleep(1200)
 
 // 4) 폼 되읽기
 const tr = await tree()
