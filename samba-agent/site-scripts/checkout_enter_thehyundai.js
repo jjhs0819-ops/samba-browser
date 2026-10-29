@@ -10,7 +10,7 @@ const num = s => parseInt(String(s || '').replace(/[^\d]/g, ''), 10) || 0
 const tree = async () => String((await page.get({})).tree || '')
 const linesOf = tr => tr.split('PAGE TEXT')[0].split('\n').filter(l => /^\[\d+\]/.test(l))
 const textOf = tr => (tr.split('PAGE TEXT:')[1] || '').replace(/\s+/g, ' ')
-const norm = s => String(s || '').toLowerCase().replace(/[\s/·,()_-]+/g, '')
+const norm = s => String(s || '').toLowerCase().replace(/\[(?:품절|남은수량[^\]]*)\]|품절/g, '').replace(/[\s/·,()_-]+/g, '')
 const cardSuffix = String(args.card_suffix || '4625')
 const R = { ok: false, method: '현대백화점카드 간편결제', popup_url: null }
 const fail = (note, x) => ({ ...R, note, ...(x || {}) })
