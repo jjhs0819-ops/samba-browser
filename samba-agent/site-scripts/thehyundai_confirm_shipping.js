@@ -10,7 +10,10 @@ const valOf = l => ((l || '').match(/value="([^"]*)"/) || [])[1] || ''
 const norm = s => String(s || '').replace(/[\s()·,-]/g, '')
 const key = s => { const m = String(s || '').match(/([가-힣A-Za-z0-9.]+(?:로|길))\s*(\d+(?:-\d+)?)/); return m ? m[1] + m[2] : '' }
 const fail = (note, x) => ({ ok: false, note, ...(x || {}) })
-const name = String(args.name || '').trim(), addr = String(args.address || '').trim(), det = String(args.address_detail || '').trim()
+const name = String(args.name || '').trim(), addr0 = String(args.address || '').trim(), det0 = String(args.address_detail || '').trim()
+// 주소에 건물번호가 없고 상세가 번호로 시작하면('…도척로' + '404-6, 101동…') 번호를 주소로 옮긴다(실기 10-29 356764)
+const n0 = key(addr0) ? null : det0.match(/^\s*(\d+(?:-\d+)?)\s*,?\s*/)
+const addr = n0 ? `${addr0} ${n0[1]}` : addr0, det = n0 ? det0.slice(n0[0].length).trim() : det0
 const cand = (await tabs.list()).filter(t => OF.test(t.url || '') && (!args.tab || t.id === args.tab))
 if (cand.length !== 1) return fail(cand.length ? 'order form ambiguous' : 'no order tab')
 const tab = cand[0].id
