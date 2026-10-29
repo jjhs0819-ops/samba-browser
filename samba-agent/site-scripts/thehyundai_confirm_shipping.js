@@ -38,21 +38,36 @@ for (let i = 0; i < 12; i++) {
   if (ov && !/배송지 목록/.test(ov[1])) { notes.push(ov[1].slice(0, 40)); try { await page.click(parseInt(ov[2])) } catch (e) {} }
 }
 if (linesOf(tr).some(l => /textbox .*name=receiver/.test(l))) return fail('배송지 저장 뒤 폼이 안 닫힘' + (notes.length ? `(안내: ${notes.join(' / ')})` : ''), { order_tab: tab })
-// 목록에서 그 항목 '선택'
-const t = textOf(tr)
-const body = t.slice(t.indexOf('배송지 추가') + 6)
-const blocks = body.split(/ 선택(?= |$)/).map(s => s.trim()).filter(s => / \/ /.test(s))
-const picks = linesOf(tr).filter(l => /\] button "선택"$/.test(l))
-let hit = -1
-if (blocks.length === picks.length) blocks.forEach((b, i) => {
-  if (hit >= 0) return
-  const tail = b.replace(/ 배송요청사항:.*$/, '')
-  if (norm(b.split(' / ')[0]) === norm(name) && key(tail) === key(addr) && (!det || norm(tail).includes(norm(det)))) hit = i
-})
-if (hit < 0) return fail('저장 뒤 목록에 없음', { order_tab: tab })
-await page.click(idOf(picks[hit])); await sleep(1500)
-const m = (await tree()).match(/^OVERLAY: "배송지 목록[^"]*" .*close ids: \[(\d+)/m)
-if (m) { try { await page.click(parseInt(m[1])) } catch (e) {} await sleep(500) }
-const ot = textOf(await tree())
-const sec = (ot.split('배송지 정보')[1] || '').split('배송정보 변경')[0].trim()
+// 목록에서 그 항목 '선택' — 줄 모양 '배송지명 / 받는 분 …[우편번호] 주소'. 저장 직후 목록이 다시 그려지는 중에 읽으면
+// 엉뚱한 줄을 누른다(실기 10-29: 고객 대신 사무실 줄이 선택됨) — 고른 뒤 주문서를 되읽어 다르면 목록을 다시 열어 고른다
+const zip = String(args.postal_code || '').replace(/\D/g, '')
+const secOf = ot => (ot.split('배송지 정보')[1] || '').split('배송정보 변경')[0].trim()
+const same = sec => norm(sec.split(/ |기본/)[0]) === norm(name) && (zip ? sec.includes(`(${zip})`) : key(sec) === key(addr))
+let sec = ''
+for (let k = 0; k < 3; k++) {
+  if (k) {
+    const chg = linesOf(await tree()).filter(l => /\] button "배송정보 변경"$/.test(l)).pop()
+    if (!chg) break
+    await page.click(idOf(chg))
+    for (let i = 0; i < 10 && !/배송지 추가/.test(textOf(tr = await tree())); i++) await sleep(500)
+  }
+  await sleep(800); tr = await tree()
+  const t = textOf(tr)
+  const blocks = t.slice(t.indexOf('배송지 추가') + 6).split(/ 선택(?= |$)/).map(s => s.trim()).filter(s => / \/ /.test(s))
+  const picks = linesOf(tr).filter(l => /\] button "선택"$/.test(l))
+  let hit = -1
+  if (blocks.length >= picks.length) blocks.slice(0, picks.length).forEach((b, i) => {
+    if (hit >= 0) return
+    const who = (b.split(' / ')[1] || '').split(/ 기본| 수정/)[0]
+    const tail = b.replace(/ 배송요청사항:.*$/, '')
+    if (norm(who) === norm(name) && (zip ? tail.includes(`[${zip}]`) : key(tail) === key(addr)) && (!det || norm(tail).includes(norm(det)))) hit = i
+  })
+  if (hit < 0) return fail('저장 뒤 목록에 없음', { order_tab: tab })
+  await page.click(idOf(picks[hit])); await sleep(1500)
+  const m = (await tree()).match(/^OVERLAY: "배송지 목록[^"]*" .*close ids: \[(\d+)/m)
+  if (m) { try { await page.click(parseInt(m[1])) } catch (e) {} await sleep(500) }
+  sec = secOf(textOf(await tree()))
+  if (same(sec)) break
+  notes.push(`선택 ${k + 1}회째 주문서 다름`)
+}
 return { ok: true, name: sec.split(/ |기본/)[0], address: sec.replace(/^.*?\(\d{5}\)\s*/, ''), zip: (sec.match(/\((\d{5})\)/) || [])[1] || null, order_tab: tab, note: notes.join(' / ') || null }
