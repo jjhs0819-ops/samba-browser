@@ -26,7 +26,7 @@ if (!dry && !args.tab) return fail('no tab')
 
 const formInfo = async () => {
   const tr = await tree(), t = textOf(tr)
-  const items = linesOf(tr).filter(l => /\] checkbox ".* [\d,]+원 \d+개[ "]/.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1])
+  const items = linesOf(tr).filter(l => /\] checkbox ".* [\d,원]+원 \d+개[ "]/.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1])
   return { tr, t, items, total: num((t.match(/결제 금액 ([\d,]+)원/) || [])[1]) }
 }
 const mismatch = f => {

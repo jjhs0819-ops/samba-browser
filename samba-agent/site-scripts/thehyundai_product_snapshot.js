@@ -6,7 +6,7 @@ const tree = async q => String((await page.get(q || {})).tree || '')
 const linesOf = tr => tr.split('PAGE TEXT')[0].split('\n').filter(l => /^\[\d+\]/.test(l))
 const textOf = tr => (tr.split('PAGE TEXT:')[1] || '').replace(/\s+/g, ' ')
 const idOfLine = l => parseInt(l.slice(1))
-const norm = s => String(s || '').toLowerCase().replace(/\[품절\]|품절/g, '').replace(/[\s/·,()_-]+/g, '')
+const norm = s => String(s || '').toLowerCase().replace(/\[(?:품절|남은수량[^\]]*)\]|품절/g, '').replace(/[\s/·,()_-]+/g, '')
 const P = args.profile ? { profile: args.profile } : {}
 const sku = String(args.sku || '').trim()
 const want = String(args.size || '').trim()
@@ -81,7 +81,7 @@ if (!OF.test(ou)) return { ...base, options, error: 'no_checkout', note: '주문
 if (!(await page.waitFor('결제하기', 10000))) return { ...base, options, error: 'no_checkout', note: '주문서 로딩 실패', order_tab: tid }
 
 let items = []
-for (let i = 0; i < 20 && !items.length; i++) { await sleep(500); tr = await tree(); items = linesOf(tr).filter(l => /\] checkbox ".* [\d,]+원 \d+개[ "]/.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1]) }
+for (let i = 0; i < 20 && !items.length; i++) { await sleep(500); tr = await tree(); items = linesOf(tr).filter(l => /\] checkbox ".* [\d,원]+원 \d+개[ "]/.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1]) }
 if (items.length !== 1) return { ...base, options, order_tab: tid, product_tab: null, error: 'order_form_mismatch', note: `주문서 불일치: order items ${items.length}` }
 const it = items[0]
 const optTxt = boxes.length ? picked.join(' / ') : ''
