@@ -24,7 +24,9 @@ const byId = id => linesOf(tr).find(l => l.startsWith(`[${id}] `)) || ''
 if (args.name_id && norm(valOf(byId(args.name_id))) !== norm(name)) return fail('폼 이름이 넣은 값과 다르다', { order_tab: tab })
 if (args.phone_id && valOf(byId(args.phone_id)).replace(/\D/g, '').length < 10) return fail('폼 전화가 비었다', { order_tab: tab })
 if (args.road_id && key(valOf(byId(args.road_id))) !== key(addr)) return fail('폼 주소가 넣은 값과 다르다', { order_tab: tab })
-const save = linesOf(tr).filter(l => /\] button "배송지 저장"$/.test(l))
+// 주소록이 쌓이면 요소 목록(150개 상한)에서 폼 맨 끝 '배송지 저장'이 잘린다(실기 10-30 3B2507: 0개) — 없으면 찾기로 찾는다
+let save = linesOf(tr).filter(l => /\] button "배송지 저장"$/.test(l))
+if (!save.length) save = linesOf(String(await page.find('배송지 저장'))).filter(l => /\] button "배송지 저장"/.test(l))
 if (save.length !== 1) return fail(`배송지 저장 버튼 ${save.length}개`, { order_tab: tab })
 await page.click(idOf(save[0]))
 // 저장 뒤 목록으로 돌아온다(안내창이 뜨면 문구를 남기고 닫는다)
