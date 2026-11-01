@@ -9,6 +9,8 @@ const nm=String(args.name||'').trim();const ad=String(args.address||'').trim();
 const toks=ad.split(/[\s,]+/).filter(t=>t.length>=2);
 const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const nmRe=new RegExp(nm.split('').map(esc).join('[*xX·]?'));
+// 주문서는 8자 넘는 이름을 '앞 8자...'로 줄여 보인다(실기 11-01 라자다 10자리 번호 이름 → 앞 8자...) — 앞 5자 이상이 같으면 같은 이름
+const nmCut=s=>{const m=String(s||'').match(/^(.{5,})(?:\.\.\.|…)$/);return !!m&&nm.startsWith(m[1]);};
 const nmMask=nm.length>1?new RegExp('^'+esc(nm[0])+'[*xX]'+(nm.length>2?esc(nm[nm.length-1]):'')+'$'):/$^/;
 let list=await tabs.list();
 const __ofs=list.filter(t=>t.url&&t.url.includes('/order/order-form'));const __one=args.tab?__ofs.find(t=>t.id===args.tab):__ofs.length===1?__ofs[0]:null;
@@ -81,7 +83,8 @@ if(m2){out.name=m2[1].trim();out.address=m2[2].trim();}
 else{out.name=(nm&&(tx.includes(nm)||nmRe.test(tx)))?nm:null;
   out.address=toks.filter(t=>tx.includes(t)).length>=Math.min(2,toks.length)?ad:null;}
 const hit2=toks.filter(t=>(out.address||'').includes(t)).length;
-const nOk=!nm||out.name===nm||nmRe.test(out.name||'')||nmMask.test(out.name||'');
+const nOk=!nm||out.name===nm||nmRe.test(out.name||'')||nmMask.test(out.name||'')||nmCut(out.name);
+if(nm&&nmCut(out.name))out.name=nm;
 out.ok=!!(out.address&&hit2>=Math.max(2,toks.length-1)&&nOk);
 if(!out.ok&&!out.note)out.note='주문서 되읽기 불일치';
 return out;
