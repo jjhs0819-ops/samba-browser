@@ -9,7 +9,8 @@ const linesOf = tr => tr.split('PAGE TEXT')[0].split('\n').filter(l => /^\[\d+\]
 const idOf = l => parseInt(String(l).slice(1))
 const valOf = l => ((l || '').match(/value="([^"]*)"/) || [])[1] || ''
 const norm = s => String(s || '').replace(/[\s()·,-]/g, '')
-const key = s => { const m = String(s || '').match(/([가-힣A-Za-z0-9.]+(?:로|길))\s*(\d+(?:-\d+)?)/); return m ? m[1] + m[2] : '' }
+// 번호 뒤가 '번길'이면 건물번호가 아니다 — '…로145번길'을 '…로'+'145'로 잘못 읽어 건물번호 옮기기를 건너뛰었다(실기 10-31 FB92C·4072F3)
+const key = s => { const m = String(s || '').match(/([가-힣A-Za-z0-9.]+(?:로|길))\s*(\d+(?:-\d+)?)(?!\d|-\d|번길|길)/); return m ? m[1] + m[2] : '' }
 const fail = (note, x) => ({ ok: false, note, ...(x || {}) })
 const name = String(args.name || '').trim(), addr0 = String(args.address || '').trim(), det0 = String(args.address_detail || '').trim()
 // 주소에 건물번호가 없고 상세가 번호로 시작하면('…도척로' + '404-6, 101동…') 번호를 주소로 옮긴다(실기 10-29 356764)
@@ -84,7 +85,9 @@ for (let i = 0; i < 12 && !save; i++) {
   if (i === 5 && !save) await page.click(idOf(pick[0]))
 }
 if (!save) return fail('주소 창 저장 버튼 없음', { order_tab: tab })
-await page.type(idOf(dBox), det, false); await sleep(200)
+// 상세 끝의 참고항목 '(다산동, …)'은 고른 도로명에 이미 붙는다 — 겹쳐 넣으면 '상세 주소를 정확히 입력해 주세요'로 저장이 막힌다(실기 10-31 FB92C)
+const ref = det.match(/\s*\(([^)]*)\)\s*$/), detIn = ref && pick[0].includes(ref[1].split(',')[0].trim()) ? det.slice(0, ref.index).trim() : det
+await page.type(idOf(dBox), detIn, false); await sleep(200)
 await page.click(idOf(save)); await sleep(1200)
 
 // 4) 폼 되읽기
@@ -92,7 +95,7 @@ const tr = await tree()
 nameL = linesOf(tr).find(l => /textbox .*name=receiver/.test(l)); phoneL = linesOf(tr).find(l => /textbox .*name=phone/.test(l))
 const roadL = linesOf(tr).find(l => /textbox .*name=baseAddr/.test(l)), detL = linesOf(tr).find(l => /textbox .*name=detailAddr/.test(l))
 if (!nameL || !roadL) return fail('주소 창 저장 뒤 폼이 닫힘(폼 안 보임)', { order_tab: tab })
-if (detL && det && norm(valOf(detL)) !== norm(det)) { await page.type(idOf(detL), det, false); await sleep(200) }
+if (detL && detIn && norm(valOf(detL)) !== norm(detIn)) { await page.type(idOf(detL), detIn, false); await sleep(200) }
 const tr2 = await tree()
 const g = re => valOf(linesOf(tr2).find(l => re.test(l)))
 const road = g(/name=baseAddr/), dt = g(/name=detailAddr/)

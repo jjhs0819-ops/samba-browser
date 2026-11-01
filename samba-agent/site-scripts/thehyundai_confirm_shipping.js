@@ -8,7 +8,8 @@ const textOf = tr => (tr.split('PAGE TEXT:')[1] || '').replace(/\s+/g, ' ')
 const idOf = l => parseInt(String(l).slice(1))
 const valOf = l => ((l || '').match(/value="([^"]*)"/) || [])[1] || ''
 const norm = s => String(s || '').replace(/[\s()·,-]/g, '')
-const key = s => { const m = String(s || '').match(/([가-힣A-Za-z0-9.]+(?:로|길))\s*(\d+(?:-\d+)?)/); return m ? m[1] + m[2] : '' }
+// 번호 뒤가 '번길'이면 건물번호가 아니다 — '…로145번길'을 '…로'+'145'로 잘못 읽어 건물번호 옮기기를 건너뛰었다(실기 10-31 FB92C·4072F3)
+const key = s => { const m = String(s || '').match(/([가-힣A-Za-z0-9.]+(?:로|길))\s*(\d+(?:-\d+)?)(?!\d|-\d|번길|길)/); return m ? m[1] + m[2] : '' }
 const fail = (note, x) => ({ ok: false, note, ...(x || {}) })
 const name = String(args.name || '').trim(), addr0 = String(args.address || '').trim(), det0 = String(args.address_detail || '').trim()
 // 주소에 건물번호가 없고 상세가 번호로 시작하면('…도척로' + '404-6, 101동…') 번호를 주소로 옮긴다(실기 10-29 356764)
@@ -65,7 +66,7 @@ for (let k = 0; k < 3; k++) {
     if (hit >= 0) return
     const who = (b.split(' / ')[1] || '').split(/ 기본| 수정/)[0]
     const tail = b.replace(/ 배송요청사항:.*$/, '')
-    if (norm(who) === norm(name) && (zip ? tail.includes(`[${zip}]`) : key(tail) === key(addr)) && (!det || norm(tail).includes(norm(det)))) hit = i
+    if (norm(who) === norm(name) && (zip ? tail.includes(`[${zip}]`) : key(tail) === key(addr)) && (!det || norm(tail).includes(norm(det)) || norm(tail).includes(norm(det.replace(/\s*\([^)]*\)\s*$/, ''))))) hit = i
   })
   if (hit < 0) return fail('저장 뒤 목록에 없음', { order_tab: tab })
   await page.click(idOf(picks[hit])); await sleep(1500)
