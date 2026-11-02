@@ -45,6 +45,6 @@ await close()
 const ot = textOf(await tree())
 const sec = (ot.split('배송지 정보')[1] || '').split('배송정보 변경')[0].trim()
 const zip = (sec.match(/\((\d{5})\)/) || [])[1] || null
-const shownName = sec.split(/ |기본/)[0]
+const shownName = name && sec.replace(/\s/g, '').startsWith(name.replace(/\s/g, '')) ? name : sec.split(/ |기본/)[0]
 const shownAddr = sec.replace(/^.*?\(\d{5}\)\s*/, '')
 return { ok: true, name: shownName, address: shownAddr, zip, order_tab: tab, note: null }

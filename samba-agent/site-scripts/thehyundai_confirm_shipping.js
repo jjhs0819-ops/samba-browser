@@ -48,7 +48,8 @@ if (linesOf(tr).some(l => /textbox .*name=receiver/.test(l))) return fail('배�
 // 엉뚱한 줄을 누른다(실기 10-29: 고객 대신 사무실 줄이 선택됨) — 고른 뒤 주문서를 되읽어 다르면 목록을 다시 열어 고른다
 const zip = String(args.postal_code || '').replace(/\D/g, '')
 const secOf = ot => (ot.split('배송지 정보')[1] || '').split('배송정보 변경')[0].trim()
-const same = sec => norm(sec.split(/ |기본/)[0]) === norm(name) && (zip ? sec.includes(`(${zip})`) : key(sec) === key(addr))
+// 이름에 띄어쓰기가 있으면 첫 낱말만 비교해 늘 '다름'이었다(실기 11-02 489982) — 앞부분 일치로 본다
+const same = sec => norm(sec).startsWith(norm(name)) && (zip ? sec.includes(`(${zip})`) : key(sec) === key(addr))
 let sec = ''
 for (let k = 0; k < 3; k++) {
   if (k) {
@@ -76,4 +77,4 @@ for (let k = 0; k < 3; k++) {
   if (same(sec)) break
   notes.push(`선택 ${k + 1}회째 주문서 다름`)
 }
-return { ok: true, name: sec.split(/ |기본/)[0], address: sec.replace(/^.*?\(\d{5}\)\s*/, ''), zip: (sec.match(/\((\d{5})\)/) || [])[1] || null, order_tab: tab, note: notes.join(' / ') || null }
+return { ok: true, name: same(sec) ? name : sec.split(/ |기본/)[0], address: sec.replace(/^.*?\(\d{5}\)\s*/, ''), zip: (sec.match(/\((\d{5})\)/) || [])[1] || null, order_tab: tab, note: notes.join(' / ') || null }
