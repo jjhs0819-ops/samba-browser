@@ -8,21 +8,23 @@ const ot = args.tab ? ofs.find(t => t.id === args.tab) : ofs.length === 1 ? ofs[
 if (!ot) return { ok: false, memo: null, note: ofs.length ? 'order forms ' + ofs.length + ' open — pass args.tab' : 'no order-form tab open' }
 await tabs.switch(ot.id)
 const lines = async () => (await page.get({ interactive: true })).tree.split('PAGE TEXT')[0].split('\n').filter(l => /^\[\d+\]/.test(l))
-const box = async () => (await lines()).find(l => /textbox "최대 50자/.test(l))
+const box = async () => String((await page.get({ query: '50자' })).tree || '').split('PAGE TEXT')[0].split('\n').find(l => /^\[\d+\] textbox "최대 50자/.test(l))
 const val = l => ((l || '').match(/value="([^"]*)"/) || [])[1] || ''
 let fb = await box()
 if (!fb) {
   const sel = (await lines()).find(l => /textbox "배송 요청사항/.test(l))
   if (!sel) return { ok: false, memo: null, note: '배송 요청사항 칸 없음' }
   // 시트가 이미 열려 있으면 칸을 다시 누르면 닫힌다 — 열려 있는지 먼저 보고, 안 열리면 한 번 더 누른다(실기 11-02 A8F30)
-  const findDi = async () => (await lines()).find(l => /\] button "직접입력"$/.test(l))
+  // 화면 요소가 많으면 전체 목록이 잘려 시트 버튼이 안 보인다 — 글자로 찾는다
+  const findDi = async () => String((await page.get({ query: '직접입력' })).tree || '').split('PAGE TEXT')[0].split('\n').find(l => /\] (?:button|clickable|radio|option) "직접입력"$/.test(l)) || ((fb = await box()) && 'box')
   let di = await findDi()
   for (let k = 0; k < 2 && !di; k++) {
+    // 실제 클릭(clickNative)은 이 칸에서 시트를 못 연다(실기 11-02) — 일반 클릭만
     try { await page.click(parseInt(sel.slice(1))) } catch (e) {}
     for (let i = 0; i < 10 && !di; i++) { await sleep(400); di = await findDi() }
   }
-  if (!di) return { ok: false, memo: null, note: '직접입력 선택지 없음' }
-  try { await page.click(parseInt(di.slice(1))) } catch (e) {}
+  if (!di) return { ok: false, memo: null, note: '직접입력 선택지 없음: ' + (await lines()).filter(l => /요청|직접|입력|50자/.test(l)).map(l => l.replace(/^\[\d+\] /, '').slice(0, 40)).slice(0, 6).join(' | ') }
+  if (di !== 'box') try { await page.click(parseInt(di.slice(1))) } catch (e) {}
   for (let i = 0; i < 10 && !(fb = await box()); i++) await sleep(300)
 }
 if (!fb) return { ok: false, memo: null, note: '직접입력 칸이 안 열림' }
