@@ -68,8 +68,9 @@ if(popup){
       await sleep(900);continue;
     }
     let rows=g.tree.split('\n').filter(l=>/^\[\d+\] (clickable|radio|button)/.test(l)&&l.includes(args.name)&&!/수정|삭제/.test(l));
-    // 방금 쓴 작업용 배송지는 이름 대신 '최근 사용' 표시로 보인다 — 삭제 가능한 항목이 하나뿐이면 그 항목(되읽기에서 이름·주소를 다시 본다)
-    if(!rows[0]){const ls=g.tree.split('\n').filter(l=>/^\[\d+\] /.test(l));const ix=ls.map((l,i)=>/ button "수정"$/.test(l)&&/ button "삭제"$/.test(ls[i+1]||'')?i:-1).filter(i=>i>0);if(ix.length===1&&/clickable/.test(ls[ix[0]-1]))rows=[ls[ix[0]-1]];}
+    // 방금 쓴 작업용 배송지는 이름 대신 '최근 사용' 표시로 보인다 — set_shipping 이 덮어쓴 '삭제 가능한 첫 항목'을 고른다(되읽기에서 이름·주소를 다시 본다)
+    // (실기 11-02 라자다: 같은 주소의 옛 항목(괄호 뺀 번호 이름)이 골라진 채 남아 이름 불일치로 멈췄다)
+    if(!rows[0]){const ls=g.tree.split('\n').filter(l=>/^\[\d+\] /.test(l));const ix=ls.map((l,i)=>/ button "수정"$/.test(l)&&/ button "삭제"$/.test(ls[i+1]||'')?i:-1).filter(i=>i>0);if(ix.length&&/clickable/.test(ls[ix[0]-1]))rows=[ls[ix[0]-1]];}
     if(rows[0]){await C(parseInt(rows[0].match(/^\[(\d+)\]/)[1]));await sleep(600);g=await G();}
     const ch=g.tree.match(/\[(\d+)\] (?:button|link|clickable) "(?:변경하기|선택하기|선택|적용)"/);
     if(ch){await C(parseInt(ch[1]));await sleep(1500);}

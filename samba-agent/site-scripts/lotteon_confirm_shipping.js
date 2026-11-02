@@ -33,8 +33,20 @@ if(saved){
   const inDlg=(await els(null,'[role=dialog]')).filter(e=>e.role==='button');
   let done=(await els('선택완료')).find(e=>e.role==='button'&&e.text==='선택완료');
   for(const w of DONE){if(done)break;done=inDlg.filter(e=>String(e.text).trim()===w).pop();}
+  // 주소록이 길면 창 목록이 잘려 맨 아래 '확인'이 안 보인다(실기 11-02: 라디오 37개, '… 27 more') — 글자로 찾되 창 목록 뒤 번호만
+  const top=Math.max(0,...(await els(null,'[role=dialog]')).map(e=>e.id));
+  for(const w of DONE){if(done)break;done=(await els(w)).filter(e=>e.role==='button'&&String(e.text).trim()===w&&e.id>top).shift();}
   // 직배 주문서는 저장하면 바로 반영되고 선택완료가 없기도 하다 — 없으면 주문서 되읽기로 넘어간다(실기 2026-09-30)
   if(done){R.done_button=String(done.text).trim();await page.click(done.id);await sleep(3000);}else await sleep(1500);
+  // 저장 직후 새 항목 라디오가 켜져 보여도 사이트 선택은 기본배송지 그대로일 때가 있다 — 확인 뒤 주문서에 이름이 없으면
+  // '변경'으로 다시 열어 그 항목을 눌러 고른다(실기 11-02: 수동으로 라디오→확인 하면 반영됨)
+  if(done&&!(await text()).includes(name)){
+    const ch=(await els('변경')).find(e=>e.role==='button'&&e.text==='변경');
+    if(ch){await page.click(ch.id);await sleep(2000);const L2=await els(null,'[role=dialog]');const lb=L2.filter(e=>e.role==='label'&&e.text.includes(name)).pop();
+      if(lb){const r2=Math.max(...L2.filter(e=>e.role==='radio'&&e.id<lb.id).map(e=>e.id),0);if(r2){await page.click(r2);await sleep(800);}
+        const t2=Math.max(0,...L2.map(e=>e.id));const ok2=(await els('확인')).filter(e=>e.role==='button'&&String(e.text).trim()==='확인'&&e.id>t2).shift();
+        if(ok2){await page.click(ok2.id);await sleep(3000);R.reselected=true;}}}
+  }
 }
 const tx=await text();
 // 선물 주문서가 아닌 일반(직배) 주문서: 배송지 창이 열린 채면 화면 글자에 주소록(방금 저장한 항목 포함)이 섞여, 실제 배송지는

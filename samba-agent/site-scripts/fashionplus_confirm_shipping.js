@@ -53,7 +53,7 @@ try { msg = dialogOf(await page.click(idOf(reg))) } catch (e) { msg = '' }
 const nums = addr.replace(/^\d{5}\s*/, '').match(/\d+(-\d+)?/g) || []
 const sheetOf = t => { const m = t.match(/배송지 정보 (\S+?) ?배송지 변경 (\d{5}) (.+?) (?:0\d{1,2}-?\d{3,4}-?\d{4}|배송메모)/); return m ? { name: m[1], zip: m[2], address: m[3] } : null }
 const same = b => !!b && b.name === name && nums.every(n => sq(b.address).includes(n))
-let back = null, formOpen = true, picked = false, waited = 0
+let back = null, formOpen = true, picked = false, listed = false, waited = 0
 for (let i = 0; i < 25; i++) {
   await sleep(400)
   waited = i + 1
@@ -75,12 +75,17 @@ for (let i = 0; i < 25; i++) {
       const t = (l.match(/^\[\d+\] link "([^"]*)"/) || [])[1] || ''
       return t.split(/\s+/)[0] === name && nums.every(n => sq(t).includes(n))
     })
-    if (hits.length === 1) { picked = true; try { await page.click(idOf(hits[0])) } catch (e) {} continue }
+    // 같은 이름·주소 항목이 여럿(이전 시도에서 등록)이어도 같은 배송지다 — 첫 항목. 목록 탭이 숨어 있으면 '배송지 선택'을 연다(실기 11-02)
+    if (hits.length) { picked = true; try { await page.click(idOf(hits[0])) } catch (e) {} continue }
+    const tabL = big(ls).find(l => /link "배송지 선택"/.test(l))
+    if (tabL && !listed) { listed = true; try { await page.click(idOf(tabL)) } catch (e) {} continue }
   }
   if (formOpen) continue
   // 창은 닫혔는데 주문서가 아직 옛 값이면 몇 번 더 본다(주문서 갱신이 늦다)
   if (i >= 12) break
 }
+// 등록 안내 뒤 창이 늦게(10초+) 닫히며 주문서가 바뀐다(실기 11-02) — 실패로 끝내기 전 20초 더 본다
+for (let i = 0; i < 20 && !same(back); i++) { await sleep(1000); back = sheetOf(textOf(await get({}))) || back }
 if (same(back)) return { ok: true, ...back, order_tab: tab, note: null }
 const how = `이름 ${back ? (back.name === name ? '같음' : '다름') : '못읽음'}·번호 ${back ? nums.filter(n => sq(back.address).includes(n)).length : 0}/${nums.length}·대기 ${waited}`
 const site = msg ? `안내: ${msg.replace(/\s+/g, ' ').slice(0, 40)}` : '안내 없음'

@@ -915,13 +915,35 @@ def strict_option_key(text: str | None) -> str:
     return re.sub(r'[\s\-_/·,:;.()\[\]{}]+', '', t).lower()
 
 
+# 선택지 끝에 붙는 가격·남은수량('L 54,440'·'… [남은수량 : 3]'·'78,480원 (2개)')
+_OPTION_PRICE_TAIL_RE = re.compile(r'(?:\s+\d{1,3}(?:,\d{3})+\s*원?|\s*\[남은수량[^\]]*\]|\s*\(\d+개\))+\s*$')
+
+
 def strict_matching_options(options: list[str], wanted: str | None) -> list[str]:
-    """품절 아닌 선택지 중 주문 옵션과 정확히 같은 것(strict_option_key 일치)만. 주문 옵션이 없으면 전부."""
+    """품절 아닌 선택지 중 주문 옵션과 정확히 같은 것(strict_option_key 일치)만. 주문 옵션이 없으면 전부.
+
+    단색 상품만 예외: 선택지가 모두 같은 색 글자 + 사이즈('CRE 85'…'CRE 105')이면 색은 상품이 정한 것이라
+    사이즈 조각이 정확히 같은 하나를 고른다(실기 2026-10-30 패션플러스: 주문 '크림 105' ↔ 'CRE 105').
+    """
     live = [o for o in options if not _sold_out(o)]
     if not wanted:
         return live
     key = strict_option_key(wanted)
-    return [o for o in live if key and strict_option_key(o) == key]
+    exact = [o for o in live if key and strict_option_key(o) == key]
+    if exact:
+        return exact
+    w = _STRICT_PREFIX_RE.sub('', unicodedata.normalize('NFKC', wanted)).split()
+    if len(w) < 2:
+        return []
+    split = [o.split() for o in options]
+    if any(len(x) < 2 for x in split):
+        return []
+    colours = {strict_option_key(' '.join(x[:-1])) for x in split}
+    if len(colours) != 1:
+        return []
+    size = strict_option_key(w[-1])
+    one = [o for o in live if strict_option_key(o.split()[-1]) == size]
+    return one if len(one) == 1 else []
 
 
 def matching_options(options: list[str], wanted: str | None) -> list[str]:
@@ -940,6 +962,10 @@ def matching_options(options: list[str], wanted: str | None) -> list[str]:
         free = [o for o in live if _is_free_size(o)]
         if free:
             return free
+        # 주문 옵션이 '단일'·'FREE' 뿐이고 살아 있는 선택지가 하나면 그것이다 — 상품에 옵션이 하나뿐이다
+        # (실기 2026-10-31 더현대: 주문 '단일' ↔ 선택지 ['T90(다크베이지)/999 [남은수량 : 3]']). 상품 대조는 주문서가 다시 본다
+        if len(live) == 1 and _norm(wanted) in _FREE_SIZE_TOKENS:
+            return live
     # 선택지가 프리사이즈 하나뿐이고 주문 옵션에 사이즈가 없으면(색상만) 그것이다 — 색상은 상품 자체가 정한다
     # (실기 2026-09-28: 주문 '블랙 & 올리브 그린' ↔ 무신사 선택지 ['FREE'] 를 옵션 불일치로 멈췄다).
     # 상품이 맞는지는 결제 직전 주문서 대조가 다시 본다
@@ -1007,7 +1033,8 @@ def matching_options(options: list[str], wanted: str | None) -> list[str]:
         # 한 글자 사이즈 조각('01올리브/L' 의 L)은 선택지 글자 전체와 똑같을 때만, 하나로 정해질 때만 고른다
         # (실기 2026-09-29 무신사 지오다노: 사이즈 단계 ['M (품절)', 'L (품절)', 'XL'] 를 옵션 불일치로 멈췄다)
         pieces = {_norm(t) for t in re.split(r'[\s/]+', w) if t}
-        same_piece = [o for o in live if _norm(o) in pieces]
+        # 선택지 끝의 가격·남은수량은 떼고 본다(실기 2026-11-01 롯데온: 주문 '선택 1. 529748_01(블랙) / L' ↔ 'L 54,440')
+        same_piece = [o for o in live if _norm(_OPTION_PRICE_TAIL_RE.sub('', o)) in pieces]
         if len(same_piece) == 1:
             return same_piece
     # 글자-숫자 사이즈('S-3'·'M-4' — 라코스테 숫자 사이즈)는 숫자가 선택지의 세 자리 코드다('003(95)').

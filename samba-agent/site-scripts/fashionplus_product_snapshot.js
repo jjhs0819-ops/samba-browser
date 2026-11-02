@@ -44,7 +44,7 @@ opts.push({ id: parseInt(l.slice(1)),t,sold: soldIds.has(parseInt(l.slice(1)))||
 }
 if (!opts.length) {
 const li=((await page.get({ selector: '.m__option-list li' })).tree.split('PAGE TEXT:')[1]||'').replace(/\s+/g,' ').trim()
-const one=li ? label(li.split(/(?<=\))\s+/)[0]) : ''
+const one=li ? label(li.split(/(?<=\))\s+/)[0].split(/\s+\d{1,3}(?:,\d{3})+/)[0].replace(/\s*\(\d+개[^)]*\)/,'')) : ''
 if (one) opts.push({ id: -1,t: one,sold: /품절/.test(li) })
 }
 const options=opts.map(o=>o.sold ? o.t + ' [품절]' : o.t)

@@ -2487,3 +2487,20 @@ def test_해외묶음번호_메모는_넣고_되읽어야_통과한다():
         assert e.status == 'needs_human' and '해외묶음번호' in e.reason
     else:
         raise AssertionError('needs_human 이어야 한다')
+
+
+def test_롯데온_선택_머리말_옵션은_가격_붙은_한글자_사이즈와_맞춘다() -> None:
+    # 실기 2026-11-01 롯데온: 주문 '선택 1. 529748_01(블랙) / L' ↔ 선택지 'L 54,440'
+    from samba_agent.agents.buyer import matching_options
+
+    opts = ['L 54,440', '[품절] M 54,440 품절', 'XL 54,440', '[품절] XXL 54,440 품절']
+    assert matching_options(opts, '선택 1. 529748_01(블랙) / L') == ['L 54,440']
+
+
+def test_단일_주문은_선택지가_하나면_그것() -> None:
+    # 실기 2026-10-31 더현대: 주문 '단일' ↔ 선택지 하나
+    from samba_agent.agents.buyer import matching_options
+
+    assert matching_options(['T90(다크베이지)/999 [남은수량 : 3]'], '단일') == ['T90(다크베이지)/999 [남은수량 : 3]']
+    # 선택지가 여럿이면 짐작하지 않는다
+    assert matching_options(['02S(베이지)/34(55)', '571(그레이쉬블루)/34(55)'], '단일') == []
