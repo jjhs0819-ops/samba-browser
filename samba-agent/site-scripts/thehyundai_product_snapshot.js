@@ -37,11 +37,10 @@ const pickBy = (opts, w) => {
   return live.find(o => norm(o.t) === norm(w)) || (part.length === 1 ? part[0] : null)
 }
 const wantParts = want.split('/').map(s => s.trim()).filter(Boolean)
-// 옵션 창이 안 뜨면 '구매하기' 다시(10-29)
 let boxes = [], open = false
 for (let i = 0; i < 20 && !boxes.length; i++) {
   if (!open && i % 5 === 0) { const b = linesOf(await tree()).filter(l => /\] button "구매하기"$/.test(l)).pop(); if (b) await page.click(idOfLine(b)); await sleep(1200) }
-  for (const n of ['컬러', '제품', '사이즈', '옵션을 선택해 주세요.']) if (await combo(n)) boxes.push(n)
+  boxes = linesOf(await tree()).map(l => (l.match(/\] combobox "([^"]+)"/) || [])[1]).filter(Boolean)
   if (!boxes.length) { open = open || (await find('바로구매')).some(l => /\] button "바로구매"$/.test(l)); await sleep(500) }
 }
 if (boxes.length > 1) boxes = boxes.filter(n => n !== '옵션을 선택해 주세요.')
@@ -81,16 +80,15 @@ if (!OF.test(ou)) return { ...base, options, error: 'no_checkout', note: '주문
 if (!(await page.waitFor('결제하기', 10000))) return { ...base, options, error: 'no_checkout', note: '주문서 로딩 실패', order_tab: tid }
 
 let items = []
-for (let i = 0; i < 20 && !items.length; i++) { await sleep(500); tr = await tree(); items = linesOf(tr).filter(l => /\] checkbox ".* [\d,원]+원 \d+개[ "]/.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1]) }
+for (let i = 0; i < 20 && !items.length; i++) { await sleep(500); tr = await tree(); items = linesOf(tr).filter(l => /\] checkbox ".* [\d,원]+원 \d+(개[ "]|"$)/.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1]) }
 if (items.length !== 1) return { ...base, options, order_tab: tid, product_tab: null, error: 'order_form_mismatch', note: `주문서 불일치: order items ${items.length}` }
 const it = items[0]
 const optTxt = boxes.length ? picked.join(' / ') : ''
 const selected = boxes.length ? optTxt : '단일'
-const itQty = num((it.match(/ (\d+)개( |$)/) || [])[1])
+const itQty = num((it.match(/ (\d+)개( |$)/) || textOf(tr).match(/원 (\d+)개 /) || [])[1])
 const bad = boxes.length && !norm(it).includes(norm(optTxt)) ? `option ${optTxt} not in ${it.slice(0, 80)}` : itQty !== qty ? `qty ${itQty} != ${qty}` : null
 if (bad) return { ...base, options, selected, order_tab: tid, product_tab: null, error: 'order_form_mismatch', note: '주문서 불일치: ' + bad }
 
-// 즉시할인: 첫 '체크박스' = 현대백화점카드
 const notes = []
 const t1 = textOf(tr)
 if (/체크박스 현대백화점카드/.test(t1) && !/즉시할인 현대백화점카드/.test(t1)) {
