@@ -60,8 +60,8 @@ if (mc) {
     if(rl&&!/value="on"/.test(rl)){await page.click(parseInt(rl.slice(1)));await sleep(1200);}
     let sel='';for(let k=0;k<8&&!sel;k++){const P=(String((await page.get({})).tree||'').split('PAGE TEXT')[1]||'').replace(/\s+/g,' ');sel=((P.match(/카드선택 ([^+]{2,30}?) L\.PAY/)||[])[1]||'').trim();if(!sel)await sleep(700);}
     if(!sel.includes(want.replace('카드',''))){
-      // 견적 단계에서 카드선택 칸을 여러 번 건드리면 결제 진입 때 비어 있다 — 롯데카드를 직접 고른다(2026-10-06)
-      for(const o of ['textbox','label']){const g=await page.get({query:'카드'});const re=o==='textbox'?/^\[(\d+)\] textbox "카드(를 선택|선택)/:/^\[(\d+)\] label "카드선택"/;const l=g.tree.split('\n').find(x=>re.test(x));if(!l)continue;await page.click(parseInt(l.slice(1)));await sleep(600);const f=(await page.get({query:want})).tree.split('\n').find(x=>/^\[\d+\] (option|listitem|clickable|button|link) /.test(x)&&x.includes(want));if(f){await page.click(parseInt(f.slice(1)));await sleep(900);break}}
+      // 카드선택이 비면 직접 고른다(10-06). 칸은 콤보박스(11-02)
+      for(const o of ['textbox','label']){const g=await page.get({query:'카드'});const re=o==='textbox'?/^\[(\d+)\] (?:textbox|combobox) "카드(를 선택|선택)/:/^\[(\d+)\] label "카드선택"/;const l=g.tree.split('\n').find(x=>re.test(x));if(!l)continue;await page.click(parseInt(l.slice(1)));await sleep(600);const f=(await page.get({query:want})).tree.split('\n').find(x=>/^\[\d+\] (option|listitem|clickable|button|link) /.test(x)&&x.includes(want));if(f){await page.click(parseInt(f.slice(1)));await sleep(900);break}}
       sel='';for(let k=0;k<6&&!sel;k++){const P=(String((await page.get({})).tree||'').split('PAGE TEXT')[1]||'').replace(/\s+/g,' ');sel=((P.match(/카드선택 ([^+]{2,30}?) L\.PAY/)||[])[1]||'').trim();if(!sel)await sleep(700);}
     }
     if(!sel.includes(want.replace('카드','')))return {ok:false,error:'L.PAY 카드가 '+want+' 아님: '+(sel||'선택 없음')+' — 결제하지 않음',method};

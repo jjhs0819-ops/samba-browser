@@ -14,9 +14,13 @@ let fb = await box()
 if (!fb) {
   const sel = (await lines()).find(l => /textbox "배송 요청사항/.test(l))
   if (!sel) return { ok: false, memo: null, note: '배송 요청사항 칸 없음' }
-  try { await page.click(parseInt(sel.slice(1))) } catch (e) {}
-  let di = null
-  for (let i = 0; i < 10 && !di; i++) { await sleep(300); di = (await lines()).find(l => /\] button "직접입력"$/.test(l)) }
+  // 시트가 이미 열려 있으면 칸을 다시 누르면 닫힌다 — 열려 있는지 먼저 보고, 안 열리면 한 번 더 누른다(실기 11-02 A8F30)
+  const findDi = async () => (await lines()).find(l => /\] button "직접입력"$/.test(l))
+  let di = await findDi()
+  for (let k = 0; k < 2 && !di; k++) {
+    try { await page.click(parseInt(sel.slice(1))) } catch (e) {}
+    for (let i = 0; i < 10 && !di; i++) { await sleep(400); di = await findDi() }
+  }
   if (!di) return { ok: false, memo: null, note: '직접입력 선택지 없음' }
   try { await page.click(parseInt(di.slice(1))) } catch (e) {}
   for (let i = 0; i < 10 && !(fb = await box()); i++) await sleep(300)
