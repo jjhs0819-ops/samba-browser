@@ -300,6 +300,8 @@ PAY_RESULT_POLL_TRIES = 5
 PAY_RESULT_POLL_WAIT_MS = 3000
 # 키패드가 뜰 때까지 팝업을 다시 보는 횟수·간격(최대 약 20초)
 KEYPAD_POLL_TRIES = 10
+# 네이버페이 '동의하고 결제하기' 를 눌러도 비밀번호 화면이 안 뜨면 다시 누르는 횟수
+NAVERPAY_AGREE_RETRIES = 2
 KEYPAD_POLL_WAIT_MS = 2000
 # fill_secret 을 부르는 총 횟수 상한(키패드 한 번 입력 기준) — 탭 여럿을 돌아도 이것을 넘지 않는다.
 # 실기 2026-09-27 ABC 214·218: 키패드가 아닌 창에 10회씩 불렀다(모두 거절, 입력 없음)
@@ -859,10 +861,17 @@ def _amount_krw(value: object) -> int | None:
 
 # 주문 완료 주소 속 주문번호(무신사 …/order/result/202609241804480002)
 # 29CM 완료 주소의 경로 번호는 주문상세 번호라 쓰지 않고 order_serial(주문번호 ORD…)을 읽는다
+# 더현대Hi 완료 주소는 경로가 아니라 쿼리에 번호가 있다(…/shop/order/complete?orderNo=261102002735980, 실기 2026-11-02:
+# 번호를 못 읽어 '삼바 기입 안 됨'으로 멈췄고 사람이 같은 상품을 한 번 더 결제했다)
 RESULT_URL_ORDER_NO_RE = re.compile(
     r'order/(?:result|complete)/([A-Za-z0-9-]{6,32})'
     r'|order/confirmed/[^\s"]*?[?&]order_serial=([A-Za-z0-9-]{6,32})'
+    r'|order/complete\?[^\s"]*?\borderNo=([A-Za-z0-9-]{6,32})'
 )
+
+
+def _url_order_no(m: re.Match[str]) -> str:
+    return next(g for g in m.groups() if g)
 
 
 def _source_order_no(page: str, tabs: str = '') -> str | None:
@@ -875,12 +884,12 @@ def _source_order_no(page: str, tabs: str = '') -> str | None:
     # 2026092815965556 을 읽어 기입했다). 화면 첫 줄(URL: …)을 먼저 본다
     m = RESULT_URL_ORDER_NO_RE.search(page.splitlines()[0] if page.strip() else '')
     if m:
-        return m.group(1) or m.group(2)
+        return _url_order_no(m)
     m = SOURCE_ORDER_NO_RE.search(page)
     if m:
         return m.group(1)
     m = RESULT_URL_ORDER_NO_RE.search(tabs)
-    return (m.group(1) or m.group(2)) if m else None
+    return _url_order_no(m) if m else None
 
 
 def recent_art_order(agent: AgentBase, a: Assignment) -> str | None:
@@ -1549,6 +1558,17 @@ class PayerAgent(AgentBase):
         self.step('payer: 네이버페이 동의하고 결제하기')
         self.tool('click', id=agree, label='동의하고 결제하기')
         self.tool('wait', ms=PAY_POPUP_WAIT_MS)
+        # 카드 슬라이드 직후 누른 클릭이 먹지 않아 비밀번호 화면으로 안 넘어간 때가 있다(실기 2026-11-02 롯데온 2건:
+        # 키패드 10회 없음, 탭은 그대로 nfPayment). 비밀번호 칸이 없고 버튼이 아직 있으면 다시 누른다 — 비밀번호 전이라 결제는 안 된다
+        for _ in range(NAVERPAY_AGREE_RETRIES):
+            if _element_id(self.tool('find_elements', query=KEYPAD_QUERY)) is not None:
+                return
+            again = _element_id(self.tool('find_elements', query='동의하고 결제하기'))
+            if again is None:
+                return
+            self.note('네이버페이 동의', '비밀번호 화면으로 안 넘어가 \'동의하고 결제하기\' 다시 누름')
+            self.tool('click', id=again, label='동의하고 결제하기')
+            self.tool('wait', ms=PAY_POPUP_WAIT_MS)
 
     def _select_naverpay_card_in_tab(self, a: Assignment) -> None:
         """팝업에서 못 고른 네이버페이 카드를 같은 탭 결제창에서 고른다(카드 후보가 있을 때만).

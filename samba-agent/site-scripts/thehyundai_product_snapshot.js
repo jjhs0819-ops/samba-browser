@@ -41,7 +41,7 @@ const wantParts = want.split('/').map(s => s.trim()).filter(Boolean)
 let boxes = [], open = false
 for (let i = 0; i < 20 && !boxes.length; i++) {
   if (!open && i % 5 === 0) { const b = linesOf(await tree()).filter(l => /\] button "구매하기"$/.test(l)).pop(); if (b) await page.click(idOfLine(b)); await sleep(1200) }
-  for (const n of ['컬러', '사이즈', '옵션을 선택해 주세요.']) if (await combo(n)) boxes.push(n)
+  for (const n of ['컬러', '제품', '사이즈', '옵션을 선택해 주세요.']) if (await combo(n)) boxes.push(n)
   if (!boxes.length) { open = open || (await find('바로구매')).some(l => /\] button "바로구매"$/.test(l)); await sleep(500) }
 }
 if (boxes.length > 1) boxes = boxes.filter(n => n !== '옵션을 선택해 주세요.')

@@ -1113,6 +1113,9 @@ def test_주문번호는_완료_탭_주소에서도_읽는다():
     assert _source_order_no('결제가 완료되었습니다', tabs) == '202609241804480002'
     assert _source_order_no('주문번호 A12345', '') == 'A12345'
     assert _source_order_no('결제가 완료되었습니다', '[]') is None
+    # 더현대Hi 는 쿼리에 번호(실기 2026-11-02 — 못 읽어 사람이 재결제)
+    hd = 'URL: https://hi.thehyundai.com/shop/order/complete?orderNo=261102002735980\nTITLE: 일반 주문 완료'
+    assert _source_order_no(hd, '') == '261102002735980'
 
 
 @respx.mock
@@ -2001,7 +2004,11 @@ def test_같은_탭_네이버페이는_카드를_먼저_고르고_동의하고_�
     after = 'INTERACTIVE ELEMENTS:\n[3] radio "신한카드 9999"\n[4] radio "넥슨 현대카드 1234" value="on"\n[9] button "동의하고 결제하기"'
     respx.post(f'{URL}/tool/get_page').mock(side_effect=[page(before), page(after)])
     respx.post(f'{URL}/tool/find_elements').mock(
-        side_effect=[page('[4] radio "넥슨 현대카드 1234"'), page('[9] button "동의하고 결제하기"')]
+        side_effect=[
+            page('[4] radio "넥슨 현대카드 1234"'),
+            page('[9] button "동의하고 결제하기"'),
+            page('[31] textbox "비밀번호" (SECRET)'),
+        ]
     )
     click = respx.post(f'{URL}/tool/click').mock(return_value=page('ok'))
     respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
@@ -2011,6 +2018,30 @@ def test_같은_탭_네이버페이는_카드를_먼저_고르고_동의하고_�
     ids = [json.loads(c.request.content)['args']['id'] for c in click.calls]
     assert ids == [4, 9]
     assert agent_._naverpay_card_done == a.order.order_no
+
+
+@respx.mock
+def test_네이버페이_동의_클릭이_안_먹으면_한번_더_누른다(reg):
+    """실기 2026-11-02 롯데온: 동의하고 결제하기 뒤 비밀번호 화면이 안 떠 키패드 10회 없음으로 멈췄다."""
+    a = assignment(reg, dry_run=False, card='네이버페이', handoff={'cost': 49000, 'pay_card_candidates': ['넥슨 현대카드']})
+    before = 'INTERACTIVE ELEMENTS:\n[3] radio "신한카드 9999" value="on"\n[4] radio "넥슨 현대카드 1234"\n[9] button "동의하고 결제하기"'
+    after = 'INTERACTIVE ELEMENTS:\n[3] radio "신한카드 9999"\n[4] radio "넥슨 현대카드 1234" value="on"\n[9] button "동의하고 결제하기"'
+    respx.post(f'{URL}/tool/get_page').mock(side_effect=[page(before), page(after)])
+    respx.post(f'{URL}/tool/find_elements').mock(
+        side_effect=[
+            page('[4] radio "넥슨 현대카드 1234"'),
+            page('[9] button "동의하고 결제하기"'),
+            page('no elements'),
+            page('[9] button "동의하고 결제하기"'),
+            page('[31] textbox "비밀번호" (SECRET)'),
+        ]
+    )
+    click = respx.post(f'{URL}/tool/click').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/wait').mock(return_value=page('ok'))
+    respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
+    _payer_agent(reg)._naverpay_agree_after_card(a)
+    ids = [json.loads(c.request.content)['args']['id'] for c in click.calls]
+    assert ids == [4, 9, 9]
 
 
 _NP_SLIDE = (
