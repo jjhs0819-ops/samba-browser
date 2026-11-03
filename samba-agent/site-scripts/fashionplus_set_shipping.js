@@ -60,45 +60,57 @@ await page.type(idOfLine(nameL), name, false)
 const popIds = async () => (await tabs.list()).filter(t => t.kind === 'popup').map(t => t.id)
 const before = new Set(await popIds())
 const closePops = async () => { for (const id of await popIds()) if (!before.has(id)) { try { await tabs.close(id) } catch (e) {} } try { await tabs.switch(tab) } catch (e) {} }
-let why = null
-try {
-  await page.click(idOfLine(form[k]))
-  let pops = []
-  for (let i = 0; i < 20 && !pops.length; i++) { await sleep(300); pops = (await popIds()).filter(id => !before.has(id)) }
-  if (!pops.length) why = '우편번호 팝업 안 뜸'
-  else {
+// 결과를 누른 뒤 카카오가 주소를 폼에 넘기기까지 몇 초 걸릴 때가 있다 — 그 전에 팝업을 닫으면 폼이 빈 채로 남는다
+// (실기 2026-11-01 44EACA·11-03 4C35BE '주소가 폼에 안 들어감' — 같은 주소를 다시 넣으면 들어감). 팝업이 스스로 닫힐 때까지 기다리고,
+// 그래도 폼이 비면 팝업을 새로 열어 한 번 더 고른다
+const findAddress = async () => {
+  try {
+    await page.click(idOfLine(form[k]))
+    let pops = []
+    for (let i = 0; i < 20 && !pops.length; i++) { await sleep(300); pops = (await popIds()).filter(id => !before.has(id)) }
+    if (!pops.length) return '우편번호 팝업 안 뜸'
     await sleep(600)
     pops = (await popIds()).filter(id => !before.has(id))
     const pid = pops[pops.length - 1]
     await tabs.switch(pid)
     await page.waitFor(/검색/, 6000)
     const q = (await lines()).find(l => /textbox/.test(l))
-    if (!q) why = '우편번호 검색칸 없음'
-    else {
-      const tr = String(await page.type(idOfLine(q), query, true))
-      if (!/^ok/i.test(tr)) throw new Error(tr.slice(0, 60))
-      const toks = query.split(/\s+/).filter(w => /\d/.test(w) || /(로|길|동|읍|면)$/.test(w))
-      let hit = null
-      for (let i = 0; i < 16 && !hit; i++) {
-        await sleep(400)
-        // 결과 묶음 줄(clickable '검색 결과 보기 …')을 누르면 폼에 안 들어간다 — 도로명·지번 버튼을 눌러야 한다(B05369)
-        const rs = (await lines()).filter(l => /^\[\d+\] button "/.test(l) && !/지도|영문|검색|취소/.test(l))
-        hit = rs.find(l => toks.length && toks.every(w => sq(l).includes(sq(w))) && (!zipWant || l.includes(zipWant))) || rs.find(l => toks.length && toks.every(w => sq(l).includes(sq(w))))
-      }
-      if (!hit) why = '주소 검색 결과 없음'
-      else { await page.click(idOfLine(hit)); for (let i = 0; i < 10 && (await popIds()).includes(pid); i++) await sleep(300) }
+    if (!q) return '우편번호 검색칸 없음'
+    const tr = String(await page.type(idOfLine(q), query, true))
+    if (!/^ok/i.test(tr)) throw new Error(tr.slice(0, 60))
+    const toks = query.split(/\s+/).filter(w => /\d/.test(w) || /(로|길|동|읍|면)$/.test(w))
+    let hit = null
+    for (let i = 0; i < 16 && !hit; i++) {
+      await sleep(400)
+      // 결과 묶음 줄(clickable '검색 결과 보기 …')을 누르면 폼에 안 들어간다 — 도로명·지번 버튼을 눌러야 한다(B05369)
+      const rs = (await lines()).filter(l => /^\[\d+\] button "/.test(l) && !/지도|영문|검색|취소/.test(l))
+      hit = rs.find(l => toks.length && toks.every(w => sq(l).includes(sq(w))) && (!zipWant || l.includes(zipWant))) || rs.find(l => toks.length && toks.every(w => sq(l).includes(sq(w))))
     }
+    if (!hit) return '주소 검색 결과 없음'
+    await page.click(idOfLine(hit))
+    for (let i = 0; i < 30 && (await popIds()).includes(pid); i++) await sleep(300)
+    return null
+  } catch (e) { return '우편번호 팝업 조작 실패: ' + String(e && e.message || e).slice(0, 80) }
+}
+const readRoad = async n => {
+  let road = '', zip = ''
+  for (let i = 0; i < n && !road; i++) {
+    await sleep(300)
+    const f = await big()
+    road = valOf(f.find(l => l.startsWith('[' + idOfLine(roadL) + ']')))
+    zip = valOf(f.find(l => l.startsWith('[' + idOfLine(zipL) + ']')))
   }
-} catch (e) { why = '우편번호 팝업 조작 실패: ' + String(e && e.message || e).slice(0, 80) }
+  return { road, zip }
+}
+let why = await findAddress()
 await closePops()
 if (why) return fail(why, { order_tab: tab })
-
-let road = '', zip = ''
-for (let i = 0; i < 12 && !road; i++) {
-  await sleep(300)
-  const f = await big()
-  road = valOf(f.find(l => l.startsWith('[' + idOfLine(roadL) + ']')))
-  zip = valOf(f.find(l => l.startsWith('[' + idOfLine(zipL) + ']')))
+let { road, zip } = await readRoad(12)
+if (!road) {
+  why = await findAddress()
+  await closePops()
+  if (why) return fail('주소가 폼에 안 들어감(재시도: ' + why + ')', { order_tab: tab })
+  ;({ road, zip } = await readRoad(12))
 }
 if (!road) return fail('주소가 폼에 안 들어감', { order_tab: tab, name: valOf((await big()).find(l => l.startsWith('[' + idOfLine(nameL) + ']'))) })
 const valById = async id => valOf((await big()).find(l => l.startsWith('[' + id + ']')))
