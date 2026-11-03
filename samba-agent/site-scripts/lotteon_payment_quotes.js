@@ -85,13 +85,19 @@ if (rid >= 0) {
 // 창은 두 벌이 그려져 뒤쪽(번호가 큰 쪽)이 살아 있고, 전체 목록이 잘려 검색으로 찾는다(실기 2026-09-30)
 try{
   const Q=async(q,re)=>{const x=(await page.get({query:q})).tree.split('\n').filter(l=>re.test(l));return x;};
+  // 창의 할인 줄은 '하나만 켜지는 체크박스'다 — 다른 줄이 켜진 채 누르면 둘 다 꺼진다(실기 2026-11-03: 롯데카드 줄이 0원으로 읽혀
+  // 견적에서 빠지고 카카오페이가 최대로 남아 사람결제로 넘어감). 켜진 줄을 먼저 끄고 라벨을 눌러 켠 뒤 켜졌는지 확인한다
+  const sel=async id=>{for(let k=0;k<2;k++){for(const l of await Q('즉시할인',/radio ".*value="on"/)){const o=parseInt(l.slice(1));if(o!==id){await page.click(o);await sleep(800);}}
+    if((await Q('즉시할인',/radio /)).some(l=>parseInt(l.slice(1))===id&&/value="on"/.test(l)))return true;
+    await page.click(k?id:id+1);await sleep(1200);}
+    return (await Q('즉시할인',/radio /)).some(l=>parseInt(l.slice(1))===id&&/value="on"/.test(l));};
   const hb=await page.idOf('할인변경');
   if(hb>=0){
     await page.click(hb);await sleep(2000);
     const rs=(await Q('카카오페이 머니',/radio "카카오페이 머니\d+%/)).map(l=>({id:parseInt(l.slice(1)),p:+(l.match(/머니(\d+)%/)||[])[1],on:/value="on"/.test(l)}));
     const mx=rs.length?Math.max(...rs.map(x=>x.id)):0;
     const best=rs.filter(r=>r.id>mx-20).sort((a,b)=>b.p-a.p)[0];
-    if(best&&!best.on){await page.click(best.id);await sleep(1200);}
+    if(best)await sel(best.id);
     const bl=(await Q('할인혜택 받기',/button "[\d,]+원 할인혜택 받기"/)).sort((a,b)=>parseInt(b.slice(1))-parseInt(a.slice(1)))[0];
     const amt=bl?parseInt((bl.match(/"([\d,]+)원/)||[])[1].replace(/,/g,''),10):0;
     if(best&&amt>0)quotes.push({method:'카카오페이',card:null,cost:base_cost-amt,discount:'카카오페이 머니'+best.p+'% 즉시할인'});
@@ -101,10 +107,11 @@ try{
     const lmx=lr.length?Math.max(...lr.map(x=>x.id)):0;
     const lbest=lr.filter(r=>r.id>lmx-20).sort((a,b)=>b.p-a.p)[0];
     if(lbest){
-      if(!lbest.on){await page.click(lbest.id);await sleep(1200);}
+      const lok=await sel(lbest.id);
       const lb=(await Q('할인혜택 받기',/button "[\d,]+원 할인혜택 받기"/)).sort((a,b)=>parseInt(b.slice(1))-parseInt(a.slice(1)))[0];
       const lamt=lb?parseInt((lb.match(/"([\d,]+)원/)||[])[1].replace(/,/g,''),10):0;
-      if(lamt>0){
+      if(!lok)note=(note?note+' / ':'')+'롯데카드 즉시할인 줄을 켜지 못함';
+      if(lok&&lamt>0){
         for(let i=quotes.length-1;i>=0;i--)if(quotes[i].method==='간편결제'&&quotes[i].cost==null)quotes.splice(i,1);
         quotes.push({method:'간편결제',card:'롯데카드',cost:base_cost-lamt,discount:'롯데카드 '+lbest.p+'% 즉시할인'});
       }
