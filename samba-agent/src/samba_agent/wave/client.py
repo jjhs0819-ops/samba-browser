@@ -625,8 +625,9 @@ class WaveClient:
                 )
             except httpx.RemoteProtocolError:
                 # 유휴 뒤 첫 호출 — 서버가 닫은 keep-alive 연결을 재사용하다 끊긴다(실기 2026-10-11 승인 폴링).
-                # 조회(GET)만 새 연결로 딱 한 번 다시 보낸다. 쓰기는 두 번 갈 수 있어 그대로 실패로 올린다
-                if method != 'GET':
+                # 조회(GET)와 PUT(소싱 기입·상태 — 같은 값이면 덮어쓰기, 다른 번호는 409)만 새 연결로 딱 한 번 다시 보낸다.
+                # 결제 끝난 주문이 이 끊김 하나로 '삼바 기입 안 됨'에 남던 것(실기 2026-11-03 ABC). POST 는 두 번 갈 수 있어 실패로 올린다
+                if method not in ('GET', 'PUT'):
                     raise
                 r = self._client.request(
                     method,

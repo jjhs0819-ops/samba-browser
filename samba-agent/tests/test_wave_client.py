@@ -356,3 +356,26 @@ def test_행이_여럿인_번호_조회는_422_로_막힌다():
         client().get_order('X')
     assert e.value.status == 422
     assert 'ord_A' in str(e.value)
+
+
+@respx.mock
+def test_소싱_기입이_연결_끊김이면_한_번_더_보낸다():
+    # 실기 2026-11-03 ABC: 결제는 끝났는데 기입 PUT 이 keep-alive 끊김(RemoteProtocolError)으로 실패해 '삼바 기입 안 됨'에 남음
+    route = respx.put(f'{API}/orders/uuid-1/sourcing').mock(
+        side_effect=[
+            httpx.RemoteProtocolError('Server disconnected'),
+            httpx.Response(200, json={'order': {**ORDER_JSON, 'status': 'wait_ship'}}),
+        ]
+    )
+    order = client().record_sourcing('uuid-1', sourcing_order_number='2026110338386', cost=20900)
+    assert route.call_count == 2
+    assert order.status == 'wait_ship'
+
+
+@respx.mock
+def test_POST는_연결_끊김이어도_다시_보내지_않는다():
+    route = respx.post(f'{API}/x').mock(side_effect=httpx.RemoteProtocolError('Server disconnected'))
+    with pytest.raises(WaveError) as e:
+        client()._request('POST', '/x', json={})
+    assert e.value.reason is FailReason.BRIDGE_DOWN
+    assert route.call_count == 1
