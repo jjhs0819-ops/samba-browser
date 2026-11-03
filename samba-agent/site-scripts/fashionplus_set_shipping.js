@@ -1,4 +1,3 @@
-// [막힘 2026-09-27 실측] 카카오 우편번호 팝업(about:blank + postcode.map.kakao.com 프레임) 안 요소에 type 이 'element 2 not found' — 앱 page-bridge 가 팝업의 하위 프레임 id 를 못 푼다. 앱 수정 전엔 ok:false(팝업 모두 닫음)로 멈춘다
 // 패션플러스 주문서 배송지 입력 — '배송지 변경' 창(iframe)의 '새 주소 입력'에 이름·주소(우편번호 찾기 팝업)·상세주소를 넣고 되읽는다.
 // 전화 칸은 비워 두고 phone_field_id 로 알린다(하네스가 fill_secret 으로 채운다 — 한 칸, 숫자만). '등록하기'는 누르지 않는다(확정은 fashionplus_confirm_shipping)
 // 탭: args.tab > 이 레인의 패션플러스 주문서 탭 하나 · args: name, address, address_detail, postal_code, profile, tab
@@ -56,13 +55,11 @@ await page.type(idOfLine(nameL), name, false)
 // 먼저 넣으면 '등록하기'가 상세주소 누락으로 막혀 창이 안 닫힌다(실기 2026-10-22~23 확정 5건 모두 창이 33초간 안 닫힘)
 
 // 우편번호 찾기 팝업(카카오 우편번호) — 한 번에 2~3개가 뜰 수 있다. 도로명 주소로 찾아 주소 글자가 맞는 결과를 고른다.
-// 팝업 조작이 예외로 끝나도(앱 버그: 하위 프레임 요소 id 못 풂) 새로 뜬 팝업을 모두 닫고 ok:false 로 멈춘다(등록하기 없음)
+// 팝업 조작이 예외로 끝나도 새 팝업을 모두 닫고 ok:false(등록하기 없음)
 const popIds = async () => (await tabs.list()).filter(t => t.kind === 'popup').map(t => t.id)
 const before = new Set(await popIds())
 const closePops = async () => { for (const id of await popIds()) if (!before.has(id)) { try { await tabs.close(id) } catch (e) {} } try { await tabs.switch(tab) } catch (e) {} }
-// 결과를 누른 뒤 카카오가 주소를 폼에 넘기기까지 몇 초 걸릴 때가 있다 — 그 전에 팝업을 닫으면 폼이 빈 채로 남는다
-// (실기 2026-11-01 44EACA·11-03 4C35BE '주소가 폼에 안 들어감' — 같은 주소를 다시 넣으면 들어감). 팝업이 스스로 닫힐 때까지 기다리고,
-// 그래도 폼이 비면 팝업을 새로 열어 한 번 더 고른다
+// 주소 선택 뒤 폼 반영이 늦을 때 팝업을 먼저 닫으면 폼이 빈다(실기 11-03 4C35BE) — 닫힐 때까지 기다리고, 비면 한 번 더 고른다
 const findAddress = async () => {
   try {
     await page.click(idOfLine(form[k]))
