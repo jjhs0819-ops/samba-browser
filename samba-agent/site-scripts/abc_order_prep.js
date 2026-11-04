@@ -130,7 +130,7 @@ if (pts.used !== want) {
 await focus()
 const bl = lines(await page.get({ selector: 'input[placeholder*="100 단위"]', interactive: true }))[0]
 if (bl) { await page.type(parseInt(bl.slice(1)), String(want), false); await sleep(300) }
-if (await clickId(await page.idOf('포인트 적용'))) for (let i = 0; i < 15 && (await readPts()).used !== want; i++) await sleep(250)
+if (await clickId(await page.idOf('포인트 적용'))) for (let i = 0; i < 40 && (await readPts()).used !== want; i++) await sleep(250)
 pts = await readPts()
 if (pts.used !== want) return { ok: false, total: null, points_used: pts.used, note: `포인트 ${want} 적용 실패(현재 ${pts.used})` }
 }

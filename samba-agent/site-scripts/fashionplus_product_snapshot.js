@@ -1,4 +1,4 @@
-// 패션플러스 상품 스냅샷 — 옵션을 골라 바로 구매로 주문서까지(결제 없음). 2026-09-27 새 계약.
+// 패션플러스 스냅샷(결제 없음)
 const H='https://www.fashionplus.co.kr'
 const OF=/fashionplus\.co\.kr\/order\/\d+(?:[?#]|$)/
 const num=s=>parseInt(String(s||'').replace(/[^\d]/g,''),10)||0
@@ -6,6 +6,7 @@ const tabId=r=>(String(r).match(/tab (\S+)/)||[])[1]||null
 const lines=async q=>(await page.get(q ? { selector: q } : {})).tree.split('PAGE TEXT')[0].split('\n').filter(l=>/^\[\d+\]/.test(l))
 const text=async ()=>((await page.get({})).tree.split('PAGE TEXT:')[1]||'').replace(/\s+/g,' ')
 const norm=s=>String(s||'').toLowerCase().replace(/\[품절\]/g,'').replace(/[\s/·,()_-]+/g,'')
+const dup=s=>String(s||'').replace(/\(([^()]+)\)\s+\1\s*$/i,'($1)')
 const P=args.profile ? { profile: args.profile } : {}
 const sku=String(args.sku||'').trim()
 const want=String(args.size||'').trim()
@@ -29,7 +30,6 @@ const base={ already_ordered: null,existing_order_no: null,coupons: {},methods: 
 const t0=await text()
 if (!/로그아웃/.test(t0)&&/로그인/.test(t0)) return { ...base,options: [],error: 'login_required',note: '로그인 안 됨' }
 const label=s=>String(s).replace(/\s+[\d,]+\s*원?\s*(\(\d+개\))?\s*$/,'').trim()
-// 옵션 목록은 늦게 채워진다(09-30 no options)
 let optLines=await lines('.m__option-list li button')
 for(let i=0;i<10&&!optLines.length;i++){await sleep(1000);optLines=await lines('.m__option-list li button')}
 const soldIds=new Set((await lines('.m__option-list li.__option-soldout button')).map(l=>parseInt(l.slice(1))))
@@ -88,12 +88,12 @@ if (/login/i.test(ou)) return { ...skip('로그인 필요'),error: 'login_requir
 if (!OF.test(ou)) return { ...skip('주문서로 못 감: ' + ou.slice(0,80)),error: 'no_checkout' }
 const tr=(await page.get({})).tree
 const t=(tr.split('PAGE TEXT:')[1]||'').replace(/\s+/g,' ')
-// 링크 글자는 80자에서 잘린다(10-25) — 잘렸으면 옵션·수량은 본문 줄에서
 const items=[...tr.matchAll(/link "(.*?)(?: 옵션 ([^"]+?)(?: 수량(?: (\d+)개?)?)?)?" href=\/goods\/detail\/(\d+)/g)],it=items[0],tq=t.match(/ 옵션 (.+?) 수량 (\d+)개/)
+if (it?.[2]) it[2]=it[2].replace(/\s*수량\s*$/,'')
 if (it&&!it[3]&&tq&&tq[1].startsWith(it[2]||'')) { it[2]=tq[1]; it[3]=tq[2] }
 const selected=it ? it[2].trim() : null
 const order_item=it ? `${it[1]} 옵션 ${it[2]} 수량 ${it[3]} (${it[4]})` : null
-const bad=items.length!==1 ? `order items ${items.length}` : it[4]!==pno ? `goods ${it[4]} != ${pno}` : norm(selected)!==norm(pick.t) ? `option ${selected} != ${pick.t}` : num(it[3])!==qty ? `qty ${it[3]} != ${qty}` : null
+const bad=items.length!==1 ? `order items ${items.length}` : it[4]!==pno ? `goods ${it[4]} != ${pno}` : norm(dup(selected))!==norm(dup(pick.t)) ? `option ${selected} != ${pick.t}` : num(it[3])!==qty ? `qty ${it[3]} != ${qty}` : null
 if (bad) return { ...skip('주문서 불일치: ' + bad),selected,order_tab: tid,product_tab: null,error: 'order_form_mismatch' }
 const cost=num((t.match(/총 결제 예상금액 \(\d+건\) ([\d,]+)/)||[])[1])||null
 const reward=num((t.match(/총 예상 적립금 \+ ([\d,]+)/)||[])[1])
