@@ -97,7 +97,13 @@ _ADDR_DROP = re.compile(r'\([^)]*\)|특별자치도|특별자치시|특별시|�
 
 
 # 행정구역 개편으로 바뀐 이름 — 주문은 옛 이름, 사이트 주소검색은 새 이름으로 온다(인천 서구 → 서해구·검단구, 중구 → 영종구, 2026-07)
-_ADDR_RENAMED = (('서해구', '서구'), ('검단구', '서구'), ('영종구', '중구'))
+_ADDR_RENAMED = (
+    ('서해구', '서구'),
+    ('검단구', '서구'),
+    ('영종구', '중구'),
+    ('제물포구', '동구'),
+    ('제물포구', '중구'),
+)
 
 
 def _norm_address(text: str) -> str:
@@ -183,7 +189,11 @@ def shipping_matches(expected: dict[str, object], applied: dict[str, object]) ->
         return False
     gu = _SIGUNGU_RE.findall(str(expected.get('address') or ''))
     applied_text = re.sub(r'\s+', '', str(applied.get('address') or ''))
-    return not gu or any(g in applied_text for g in gu)
+    # 개편된 구 이름도 같은 곳이다(실기 2026-11-04 패플: 주문 '인천광역시 동구' ↔ 사이트 '인천 제물포구')
+    texts = [applied_text] + [
+        applied_text.replace(new, old) for new, old in _ADDR_RENAMED if new in applied_text
+    ]
+    return not gu or any(g in t for g in gu for t in texts)
 
 
 # 시·군·구 이름(광역·특별시는 표기가 '서울'·'서울특별시'로 갈려 빼고 본다)

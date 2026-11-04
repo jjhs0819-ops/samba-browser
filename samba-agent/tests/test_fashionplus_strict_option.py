@@ -8,6 +8,7 @@ import pytest
 
 from samba_agent.agents.buyer import (
     BuyerAgent,
+    shipping_matches,
     matching_options,
     sold_out_option_matches,
     strict_matching_options,
@@ -148,3 +149,14 @@ def test_괄호_글자를_뒤에_되풀이한_주문옵션은_같은_옵션이�
     assert strict_matching_options(['옵션:00(FREE)'], '00(FREE) Free') == ['옵션:00(FREE)']
     assert strict_option_key('00(FREE) M') != strict_option_key('00(FREE)')
     assert strict_matching_options(['옵션:00(M)'], '00(FREE) Free') == []
+
+
+def test_주소_시군구_대조는_개편된_구_이름도_같게_본다() -> None:
+    # 실기 2026-11-04 2026110350C731: 건물번호가 상세주소에 있고 주문은 옛 구 이름
+    want = {'name': '홍길동', 'address': '인천광역시 동구 샘플로', 'address_detail': '31, 110동 903호 (송림동)'}
+    assert shipping_matches(want, {'name': '홍길동', 'address': '인천 제물포구 샘플로 31'})
+    assert shipping_matches(
+        {**want, 'address': '인천광역시 중구 샘플로'},
+        {'name': '홍길동', 'address': '인천 제물포구 샘플로 31'},
+    )
+    assert not shipping_matches(want, {'name': '홍길동', 'address': '인천 남동구 샘플로 31'})
