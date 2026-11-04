@@ -35,7 +35,8 @@ try { await page.click(parseInt(st.slice(1))) } catch (e) {}
 await sleep(900)
 // 도로명(…로·…길)과 숫자 토큰, 호수
 const road = (addr.match(/\S+(로|길)\b/g) || []).map(sq)
-const nums = addr.replace(/^\d{5}\s*/, '').match(/\d+(-\d+)?/g) || []
+// 괄호 속 법정동·건물명은 주문서에 안 나온다 — 숫자 대조에서 뺀다(실기 11-04 55EB6E '문래동6가')
+const nums = addr.replace(/^\d{5}\s*/, '').replace(/\([^)]*\)/g, ' ').match(/\d+(-\d+)?/g) || []
 const ho = (det.match(/(\d+)\s*호/) || [])[1]
 const entries = (await big()).filter(l => /^\[\d+\] link "/.test(l) && !/"(배송지 선택|새 주소 입력|수정|본문바로가기)"/.test(l))
 const hits = entries.filter(l => {

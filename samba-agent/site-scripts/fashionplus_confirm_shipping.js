@@ -50,7 +50,8 @@ const dialogOf = r => ((String(r || '').match(/page dialog: "([^"]*)"/) || [])[1
 let msg = ''
 try { msg = dialogOf(await page.click(idOf(reg))) } catch (e) { msg = '' }
 // 주문서 배송지 블록: '배송지 정보 {이름}배송지 변경 {우편번호} {주소} {전화|배송메모}'
-const nums = addr.replace(/^\d{5}\s*/, '').match(/\d+(-\d+)?/g) || []
+// 괄호 속 법정동·건물명은 주문서에 안 나온다 — 숫자 대조에서 뺀다(실기 11-04 55EB6E '문래동6가')
+const nums = addr.replace(/^\d{5}\s*/, '').replace(/\([^)]*\)/g, ' ').match(/\d+(-\d+)?/g) || []
 const sheetOf = t => { const m = t.match(/배송지 정보 (\S+?) ?배송지 변경 (\d{5}) (.+?) (?:0\d{1,2}-?\d{3,4}-?\d{4}|배송메모)/); return m ? { name: m[1], zip: m[2], address: m[3] } : null }
 const same = b => !!b && b.name === name && nums.every(n => sq(b.address).includes(n))
 let back = null, formOpen = true, picked = false, listed = false, waited = 0

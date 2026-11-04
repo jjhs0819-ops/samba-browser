@@ -82,7 +82,7 @@ ARGS = {
 }
 
 
-def _run(tmp_path: Path, scenario: str) -> dict[str, object]:
+def _run(tmp_path: Path, scenario: str, **over: str) -> dict[str, object]:
     runner = tmp_path / 'runner.js'
     runner.write_text(RUNNER, encoding='utf-8')
     out = subprocess.run(
@@ -91,7 +91,7 @@ def _run(tmp_path: Path, scenario: str) -> dict[str, object]:
             str(runner),
             str(SCRIPTS / 'fashionplus_confirm_shipping.js'),
             scenario,
-            json.dumps(ARGS),
+            json.dumps({**ARGS, **over}),
         ],
         capture_output=True,
         text=True,
@@ -106,6 +106,12 @@ def test_등록하기로_주문서가_바뀌면_통과한다(tmp_path: Path) -> 
     got = _run(tmp_path, 'applied')
     r = got['r']
     assert r['ok'] is True and r['name'] == '홍길동' and r['zip'] == '05300'
+
+
+def test_주소_괄호_속_동네_숫자는_주문서와_대조하지_않는다(tmp_path: Path) -> None:
+    # 실기 11-04 55EB6E: '… 5 (문래동6가,…)' 의 6이 주문서에 없어 배송지가 맞게 바뀌었는데도 실패했다
+    got = _run(tmp_path, 'applied', address='서울 강동구 천중로35길 6-1 (천호동9가,그린캐슬7)')
+    assert got['r']['ok'] is True
 
 
 def test_창이_목록으로_돌아가면_새_항목을_골라_통과한다(tmp_path: Path) -> None:
