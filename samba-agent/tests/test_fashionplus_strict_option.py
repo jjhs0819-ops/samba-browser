@@ -141,3 +141,10 @@ def test_단색_상품은_색_표기가_달라도_사이즈로_고른다() -> No
     assert strict_matching_options(['CRE 105', 'BLK 105'], '크림 105') == []
     # 사이즈 글자가 다르면(AXL ↔ A2XL) 고르지 않는다
     assert strict_matching_options(['검정 A2XL', '검정 AL'], '검정 AXL') == []
+
+
+def test_괄호_글자를_뒤에_되풀이한_주문옵션은_같은_옵션이다() -> None:
+    # 실기 2026-11-03 2026110350C731: 주문 '00(FREE) Free' ↔ 선택지 '옵션:00(FREE)'
+    assert strict_matching_options(['옵션:00(FREE)'], '00(FREE) Free') == ['옵션:00(FREE)']
+    assert strict_option_key('00(FREE) M') != strict_option_key('00(FREE)')
+    assert strict_matching_options(['옵션:00(M)'], '00(FREE) Free') == []

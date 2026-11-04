@@ -67,6 +67,8 @@ if(popup){
       if(i===9){const t=g.tree.slice(g.tree.indexOf('PAGE TEXT:'));const e=t.match(/(입력해주세요|올바르지|확인해주세요)[^\n]{0,30}/);out.note='저장 안 됨: '+(e?e[0]:'폼 유지');return out;}
       await sleep(900);continue;
     }
+    // 목록은 창보다 늦게 그려진다 — 항목이 보이기 전에 읽으면 아무것도 못 고르고 넘어가 주문서가 앞 배송지로 남는다(실기 11-04 2건)
+    for(let w=0;w<16&&!/ button "수정"$/m.test(g.tree);w++){await sleep(500);g=await G();}
     let rows=g.tree.split('\n').filter(l=>/^\[\d+\] (clickable|radio|button)/.test(l)&&l.includes(args.name)&&!/수정|삭제/.test(l));
     // 방금 쓴 작업용 배송지는 이름 대신 '최근 사용' 표시로 보인다 — set_shipping 이 덮어쓴 '삭제 가능한 첫 항목'을 고른다(되읽기에서 이름·주소를 다시 본다)
     // (실기 11-02 라자다: 같은 주소의 옛 항목(괄호 뺀 번호 이름)이 골라진 채 남아 이름 불일치로 멈췄다)
@@ -79,15 +81,20 @@ if(popup){
 }
 await tabs.switch(orderTab.id);await sleep(500);
 await W('배송지',6000);
-const of=await G({query:'배송지'});
-const tx=of.tree.slice(of.tree.indexOf('PAGE TEXT:'));
-// 주문서는 긴 수취인 이름을 '앞 몇 자...'로 줄여 보인다(실기 2026-09-27: 15자 이름) — 앞 5자+ 와 ... 이면 같은 이름
-const nm=args.name||'';let hit=!!nm&&tx.includes(nm);
-for(let k=nm.length-1;!hit&&k>=5;k--)hit=tx.includes(nm.slice(0,k)+'...')||tx.includes(nm.slice(0,k)+'…');
-out.name=hit?args.name:null;
-const ad=strip(args.address||'');const nums=ad.match(/\d+/g)||[];
-const st=strip(tx);
-out.address=ad&&st.includes(ad.slice(0,12))?args.address:(nums.length&&st.includes(nums[nums.length-1])?args.address:null);
-out.ok=!!(out.name&&out.address);
+// 고른 배송지가 주문서에 늦게 반영될 수 있다 — 맞을 때까지 잠깐 다시 읽는다
+const ad=strip(args.address||'');const nums=ad.match(/\d+/g)||[];const nm=args.name||'';
+for(let r=0;r<8;r++){
+  const of=await G({query:'배송지'});
+  const tx=of.tree.slice(of.tree.indexOf('PAGE TEXT:'));
+  // 주문서는 긴 수취인 이름을 '앞 몇 자...'로 줄여 보인다(실기 2026-09-27: 15자 이름) — 앞 5자+ 와 ... 이면 같은 이름
+  let hit=!!nm&&tx.includes(nm);
+  for(let k=nm.length-1;!hit&&k>=5;k--)hit=tx.includes(nm.slice(0,k)+'...')||tx.includes(nm.slice(0,k)+'…');
+  out.name=hit?args.name:null;
+  const st=strip(tx);
+  out.address=ad&&st.includes(ad.slice(0,12))?args.address:(nums.length&&st.includes(nums[nums.length-1])?args.address:null);
+  out.ok=!!(out.name&&out.address);
+  if(out.ok)break;
+  await sleep(700);
+}
 if(!out.ok)out.note='주문서 되읽기 불일치'+(out.name?'':' (이름 없음)')+(out.address?'':' (주소 없음)')+(hadPopup?'':' (주소 창 없었음)');
 return out;

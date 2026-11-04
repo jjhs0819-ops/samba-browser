@@ -903,6 +903,8 @@ def kr_size(text: str | None) -> str | None:
 
 # 옵션 머리말('옵션:'·'옵션1 :') — 마켓 주문 옵션에 붙어 오는 것(삼바웨이브 WaveOrder.option 과 같은 규칙)
 _STRICT_PREFIX_RE = re.compile(r'(?:^|(?<=/))\s*옵션\d*\s*[:：]\s*')
+# 괄호 안 글자를 뒤에 다시 적은 표기('00(FREE) Free') — 뒷 조각은 군더더기다
+_STRICT_DUP_TAIL_RE = re.compile(r'\(([^()]+)\)\s+\1\s*$', re.IGNORECASE)
 
 
 def strict_option_key(text: str | None) -> str:
@@ -912,6 +914,7 @@ def strict_option_key(text: str | None) -> str:
     """
     t = unicodedata.normalize('NFKC', text or '')
     t = _SOLD_OUT_RE.sub('', _STRICT_PREFIX_RE.sub('', t))
+    t = _STRICT_DUP_TAIL_RE.sub(r'(\1)', t.strip())
     return re.sub(r'[\s\-_/·,:;.()\[\]{}]+', '', t).lower()
 
 
@@ -4250,8 +4253,9 @@ class BuyerAgent(AgentBase):
                     FailReason.OUT_OF_STOCK,
                 )
             # 선택지를 하나도 못 읽었고 품절 표시도 없다 — 스크립트가 못 읽은 것이지 품절이 아니다
+            # 페이지가 늦어 빈 목록이 온 경우가 있다 — 한 번 더 돌려 보고, 그래도 없으면 사람 확인(실기 2026-11-04 838)
             raise AgentFailure(
-                'needs_human',
+                'fail',
                 f'옵션 목록을 못 읽었다(품절 미확인): {a.order.sku}',
                 FailReason.UNKNOWN,
             )
@@ -5098,6 +5102,8 @@ class BuyerAgent(AgentBase):
                 # 패션플러스: 등록하기로 주소록엔 저장됐는데 창이 그대로라 주문서에 안 들어간 경우 — 목록에서 고르면 된다
                 # (실기 2026-10-24 289396·296C2F: 주소록에 저장돼 있었고, 재시도는 기존 배송지 선택으로 통과했다 — 418)
                 or '등록하기 뒤 창이 안 닫힘' in note
+                # 무신사: 저장은 됐는데 작업용 항목이 주문서에 안 들어간 경우(실기 2026-11-04 844·845, 같은 값 수동 재현은 통과)
+                or '주문서 되읽기 불일치' in note
             ) and self._select_existing_shipping(dict(shipping), account):
                 self.note('배송지 확정', '저장 뒤 목록 확인을 놓쳐 기존 배송지 선택으로 반영')
                 return

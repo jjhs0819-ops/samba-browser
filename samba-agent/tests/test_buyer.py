@@ -185,7 +185,7 @@ def test_옵션을_못_읽었으면_품절이_아니라_확인으로_넘긴다(r
     respx.post(f'{URL}/tool/progress').mock(return_value=page('ok'))
     mock_accounts()
     out = agent(reg, lambda p, m: m(choice='260', reason='x'))(assignment(reg))
-    assert (out.status, out.fail_reason) == ('needs_human', FailReason.UNKNOWN)
+    assert (out.status, out.fail_reason) == ('fail', FailReason.UNKNOWN)  # 한 번 더 돌린 뒤 사람 확인
     assert '품절 미확인' in out.reason
 
 
