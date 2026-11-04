@@ -193,7 +193,14 @@ def shipping_matches(expected: dict[str, object], applied: dict[str, object]) ->
     texts = [applied_text] + [
         applied_text.replace(new, old) for new, old in _ADDR_RENAMED if new in applied_text
     ]
-    return not gu or any(g in t for g in gu for t in texts)
+    if not gu:
+        return True
+    # 되읽은 주소에서 시·군·구를 뽑을 수 있으면 조각끼리 비교한다 — 글자 포함으로 보면 '남동구' 가 '동구' 로 통과한다
+    named = set(_SIGUNGU_RE.findall(str(applied.get('address') or '')))
+    if named:
+        named |= {old for new, old in _ADDR_RENAMED if new in named}
+        return any(g in named for g in gu)
+    return any(g in t for g in gu for t in texts)
 
 
 # 시·군·구 이름(광역·특별시는 표기가 '서울'·'서울특별시'로 갈려 빼고 본다)
