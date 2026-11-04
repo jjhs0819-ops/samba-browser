@@ -28,7 +28,7 @@ const formInfo = async () => {
   const tr = await tree(), t = textOf(tr)
   let items = linesOf(tr).filter(l => /\] checkbox ".* [\d,원]+원 \d+(개[ "]|"$)/.test(l)).map(l => l.match(/checkbox "([^"]*)"/)[1])
   // 할인 없는 상품은 상자 글자에 가격이 없다 — 화면 글자에서 그 줄 뒤 '가격 N개'를 붙인다(실기 11-02 삼바 OG)
-  if (!items.length) items = linesOf(tr).map(l => (l.match(/\] checkbox "([^"]{10,})"$/) || [])[1]).filter(Boolean).map(c => { const m = t.split(c)[1]?.match(/^ ([\d,]+원( [\d,]+원)* \d+개)/); return m && c + ' ' + m[1] }).filter(Boolean)
+  if (!items.length) items = linesOf(tr).map(l => (l.match(/\] checkbox "([^"]{10,})"$/) || [])[1]).filter(Boolean).map(c => { const m = t.split(c)[1]?.match(/^ ((?:[^ 원]+ ){0,3}[\d,]+원( [\d,]+원)* \d+개)/); return m && c + ' ' + m[1] }).filter(Boolean)
   return { tr, t, items, total: num((t.match(/결제 금액 ([\d,]+)원/) || [])[1]) }
 }
 const mismatch = f => {

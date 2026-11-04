@@ -81,7 +81,7 @@ if (!(await page.waitFor('결제하기', 10000))) return { ...base, options, err
 
 let items=[]
 for (let i=0; i < 20&&!items.length; i++) { await sleep(500); tr=await tree(); items=linesOf(tr).filter(l=>/\] checkbox ".* [\d,원]+원 \d+(개[ "]|"$)/.test(l)).map(l=>l.match(/checkbox "([^"]*)"/)[1])
-if (!items.length) { const tt=textOf(tr); items=linesOf(tr).map(l=>(l.match(/\] checkbox "([^"]{10,})"$/)||[])[1]).filter(Boolean).map(c=>{ const m=tt.split(c)[1]?.match(/^ ([\d,]+원( [\d,]+원)* \d+개)/); return m&&c+' '+m[1] }).filter(Boolean) } }
+if (!items.length) { const tt=textOf(tr); items=linesOf(tr).map(l=>(l.match(/\] checkbox "([^"]{10,})"$/)||[])[1]).filter(Boolean).map(c=>{ const m=tt.split(c)[1]?.match(/^ ((?:[^ 원]+ ){0,3}[\d,]+원( [\d,]+원)* \d+개)/); return m&&c+' '+m[1] }).filter(Boolean) } }
 if (items.length!==1) return { ...base, options, order_tab: tid, product_tab: null, error: 'order_form_mismatch', note: `주문서 불일치: order items ${items.length}` }
 const it=items[0]
 const optTxt=boxes.length?picked.join(' / '):''
