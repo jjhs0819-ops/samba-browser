@@ -287,20 +287,18 @@ def test_BC_페이코_타일은_후보에서_뺀다(musinsa) -> None:
 
 
 @respx.mock
-def test_꺼진_결제앱_타일은_누르지_않고_무신사머니(musinsa) -> None:
-    # 사용자 2026-11-05: 토스·카카오 혜택은 꺼져 있으면 사람에게 넘기지 않고 무신사머니로 결제한다
+def test_최대_타일이_결제앱이고_적용되면_pay_rule_stop(musinsa) -> None:
     calls: list = []
     read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
-    read = {**read, 'tiles': [{'name': '토스페이 × 삼성카드', 'amount': 5000}, {'name': '카카오페이 × 페이머니', 'amount': 12000}]}
     _mock(read, {'토스페이 × 삼성카드': _tile(True, method='토스페이', card='삼성카드', cost=71300)}, calls)
-    snap = _snap()
-    musinsa._apply_payment_quotes(_a(), 'buy-1', snap)
-    assert (snap['pay_method'], snap['cost']) == ('무신사머니', 76300)
-    assert [args['tile'] for _n, args in calls if args.get('mode') == 'tile'] == []
+    with pytest.raises(AgentFailure) as e:
+        musinsa._apply_payment_quotes(_a(), 'buy-1', _snap())
+    assert e.value.fail_reason is FailReason.PAY_RULE_STOP
+    assert '토스페이 × 삼성카드' in e.value.reason and '5,000' in e.value.reason
 
 
 @respx.mock
-def test_결제앱_타일을_건너뛰고_다음_카드_타일(musinsa) -> None:
+def test_결제앱_타일이_회색이면_다음_카드_타일(musinsa) -> None:
     calls: list = []
     read = {**INFO, 'pay': {**INFO['pay'], 'hyundai': {'discount': 0, 'remain': 0, 'billed': None}}}
     read = {**read, 'tiles': [{'name': 'KB Pay', 'amount': 20000}, {'name': '무신사페이 × 농협카드', 'amount': 3000}]}
