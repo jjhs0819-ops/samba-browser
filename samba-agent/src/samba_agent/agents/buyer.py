@@ -3307,7 +3307,7 @@ class BuyerAgent(AgentBase):
 
         ① 무신사페이 × 무신사 현대카드 청구할인이 남아 있으면(한도 잔여) 무조건 그 카드 — 원가는 청구 예상 금액 기준
         ② 아니면 즉시할인 타일(BC카드·페이코 제외)을 금액 큰 순으로 눌러 보고 실제로 적용되는 첫 타일.
-           그 타일이 토스·카카오 같은 결제앱이면 결제하지 않고 사람에게 넘긴다(pay_rule_stop).
+           토스·카카오 같은 결제앱 타일은 누르지 않고 건너뛴다 — 꺼져 있으면 무신사머니로(사용자 2026-11-05).
            결제창에서 오늘 예산 소진 안내를 본 타일은 건너뛴다.
         ③ 적용되는 타일이 없으면 무신사머니 — 잔액이 모자라면 결제하지 않고 사람에게(money_insufficient).
         작업 옵션 force_money=1 이면(결제창에서 프로모션 종료 안내를 봐 다시 준비하는 작업) ①② 없이 바로 ③.
@@ -3350,6 +3350,10 @@ class BuyerAgent(AgentBase):
                     # 결제창에서 오늘 예산 소진 안내를 봤다 — 타일이 켜져 보여도 할인 없이 결제된다(실기 2026-10-13)
                     self.note('결제 규칙', f'{name} 오늘 예산 소진(결제창 안내) — 건너뜀')
                     continue
+                if phone_pay_tile(name):
+                    # 주문서의 결제앱 타일은 누르기 전엔 꺼져 있다 — 눌러서 켜고 사람에게 넘기지 않는다(사용자 2026-11-05)
+                    self.note('결제 규칙', f'{name} -{amount:,.0f}원은 결제앱 혜택이라 건너뜀')
+                    continue
                 try:
                     r = run('tile', tile=name)
                 except AgentFailure as e:
@@ -3358,8 +3362,8 @@ class BuyerAgent(AgentBase):
                 if not r.get('usable'):
                     self.note('결제 규칙', mask_text(f'{name} -{amount:,.0f}원은 이 주문에 적용 안 됨({r.get("note") or r.get("method")})'))
                     continue
-                if phone_pay_tile(name) or r.get('method') != '무신사페이':
-                    # 결제앱(토스·카카오 등) 또는 눌러 보니 무신사페이가 아닌 수단 — 로봇이 낼 수 없는 결제라 사람에게
+                if r.get('method') != '무신사페이':
+                    # 눌러 보니 무신사페이가 아닌 수단 — 로봇이 낼 수 없는 결제라 사람에게
                     raise AgentFailure(
                         'needs_human',
                         f'{name} 즉시할인 -{amount:,.0f}원이 최대 — 결제앱({r.get("method") or name})이라 결제하지 않음, 사람이 결제',
