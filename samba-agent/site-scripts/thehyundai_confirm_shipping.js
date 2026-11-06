@@ -58,18 +58,23 @@ for (let k = 0; k < 3; k++) {
     await page.click(idOf(chg))
     for (let i = 0; i < 10 && !/배송지 추가/.test(textOf(tr = await tree())); i++) await sleep(500)
   }
-  await sleep(800); tr = await tree()
-  const t = textOf(tr)
-  const blocks = t.slice(t.indexOf('배송지 추가') + 6).split(/ 선택(?= |$)/).map(s => s.trim()).filter(s => / \/ /.test(s))
-  const picks = linesOf(tr).filter(l => /\] button "선택"$/.test(l))
-  let hit = -1
-  if (blocks.length >= picks.length) blocks.slice(0, picks.length).forEach((b, i) => {
-    if (hit >= 0) return
-    const who = (b.split(' / ')[1] || '').split(/ 기본| 수정/)[0]
-    const tail = b.replace(/ 배송요청사항:.*$/, '')
-    if (norm(who) === norm(name) && (zip ? tail.includes(`[${zip}]`) : key(tail) === key(addr)) && (!det || norm(tail).includes(norm(det)) || norm(tail).includes(norm(det.replace(/\s*\([^)]*\)\s*$/, ''))))) hit = i
-  })
-  if (hit < 0) return fail('저장 뒤 목록에 없음', { order_tab: tab })
+  await sleep(800)
+  // 사이트가 느리면 방금 저장한 줄이 늦게 보인다 — 한 번 읽고 바로 포기하지 않고 최대 5초 다시 읽는다(실기 11-06 5BC579)
+  let blocks = [], picks = [], hit = -1
+  for (let w = 0; w < 8 && hit < 0; w++) {
+    if (w) await sleep(700)
+    tr = await tree()
+    const t = textOf(tr)
+    blocks = t.slice(t.indexOf('배송지 추가') + 6).split(/ 선택(?= |$)/).map(s => s.trim()).filter(s => / \/ /.test(s))
+    picks = linesOf(tr).filter(l => /\] button "선택"$/.test(l))
+    if (blocks.length >= picks.length) blocks.slice(0, picks.length).forEach((b, i) => {
+      if (hit >= 0) return
+      const who = (b.split(' / ')[1] || '').split(/ 기본| 수정/)[0]
+      const tail = b.replace(/ 배송요청사항:.*$/, '')
+      if (norm(who) === norm(name) && (zip ? tail.includes(`[${zip}]`) : key(tail) === key(addr)) && (!det || norm(tail).includes(norm(det)) || norm(tail).includes(norm(det.replace(/\s*\([^)]*\)\s*$/, ''))))) hit = i
+    })
+  }
+  if (hit < 0) return fail(`저장 뒤 목록에 없음(줄 ${blocks.length}/${picks.length})`, { order_tab: tab })
   await page.click(idOf(picks[hit])); await sleep(1500)
   const m = (await tree()).match(/^OVERLAY: "배송지 목록[^"]*" .*close ids: \[(\d+)/m)
   if (m) { try { await page.click(parseInt(m[1])) } catch (e) {} await sleep(500) }

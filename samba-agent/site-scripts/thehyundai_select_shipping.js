@@ -27,16 +27,14 @@ const blocks = body.split(/ 선택(?= |$)/).map(s => s.trim()).filter(s => / \/ 
 const pickBtns = linesOf(tr).filter(l => /\] button "선택"$/.test(l))
 if (!blocks.length || blocks.length !== pickBtns.length) { await close(); return fail(`목록 해석 실패(${blocks.length}/${pickBtns.length})`, { order_tab: tab }) }
 const wantKey = key(addr), wantDet = norm(det)
-let hit = -1
-blocks.forEach((b, i) => {
-  if (hit >= 0) return
-  const nm = b.split(' / ')[0].trim()
-  if (norm(nm) !== norm(name)) return
+// 주소록 '수정'은 배송지명을 옛 고객 그대로 두고 받는 분만 바꾼다('차승화 / 이상구') — 배송지명이 같은 줄이 없으면 받는 분으로 찾는다(실기 11-06 5BC579)
+const findBy = whoOf => blocks.findIndex(b => {
+  if (norm(whoOf(b)) !== norm(name)) return false
   const tail = b.replace(/ 배송요청사항:.*$/, '')
-  if (!wantKey || key(tail) !== wantKey) return
-  if (wantDet && !norm(tail).includes(wantDet)) return
-  hit = i
+  return !!wantKey && key(tail) === wantKey && (!wantDet || norm(tail).includes(wantDet))
 })
+let hit = findBy(b => b.split(' / ')[0].trim())
+if (hit < 0) hit = findBy(b => (b.split(' / ')[1] || '').split(/ 기본| 수정/)[0])
 if (hit < 0) { await close(); return fail('목록에 없음', { order_tab: tab }) }
 await page.click(parseInt(pickBtns[hit].slice(1)))
 await sleep(1500)
