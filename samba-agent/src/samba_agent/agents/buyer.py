@@ -135,6 +135,14 @@ def road_key(address: object) -> str:
     return f'{m.group(1)}{m.group(2)}'.replace(' ', '') if m else ''
 
 
+def lotteon_safe_name(name: object) -> str:
+    """롯데온 받는 분 이름 — 괄호를 띄어쓰기로 바꾼다('김영실(신남중)' → '김영실 신남중').
+
+    롯데온은 괄호 든 이름을 '받는 분을 확인해 주세요'로 저장 거부한다(실기 2026-11-06 5E3BEC, 띄어쓰기는 통과).
+    """
+    return re.sub(r'\s+', ' ', re.sub(r'[()]', ' ', str(name or ''))).strip()
+
+
 def shipping_matches(expected: dict[str, object], applied: dict[str, object]) -> bool:
     """넣은 배송지와 사이트가 되읽어 준 배송지가 같은 곳인가.
 
@@ -4690,6 +4698,8 @@ class BuyerAgent(AgentBase):
             return
 
         shipping = self._fetch_shipping(a, snap)
+        if source_of(self.spec.name).key == 'lotteon' and shipping.get('name'):
+            shipping['name'] = lotteon_safe_name(shipping['name'])
         # 직배·선물도 같은 배송지가 이미 목록에 있으면 고른다 — 재시도마다 같은 주소가 새로 저장되던 것을 막는다
         # (실기 2026-09-27: 29CM·무신사 주소록에 같은 고객 주소가 4개 쌓임)
         # 단 reuse_saved_shipping=False(ABC)면 고르지 않는다 — 주소록 항목의 옛 고객 번호 대신 업무폰을 넣는다

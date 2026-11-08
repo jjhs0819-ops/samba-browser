@@ -2504,3 +2504,11 @@ def test_단일_주문은_선택지가_하나면_그것() -> None:
     assert matching_options(['T90(다크베이지)/999 [남은수량 : 3]'], '단일') == ['T90(다크베이지)/999 [남은수량 : 3]']
     # 선택지가 여럿이면 짐작하지 않는다
     assert matching_options(['02S(베이지)/34(55)', '571(그레이쉬블루)/34(55)'], '단일') == []
+
+
+def test_lotteon_safe_name_replaces_parentheses():
+    from samba_agent.agents.buyer import lotteon_safe_name
+
+    assert lotteon_safe_name('김영실(신남중)') == '김영실 신남중'
+    assert lotteon_safe_name('홍길동') == '홍길동'
+    assert lotteon_safe_name(None) == ''
