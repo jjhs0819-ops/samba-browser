@@ -79,9 +79,10 @@ if (/login/.test(ou)) return { ...base, options, error: 'login_required', note: 
 if (!OF.test(ou)) return { ...base, options, error: 'no_checkout', note: '주문서로 못 감: '+ou.slice(0, 80) }
 if (!(await page.waitFor('결제하기', 10000))) return { ...base, options, error: 'no_checkout', note: '주문서 로딩 실패', order_tab: tid }
 
+// 상품명이 길면 체크박스 이름이 중간('…/ 120 39,20')에서 잘린다 — 잘린 뒤 글자는 본문에서 이어 붙인다(실기 11-08 649C84)
 let items=[]
 for (let i=0; i < 20&&!items.length; i++) { await sleep(500); tr=await tree(); items=linesOf(tr).filter(l=>/\] checkbox ".* [\d,원]+원 \d+(개[ "]|"$)/.test(l)).map(l=>l.match(/checkbox "([^"]*)"/)[1])
-if (!items.length) { const tt=textOf(tr); items=linesOf(tr).map(l=>(l.match(/\] checkbox "([^"]{10,})"$/)||[])[1]).filter(Boolean).map(c=>{ const m=tt.split(c)[1]?.match(/^ ((?:[^ 원]+ ){0,3}[\d,]+원( [\d,]+원)* \d+개)/); return m&&c+' '+m[1] }).filter(Boolean) } }
+if (!items.length) { const tt=textOf(tr); items=linesOf(tr).map(l=>(l.match(/\] checkbox "([^"]{10,})"$/)||[])[1]).filter(Boolean).map(c=>{ const m=tt.split(c)[1]?.match(/^(.{0,60}?[\d,]+원(?: [\d,]+원)* \d+개)/); return m&&c+m[1] }).filter(Boolean) } }
 if (items.length!==1) return { ...base, options, order_tab: tid, product_tab: null, error: 'order_form_mismatch', note: `주문서 불일치: order items ${items.length}` }
 const it=items[0]
 const optTxt=boxes.length?picked.join(' / '):''
