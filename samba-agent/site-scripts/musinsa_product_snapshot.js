@@ -20,10 +20,12 @@ const want = nz(String(args.size || '').replace(/\b\d{7,}\b/g, ' ').replace(/옵
 const CM = { 블랙: 'black', 화이트: 'white', 네이비: 'navy', 그레이: 'gray', 베이지: 'beige', 아이보리: 'ivory', 카키: 'khaki' }
 const FREE = /^(free|f|one|onesize|os|프리|프리사이즈|원사이즈|단일)$/i
 const isFree = s=>FREE.test(lc(s).replace(/\s/g, ''))
+// '/' 띄움(68AB3F)
+const sl = s=>nz(s.replace(/\//g, ' / '))
 const toks = s=>lc(s).split(/[\s/·,:]+/).filter(Boolean)
 function hits(av, w) {
 if (!av.length || !w) return []
-const W = lc(w), T = toks(w), L = o=>lc(o.label)
+const W = lc(w), T = toks(w), L = o=>sl(lc(o.label))
 const eng = T.map(t=>CM[t] || CM[Object.keys(CM).find(k=>t.includes(k))]).filter(Boolean)
 const lead = s=>(s.match(/^\d+(?:\.\d+)?/) || [])[0]
 for (const t of [
@@ -94,7 +96,7 @@ return done(sh ? `option sold out: ${sh.label}` : av.length ? `option not matche
 }
 if (!last) O.color = c.label
 chosen.push(c.label)
-const r2 = nz(rest.replace(new RegExp(c.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ' '))
+const r2 = nz(rest.replace(new RegExp(sl(c.label).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ' '))
 if (r2) rest = r2; else { spent = true; O.options = dd.items.map(x=>x.so ? x.label + ' (품절)' : x.label) }
 await page.click(c.id)
 await sleep(400)
@@ -137,6 +139,6 @@ if (!n && O.selected) O.options = [O.selected]
 O.cost = +((tx.match(/총 결제 금액\s*(?:\d+%\s*)?([\d,]+)\s*원/) || [])[1] || '').replace(/,/g, '') || null
 const ps = tx.slice(tx.indexOf('결제 수단'))
 O.methods = ['무신사머니', '무신사페이', '토스페이', '카카오페이', '페이코', '네이버페이'].filter(m=>ps.includes(m))
-// 2026-10-12: 다른 주문서 탭은 닫지 않는다 — 승인 대기 중인 앞 주문의 주문서가 사라져 결제 직전에 멈췄다(새 주문서는 before 집합으로 찾는다)
+// 10-12: 다른 주문서 탭은 닫지 않는다(승인 대기 앞 주문 보호)
 await tabs.switch(of.id)
 return done(null)
