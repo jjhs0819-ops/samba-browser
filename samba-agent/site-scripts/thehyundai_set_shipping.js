@@ -96,6 +96,9 @@ nameL = linesOf(tr).find(l => /textbox .*name=receiver/.test(l)); phoneL = lines
 const roadL = linesOf(tr).find(l => /textbox .*name=baseAddr/.test(l)), detL = linesOf(tr).find(l => /textbox .*name=detailAddr/.test(l))
 if (!nameL || !roadL) return fail('주소 창 저장 뒤 폼이 닫힘(폼 안 보임)', { order_tab: tab })
 if (detL && detIn && norm(valOf(detL)) !== norm(detIn)) { await page.type(idOf(detL), detIn, false); await sleep(200) }
+// 주소록이 꽉 차 맨 아래 항목을 '수정'으로 덮어쓸 때 폼이 옛 받는사람을 늦게 채워 넣은 이름을 덮는다 —
+// 되읽어 다르면 다시 넣는다(실기 11-08 674696: '이름 다름'으로 멈춤)
+if (norm(valOf(nameL)) !== norm(name)) { await page.type(idOf(nameL), name, false); await sleep(200) }
 const tr2 = await tree()
 const g = re => valOf(linesOf(tr2).find(l => re.test(l)))
 const road = g(/name=baseAddr/), dt = g(/name=detailAddr/)
